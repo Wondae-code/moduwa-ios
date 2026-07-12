@@ -1,0 +1,198 @@
+{
+  "hero": {
+    "userName": "모두와",
+    "headline": "휠체어로 이용하기 좋은\n여행지를 추천드려요",
+    "caption": "같은 태그의 여행자들이 추천한 코스예요",
+    "tags": [
+      "#경사로",
+      "#휠체어",
+      "#효도여행"
+    ]
+  },
+  "placesByCategory": {
+    "stay": [
+      {
+        "id": "143025",
+        "name": "롯데호텔 제주",
+        "region": "제주 서귀포시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/46/3538946_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여료 무료",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "3044609",
+        "name": "브라운도트 호텔 대구수성점",
+        "region": "대구 수성구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/72/3054872_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여 가능",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "3372157",
+        "name": "컨피네스 오션 스위트 호텔",
+        "region": "강원 강릉시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/29/3372129_image2_1.jpg",
+        "accessibilityNote": "장애인 전용 객실 있음",
+        "feature": "barrierFreeRoom"
+      },
+      {
+        "id": "2708659",
+        "name": "라마다프라자 바이윈덤 여수",
+        "region": "전남 여수시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/05/2709005_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여 가능",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "2534394",
+        "name": "월미도 다이아몬드호텔",
+        "region": "인천 제물포구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/67/2534367_image2_1.JPG",
+        "accessibilityNote": "휠체어 대여가능",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "1960922",
+        "name": "호텔 마띠유",
+        "region": "전남 여수시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/43/3592243_image2_1.jpg",
+        "accessibilityNote": "휠체어 무료대여가능 (프런트, 1대구비)",
+        "feature": "wheelchairAccessible"
+      }
+    ],
+    "food": [
+      {
+        "id": "3444429",
+        "name": "W 옵스 드마히니",
+        "region": "부산 남구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/64/3444464_image2_1.JPG",
+        "accessibilityNote": "휠체어 사용자 이용 가능",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "2664719",
+        "name": "송강추어탕",
+        "region": "광주 서구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/20/2664720_image2_1.jpg",
+        "accessibilityNote": "대중교통 이용가능 : 현대자동차 정류장저상버스 운행 : 매월16, 송암…",
+        "feature": "flatPath"
+      },
+      {
+        "id": "2824523",
+        "name": "천안타운홀",
+        "region": "충남 천안시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/67/4058267_image2_1.jpg",
+        "accessibilityNote": "1호선 천안역 1번 출구에서 도보 7분",
+        "feature": "flatPath"
+      },
+      {
+        "id": "134030",
+        "name": "대상해",
+        "region": "서울 중구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/88/4057988_image2_1.jpg",
+        "accessibilityNote": "대중교통 이용가능 : 광화문역6번출구 정류장저상버스 운행 : 모든버스 …",
+        "feature": "flatPath"
+      },
+      {
+        "id": "2383961",
+        "name": "중앙식당",
+        "region": "서울 동작구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/59/2383959_image2_1.JPG",
+        "accessibilityNote": "대중교통 이용가능 : 노량진수산시장.CTS기독교TV 정류장.저상버스 운…",
+        "feature": "flatPath"
+      },
+      {
+        "id": "2834442",
+        "name": "아르체마레",
+        "region": "충남 금산군",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/31/2834431_image2_1.jpg",
+        "accessibilityNote": "금산터미널에서 금산읍행정복지센터 정류장으로 (732)번 승차 복수삼거리…",
+        "feature": "flatPath"
+      }
+    ],
+    "attraction": [
+      {
+        "id": "2465063",
+        "name": "강릉 녹색도시체험센터",
+        "region": "강원 강릉시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/33/3072433_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "2820546",
+        "name": "무릉별유천지",
+        "region": "강원 동해시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/08/4083808_image2_1.jpg",
+        "accessibilityNote": "쇄석장내 사무실에서 수동 휠체어 4대",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "2033464",
+        "name": "정남진 편백숲 우드랜드",
+        "region": "전남 장흥군",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource_photo/52/4072652_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여가능(매표소)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "2470392",
+        "name": "삼탄아트마인",
+        "region": "강원 정선군",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/15/3364115_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여가능",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "126796",
+        "name": "연안부두",
+        "region": "인천 제물포구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/23/3518423_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여 가능(연안부두 전망대)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "3006131",
+        "name": "가톨릭 목포 성지",
+        "region": "전남 목포시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/49/4054849_image2_1.jpg",
+        "accessibilityNote": "대여 위치 : 지하 엘리베이터 앞, 휠체어 종류: 수동 휠체어, 개수 …",
+        "feature": "wheelchairAccessible"
+      }
+    ],
+    "festival": [
+      {
+        "id": "3460731",
+        "name": "광주여성영화제",
+        "region": "광주 동구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/26/3460726_image2_1.jpg",
+        "accessibilityNote": "엘리베이터 정문 출입 후 오른쪽",
+        "feature": "flatPath"
+      },
+      {
+        "id": "2704776",
+        "name": "김대건 신부 탄생 200주년 기념행사 2021",
+        "region": "충남 당진시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/81/2704781_image2_1.JPG",
+        "accessibilityNote": "휠체어 대여가능(2대/안내데스크)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "1809861",
+        "name": "2024춘천연극제",
+        "region": "강원 춘천시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/13/3329813_image2_1.jpg",
+        "accessibilityNote": "엘리베이터 있음",
+        "feature": "flatPath"
+      },
+      {
+        "id": "2479634",
+        "name": "2023 제20회 대한민국향토식문화대전(&남북음식문화축제)",
+        "region": "서울 서초구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/98/2997698_image2_1.jpg",
+        "accessibilityNote": "엘리베이터 있음",
+        "feature": "flatPath"
+      }
+    ]
+  }
+}
