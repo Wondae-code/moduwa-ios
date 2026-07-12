@@ -5,8 +5,8 @@ struct moduwaApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
-                // moduwa-backend DB에서 조합한 번들 데이터. API 서버가 생기면 APIFeedService로 교체.
-                .environment(\.feedService, BundledFeedService())
+                // 라이브 API(moduwa-backend). MODUWA_API_KEY 미설정/네트워크 실패 시 번들 데이터로 자동 폴백.
+                .environment(\.feedService, APIFeedService())
         }
     }
 }
