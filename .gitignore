@@ -33,3 +33,6 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+# Secrets (moduwa-backend API 키 — scripts/gen-api-key.mjs로 발급, Railway API_KEYS에 등록)
+moduwa/Resources/Secrets.plist

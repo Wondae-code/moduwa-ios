@@ -15,4 +15,6 @@ struct TravelReview: Identifiable, Sendable {
     let createdAt: Date
     /// 접근성 정보가 검증된 리뷰 (카드 좌상단 ♿ 뱃지)
     let isAccessibilityVerified: Bool
+    /// 리뷰 사진 (카드 상단 2분할 슬롯 — 부족하면 플레이스홀더)
+    var imageURLs: [URL] = []
 }

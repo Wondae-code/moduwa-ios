@@ -6,11 +6,17 @@ import Foundation
 /// - 리뷰: `GET /v1/reviews`
 /// - 히어로 카드: 서버 소스가 없어 번들 값 사용
 ///
-/// **API 키**: Info.plist(또는 빌드 설정)의 `MODUWA_API_KEY` 에서 읽는다.
+/// **API 키**: 번들의 `Secrets.plist`(gitignore 대상, `Secrets.plist.example` 참고) 또는
+/// Info.plist의 `MODUWA_API_KEY` 에서 읽는다. 키는 moduwa-backend의
+/// `scripts/gen-api-key.mjs`로 발급해 배포 서버(Railway)의 `API_KEYS` 환경변수에 등록해야 한다.
 /// 키가 없거나 네트워크/디코딩이 실패하면 `BundledFeedService`(번들 JSON)로 **자동 폴백**하므로,
 /// 키 미설정 상태에서도 앱은 기존 번들 데이터로 정상 동작한다.
 struct APIFeedService: FeedService {
-    private let baseURL = URL(string: "https://moduwa-backend-production.up.railway.app")!
+    /// 로컬 백엔드 테스트: 시뮬레이터 실행 시 `SIMCTL_CHILD_MODUWA_API_BASE_URL=http://localhost:8080` 로 오버라이드
+    private let baseURL = URL(
+        string: ProcessInfo.processInfo.environment["MODUWA_API_BASE_URL"]
+            ?? "https://moduwa-backend-production.up.railway.app"
+    )!
     private let apiKey: String
     private let session: URLSession
     private let fallback = BundledFeedService()
@@ -18,8 +24,18 @@ struct APIFeedService: FeedService {
     init(apiKey: String? = nil, session: URLSession = .shared) {
         self.apiKey = apiKey
             ?? (Bundle.main.object(forInfoDictionaryKey: "MODUWA_API_KEY") as? String)
+            ?? Self.secretsKey()
             ?? ""
         self.session = session
+    }
+
+    /// 번들 Secrets.plist에서 API 키를 읽는다 (없으면 nil).
+    private static func secretsKey() -> String? {
+        guard let url = Bundle.main.url(forResource: "Secrets", withExtension: "plist"),
+              let dict = NSDictionary(contentsOf: url) as? [String: Any],
+              let key = dict["MODUWA_API_KEY"] as? String, !key.isEmpty
+        else { return nil }
+        return key
     }
 
     // 앱 카테고리 → 관광공사 contentTypeId
@@ -73,14 +89,12 @@ struct APIFeedService: FeedService {
 
     func fetchRecommendedPlaces(category: PlaceCategory, page: Int) async throws -> [Place] {
         do {
-            // 백엔드가 offset을 지원하지 않아, 필요한 페이지까지 넉넉히 받아 로컬에서 슬라이스한다.
-            // (compactMap 필터로 빠지는 항목이 있어 페이지 크기의 2배 버퍼를 둔다)
-            let limit = min((page + 1) * FeedPage.placeSize * 2, 100)
             let dtos: [BarrierFreeDTO] = try await getItems("/v1/barrier-free", [
                 .init(name: "type", value: typeId(category)),
                 .init(name: "hasImage", value: "true"),
                 .init(name: "hasAccess", value: "true"),
-                .init(name: "limit", value: "\(limit)"),
+                .init(name: "limit", value: "\(FeedPage.placeSize)"),
+                .init(name: "offset", value: "\(page * FeedPage.placeSize)"),
             ])
             let places: [Place] = dtos.compactMap { dto in
                 guard let id = dto.contentid, let name = dto.title?.trimmingCharacters(in: .whitespaces), !name.isEmpty,
@@ -97,7 +111,7 @@ struct APIFeedService: FeedService {
                     imageURL: URL(string: img)
                 )
             }
-            return places.page(page, size: FeedPage.placeSize)
+            return places
         } catch {
             return try await fallback.fetchRecommendedPlaces(category: category, page: page)
         }
@@ -113,15 +127,16 @@ struct APIFeedService: FeedService {
         let commentCount: Int
         let createdAt: String
         let isAccessibilityVerified: Bool
+        /// 구 서버 호환을 위해 옵셔널 (필드 없으면 사진 없음으로 처리)
+        let imageURLs: [String]?
     }
 
     func fetchReviews(sort: ReviewSort, page: Int) async throws -> [TravelReview] {
         do {
-            // 백엔드가 offset을 지원하지 않아, 필요한 페이지까지 받아 로컬에서 슬라이스한다.
-            let limit = min((page + 1) * FeedPage.reviewSize, 100)
             let dtos: [ReviewDTO] = try await getItems("/v1/reviews", [
                 .init(name: "sort", value: sort == .recommended ? "recommended" : "latest"),
-                .init(name: "limit", value: "\(limit)"),
+                .init(name: "limit", value: "\(FeedPage.reviewSize)"),
+                .init(name: "offset", value: "\(page * FeedPage.reviewSize)"),
             ])
             let iso = ISO8601DateFormatter()
             let reviews: [TravelReview] = dtos.map { dto in
@@ -132,10 +147,13 @@ struct APIFeedService: FeedService {
                     likeCount: dto.likeCount,
                     commentCount: dto.commentCount,
                     createdAt: iso.date(from: dto.createdAt) ?? Date(),
-                    isAccessibilityVerified: dto.isAccessibilityVerified
+                    isAccessibilityVerified: dto.isAccessibilityVerified,
+                    imageURLs: (dto.imageURLs ?? []).compactMap {
+                        URL(string: $0.replacingOccurrences(of: "http://", with: "https://"))
+                    }
                 )
             }
-            return reviews.page(page, size: FeedPage.reviewSize)
+            return reviews
         } catch {
             return try await fallback.fetchReviews(sort: sort, page: page)
         }

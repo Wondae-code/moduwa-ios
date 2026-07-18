@@ -6,12 +6,9 @@ struct ReviewCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 1) {
-                PhotoPlaceholder(label: "여행 사진")
-                PhotoPlaceholder(label: "여행 사진")
-            }
-            .frame(height: 180)
-            .clipped()
+            photoArea
+                .frame(height: 180)
+                .clipped()
             .overlay(alignment: .topLeading) {
                 if review.isAccessibilityVerified {
                     AccessibilityBadge(feature: .wheelchairAccessible, style: .inverted)
@@ -73,6 +70,66 @@ struct ReviewCard: View {
                 .stroke(Color.cardStroke, lineWidth: 1)
         )
         .shadow(color: .deepGreen.opacity(0.05), radius: 10, y: 2)
+    }
+
+    /// 사진 개수별 콜라주 레이아웃:
+    /// 1장=전체, 2장=좌우 분할, 3장=좌 1 + 우 상하 2, 4장 이상=좌 1 + 우상 1 + 우하 2(+N 오버레이)
+    @ViewBuilder
+    private var photoArea: some View {
+        let count = review.imageURLs.count
+        HStack(spacing: 1) {
+            photoSlot(0)
+            switch count {
+            case 0, 2:
+                // 사진이 없으면 기존처럼 2분할 플레이스홀더를 유지한다
+                photoSlot(1)
+            case 1:
+                EmptyView()
+            case 3:
+                VStack(spacing: 1) {
+                    photoSlot(1)
+                    photoSlot(2)
+                }
+            default:
+                VStack(spacing: 1) {
+                    photoSlot(1)
+                    HStack(spacing: 1) {
+                        photoSlot(2)
+                        photoSlot(3, overflow: count - 4)
+                    }
+                }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(count > 0 ? "리뷰 사진 \(count)장" : "리뷰 사진 없음")
+    }
+
+    /// 사진 슬롯 — 이미지가 레이아웃 크기를 결정하지 못하도록 투명 뷰 위에 오버레이한다.
+    /// `overflow`가 1 이상이면 "+N" 스크림을 얹어 더 많은 사진이 있음을 표시한다.
+    private func photoSlot(_ index: Int, overflow: Int = 0) -> some View {
+        Color.clear
+            .overlay {
+                if index < review.imageURLs.count {
+                    AsyncImage(url: review.imageURLs[index]) { image in
+                        image.resizable().scaledToFill()
+                    } placeholder: {
+                        PhotoPlaceholder(label: "여행 사진")
+                    }
+                } else {
+                    PhotoPlaceholder(label: "여행 사진")
+                }
+            }
+            .overlay {
+                if overflow > 0 {
+                    ZStack {
+                        Color.black.opacity(0.4)
+                        Text("+\(overflow)")
+                            .font(.pretendard(18, .bold))
+                            .foregroundStyle(.white)
+                    }
+                }
+            }
+            .clipped()
     }
 }
 
