@@ -143,22 +143,9 @@ struct HomeView: View {
             }
 
             if viewModel.canLoadMorePlaces {
-                Button {
+                LoadMoreButton(title: "맞춤 추천 더보기") {
                     Task { await viewModel.loadMorePlaces(using: feedService) }
-                } label: {
-                    HStack(spacing: 5) {
-                        Text("맞춤 추천 더보기")
-                            .font(.pretendard(15, .bold))
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 13, weight: .bold))
-                    }
-                    .foregroundStyle(.deepGreen)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 15)
-                    .background(Capsule().fill(.white))
-                    .overlay(Capsule().stroke(Color.cardStroke, lineWidth: 1))
                 }
-                .buttonStyle(.plain)
             }
         }
     }
@@ -177,16 +164,12 @@ struct HomeView: View {
 
             ForEach(viewModel.reviews) { review in
                 ReviewCard(review: review)
-                    .onAppear {
-                        // 마지막 카드가 보이면 다음 페이지 로드 (무한 스크롤)
-                        Task { await viewModel.loadMoreReviewsIfNeeded(after: review, using: feedService) }
-                    }
             }
 
-            if viewModel.isLoadingMoreReviews {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, Spacing.m)
+            if viewModel.canLoadMoreReviews {
+                LoadMoreButton(title: "리뷰 더보기") {
+                    Task { await viewModel.loadMoreReviews(using: feedService) }
+                }
             }
         }
     }

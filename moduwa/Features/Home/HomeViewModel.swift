@@ -61,9 +61,9 @@ final class HomeViewModel {
         canLoadMorePlaces = next.count == FeedPage.placeSize
     }
 
-    /// 리뷰 무한 스크롤 — 마지막 리뷰가 보이면 다음 페이지를 불러온다.
-    func loadMoreReviewsIfNeeded(after review: TravelReview, using service: any FeedService) async {
-        guard review.id == reviews.last?.id, canLoadMoreReviews, !isLoadingMoreReviews else { return }
+    /// "리뷰 더보기" — 다음 페이지 리뷰를 이어 붙인다.
+    func loadMoreReviews(using service: any FeedService) async {
+        guard canLoadMoreReviews, !isLoadingMoreReviews else { return }
         isLoadingMoreReviews = true
         defer { isLoadingMoreReviews = false }
 
