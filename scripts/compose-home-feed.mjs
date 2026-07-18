@@ -86,7 +86,7 @@ ORDER BY (nullif(trim(d.wheelchair),'') IS NOT NULL)::int
        + (nullif(trim(d.elevator),'') IS NOT NULL)::int
        + (nullif(trim(d.restroom),'') IS NOT NULL)::int DESC,
        p.modified_time DESC
-LIMIT 8`;
+LIMIT 50`;
 
 const placesByCategory = {};
 for (const { key, contentTypeId } of CATEGORIES) {
@@ -102,7 +102,7 @@ for (const { key, contentTypeId } of CATEGORIES) {
       accessibilityNote: picked.note,
       feature: picked.feature,
     }];
-  }).slice(0, 6);
+  }).slice(0, 30); // 페이지 크기 6 × 5페이지 — 앱의 "맞춤 추천 더보기" 데이터
 }
 
 const feed = {

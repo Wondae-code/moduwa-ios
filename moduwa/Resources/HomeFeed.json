@@ -12,6 +12,38 @@
   "placesByCategory": {
     "stay": [
       {
+        "id": "4005073",
+        "name": "윈덤강원고성호텔",
+        "region": "강원 고성군",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/75/4004975_image2_1.jpg",
+        "accessibilityNote": "로비에서 수동 휠체어 대여 가능(총 2대)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "979885",
+        "name": "무창포 비체팰리스",
+        "region": "충남 보령시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/77/1338277_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여가능(3대)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "990208",
+        "name": "롯데시티호텔 마포",
+        "region": "서울 마포구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/21/3592521_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여가능(프론트)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "986600",
+        "name": "이비스 앰배서더 수원",
+        "region": "경기 수원시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/70/3562970_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여가능",
+        "feature": "wheelchairAccessible"
+      },
+      {
         "id": "143025",
         "name": "롯데호텔 제주",
         "region": "제주 서귀포시",
@@ -57,6 +89,166 @@
         "region": "전남 여수시",
         "imageURL": "https://tong.visitkorea.or.kr/cms/resource/43/3592243_image2_1.jpg",
         "accessibilityNote": "휠체어 무료대여가능 (프런트, 1대구비)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "2478888",
+        "name": "호텔락희 광양",
+        "region": "전남 광양시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/04/3512704_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여가능",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "3464661",
+        "name": "네스트호텔",
+        "region": "인천 영종구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/15/3475015_image2_1.jpg",
+        "accessibilityNote": "휠체어 무료 대여 (2대)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "761536",
+        "name": "베스트웨스턴 하버파크호텔",
+        "region": "인천 제물포구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/52/2848252_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여가능(2대)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "970481",
+        "name": "디오션리조트",
+        "region": "전남 여수시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/78/1972178_image2_1.jpg",
+        "accessibilityNote": "장애인 객실 있음",
+        "feature": "barrierFreeRoom"
+      },
+      {
+        "id": "143090",
+        "name": "그랜드 하얏트 인천",
+        "region": "인천 영종구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/42/4070042_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여 가능(6대/데스크)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "985337",
+        "name": "선셋호텔",
+        "region": "부산 해운대구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/69/4077869_image2_1.jpg",
+        "accessibilityNote": "장애인 객실 있음 (2개)",
+        "feature": "barrierFreeRoom"
+      },
+      {
+        "id": "142851",
+        "name": "웨스틴 조선 부산",
+        "region": "부산 해운대구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/72/4078572_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여가능(2대/게스트서비스)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "232286",
+        "name": "소노캄 경주",
+        "region": "경북 경주시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/73/3583873_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여가능",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "800741",
+        "name": "하이원 팰리스호텔",
+        "region": "강원 정선군",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/99/3582199_image2_1.jpg",
+        "accessibilityNote": "휠체어대여 가능함",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "583141",
+        "name": "휘닉스 아일랜드",
+        "region": "제주 서귀포시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/51/4076251_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여가능(3대/프론트)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "984611",
+        "name": "라온호텔 앤 리조트",
+        "region": "제주 제주시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/66/4074866_image2_1.jpg",
+        "accessibilityNote": "객실 예약시 휠체어요청 가능",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "2504463",
+        "name": "L7 명동 바이 롯데호텔",
+        "region": "서울 중구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/40/2504440_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여가능",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "2710638",
+        "name": "설해원",
+        "region": "강원 양양군",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/79/4073779_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여 가능",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "2668701",
+        "name": "아일랜드 리솜",
+        "region": "충남 태안군",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/53/4073653_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여가능(2대/2층)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "2548198",
+        "name": "L7 강남 바이 롯데호텔",
+        "region": "서울 강남구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/97/2548197_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여가능",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "138195",
+        "name": "한화리조트 제주",
+        "region": "제주 제주시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/23/4073123_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여가능(2대/프론트)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "3337718",
+        "name": "라한셀렉트 경주",
+        "region": "경북 경주시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/06/3337706_image2_1.jpg",
+        "accessibilityNote": "휠체어 무료 대여(2대,안내데스크,신분증보관)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "3339599",
+        "name": "더블트리 바이 힐튼 서울 판교",
+        "region": "경기 성남시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/68/3341868_image2_1.jpg",
+        "accessibilityNote": "휠체어 무료 대여 (객실 당 1대)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "3341885",
+        "name": "더블트리 바이 힐튼 서울 판교 레지던스",
+        "region": "경기 성남시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/68/3341868_image2_1.jpg",
+        "accessibilityNote": "휠체어 무료 대여 (객실 당 1대)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "3395428",
+        "name": "보코 서울 명동",
+        "region": "서울 중구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/07/3395007_image2_1.jpeg",
+        "accessibilityNote": "휠체어 무료 대여 가능",
         "feature": "wheelchairAccessible"
       }
     ],
@@ -108,6 +300,198 @@
         "imageURL": "https://tong.visitkorea.or.kr/cms/resource/31/2834431_image2_1.jpg",
         "accessibilityNote": "금산터미널에서 금산읍행정복지센터 정류장으로 (732)번 승차 복수삼거리…",
         "feature": "flatPath"
+      },
+      {
+        "id": "1823088",
+        "name": "서귀포시축협 축산물플라자",
+        "region": "제주 서귀포시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/94/1786494_image2_1.jpg",
+        "accessibilityNote": "대중교통 이용가능 : 삼성여자고등학교 정류장.저상버스 운행 : 510번",
+        "feature": "flatPath"
+      },
+      {
+        "id": "1019521",
+        "name": "진주식당",
+        "region": "제주 서귀포시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/37/1023937_image2_1.jpg",
+        "accessibilityNote": "대중교통 이용가능 : 샛기정공원[북] 정류장.저상버스 없음.",
+        "feature": "flatPath"
+      },
+      {
+        "id": "2499812",
+        "name": "삼성패밀리뷔페",
+        "region": "경남 진주시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/10/2499810_image2_1.JPG",
+        "accessibilityNote": "대중교통 이용 가능 : 진주남중학교/제일병원 정류장<br/>저상버스 운…",
+        "feature": "flatPath"
+      },
+      {
+        "id": "836855",
+        "name": "운산",
+        "region": "서울 영등포구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/86/3586486_image2_1.jpeg",
+        "accessibilityNote": "대중교통 이용가능 : 여의도순복음교회 정류장.<br/>저상버스 운행 :…",
+        "feature": "flatPath"
+      },
+      {
+        "id": "843489",
+        "name": "클라우드32",
+        "region": "부산 해운대구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/35/3585635_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여가능(1층,안내데스크)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "2384192",
+        "name": "용궁횟집",
+        "region": "서울 동작구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/86/3570886_image2_1.jpg",
+        "accessibilityNote": "대중교통 이용가능 : 노량진수산시장.CTS기독교TV 정류장.<br/>저…",
+        "feature": "flatPath"
+      },
+      {
+        "id": "3355175",
+        "name": "허스크밀",
+        "region": "강원 강릉시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/05/3421605_image2_1.jpg",
+        "accessibilityNote": "강문해변입구 정류장에서 132m",
+        "feature": "flatPath"
+      },
+      {
+        "id": "2654144",
+        "name": "타이가든",
+        "region": "서울 중구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/68/2655168_image2_1.jpg",
+        "accessibilityNote": "대중교통 이용가능 : 롯데영플라자 정류장, 남대문세무서 정류장.<br/…",
+        "feature": "flatPath"
+      },
+      {
+        "id": "2873132",
+        "name": "무이숲",
+        "region": "경기 여주시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/21/2873121_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여 가능(1개)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "2659244",
+        "name": "옥탑방",
+        "region": "부산 기장군",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/48/2659248_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여가능(1대, 3층 매장 카운터)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "2654150",
+        "name": "더라운지 JW메리어트동대문스퀘어서울",
+        "region": "서울 종로구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/96/2655196_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여가능",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "2678871",
+        "name": "힛또",
+        "region": "대구 중구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/84/2674784_image2_1.jpg",
+        "accessibilityNote": "대중교통 이용가능 : 대백프라자앞 정류장.<br/>저상버스 운행 : 없…",
+        "feature": "flatPath"
+      },
+      {
+        "id": "2654151",
+        "name": "라세느 롯데호텔서울",
+        "region": "서울 중구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/06/2655206_image2_1.jpg",
+        "accessibilityNote": "대중교통 이용가능 : 롯데백화점 정류장<br/>저상버스 운행 : 모든버…",
+        "feature": "flatPath"
+      },
+      {
+        "id": "2914942",
+        "name": "서룡",
+        "region": "서울 마포구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/29/2914929_image2_1.jpg",
+        "accessibilityNote": "대중교통 이용 가능 : 상암DMC홍보관.YTN 정류장<br/>저상버스 …",
+        "feature": "flatPath"
+      },
+      {
+        "id": "2917486",
+        "name": "동백식탁",
+        "region": "경기 용인시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/79/2917479_image2_1.jpg",
+        "accessibilityNote": "대중교통 운행 : 골드프라자 정류장<br/>저상버스 없음.",
+        "feature": "flatPath"
+      },
+      {
+        "id": "3341436",
+        "name": "목탁봉 전망대카페",
+        "region": "충북 보은군",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/74/4085874_image2_1.jpg",
+        "accessibilityNote": "엘리베이터 있음",
+        "feature": "flatPath"
+      },
+      {
+        "id": "2910065",
+        "name": "화수목 샤브샤브",
+        "region": "경기 성남시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/55/2910055_image2_1.jpg",
+        "accessibilityNote": "건물 내 엘리베이터 있음",
+        "feature": "flatPath"
+      },
+      {
+        "id": "2845859",
+        "name": "카페더피치",
+        "region": "경기 시흥시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/52/2845852_image2_1.jpeg",
+        "accessibilityNote": "정왕역 하차 후 도보 15분",
+        "feature": "flatPath"
+      },
+      {
+        "id": "849871",
+        "name": "고향집칼국수",
+        "region": "부산 남구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/18/1866518_image2_1.jpg",
+        "accessibilityNote": "68번, 138번, 155번 버스(동명대학교 후문 하차)",
+        "feature": "flatPath"
+      },
+      {
+        "id": "3350880",
+        "name": "카페윤",
+        "region": "부산 기장군",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/93/3350893_image2_1.jpg",
+        "accessibilityNote": "엘리베이터가 설치되어 있음",
+        "feature": "flatPath"
+      },
+      {
+        "id": "3452773",
+        "name": "해남땅끝전망대카페",
+        "region": "전남 해남군",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/39/3452239_image2_1.jpg",
+        "accessibilityNote": "엘리베이터 있음",
+        "feature": "flatPath"
+      },
+      {
+        "id": "2022003",
+        "name": "십리향",
+        "region": "인천 제물포구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/64/1990464_image2_1.jpg",
+        "accessibilityNote": "휠체어 무료대여 가능함(10대)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "2542982",
+        "name": "카페 잠진도길28",
+        "region": "인천 영종구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/60/3549260_image2_1.jpg",
+        "accessibilityNote": "대중교통 이용 가능 : 거잠포선착장 정류장",
+        "feature": "flatPath"
+      },
+      {
+        "id": "3456289",
+        "name": "카페진정성",
+        "region": "광주 동구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/41/3454441_image2_1.jpg",
+        "accessibilityNote": "엘리베이터 있음",
+        "feature": "flatPath"
       }
     ],
     "attraction": [
@@ -117,6 +501,30 @@
         "region": "강원 강릉시",
         "imageURL": "https://tong.visitkorea.or.kr/cms/resource/33/3072433_image2_1.jpg",
         "accessibilityNote": "휠체어 대여",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "980192",
+        "name": "인터컨티넨탈 알펜시아 평창 리조트",
+        "region": "강원 평창군",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/59/3557559_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여가능",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "977068",
+        "name": "홀리데이인 알펜시아 평창 리조트",
+        "region": "강원 평창군",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/33/3557633_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여가능",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "973052",
+        "name": "라비돌 호텔&리조트",
+        "region": "경기 화성시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/11/3098311_image2_1.jpg",
+        "accessibilityNote": "휠체어 무료 대여(2대, 안내데스크, 신분증 보관, 대여소 연락처)",
         "feature": "wheelchairAccessible"
       },
       {
@@ -157,6 +565,174 @@
         "region": "전남 목포시",
         "imageURL": "https://tong.visitkorea.or.kr/cms/resource/49/4054849_image2_1.jpg",
         "accessibilityNote": "대여 위치 : 지하 엘리베이터 앞, 휠체어 종류: 수동 휠체어, 개수 …",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "129152",
+        "name": "오동도 등대",
+        "region": "전남 여수시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/34/3019934_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여 가능(총 8대/오동도 등대 입구 및 안쪽 각 4대/열차탑승장에 문…",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "3003620",
+        "name": "상트페테르부르크광장",
+        "region": "인천 제물포구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/32/3002032_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여 가능(연안부두 전망대)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "2464201",
+        "name": "포천아트밸리 (한탄강 유네스코 세계지질공원)",
+        "region": "경기 포천시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource_photo/11/3512111_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여가능(2대)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "2662855",
+        "name": "광교호수공원",
+        "region": "경기 수원시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/60/3588560_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여 가능(2대/매원초 정문 앞과 주차장)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "2648073",
+        "name": "거제식물원",
+        "region": "경남 거제시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/17/3521017_image2_1.jpg",
+        "accessibilityNote": "대여 위치 : 매표소, 휠체어 종류: 수동 휠체어, 개수 : 10대",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "2945376",
+        "name": "서해랑 제부도 해상케이블카",
+        "region": "경기 화성시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/36/4059436_image2_1.jpg",
+        "accessibilityNote": "대여 위치: 안내 데스크, 매표소, 승강장 / 종류: 수동 휠체어 / …",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "1125614",
+        "name": "소노벨 천안 오션어드벤처",
+        "region": "충남 천안시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/78/4060678_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여 가능함(2대 보유)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "2554029",
+        "name": "국립칠곡숲체원",
+        "region": "경북 칠곡군",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/82/3503982_image2_1.JPG",
+        "accessibilityNote": "휠체어 안내센터 내 위치예약서비스 가능, 2대,별도 준비사항 없음",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "337517",
+        "name": "국립횡성숲체원",
+        "region": "강원 횡성군",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/59/3105959_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여 가능(2대)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "2714817",
+        "name": "금강보행교(이응다리)",
+        "region": "세종 세종동",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/46/4059446_image2_1.jpg",
+        "accessibilityNote": "대여 위치: 안내 데스크 / 종류: 수동 휠체어 / 개수: 2대",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "3061177",
+        "name": "강화 화개산 모노레일",
+        "region": "인천 강화군",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/43/3000843_image2_1.jpg",
+        "accessibilityNote": "대여 위치: 매표소, 모노레일 전망대 / 종류: 수동 휠체어 / 개수:…",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "2687981",
+        "name": "경포 아쿠아리움",
+        "region": "강원 강릉시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/69/2687969_image2_1.jpg",
+        "accessibilityNote": "대여위치 : 안내 데스크/로비, 휠체어 종류 : 수동 휠체어, 개수 :…",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "2680226",
+        "name": "발왕산 관광케이블카",
+        "region": "강원 평창군",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/34/3546634_image2_1.jpg",
+        "accessibilityNote": "케이블카 탑승용 휠체어로 탑승장 안에 있음 / 7대",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "2779504",
+        "name": "한빛탑",
+        "region": "대전 유성구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/29/3564829_image2_1.jpg",
+        "accessibilityNote": "대여 위치: 안내 데스크 / 종류: 수동 휠체어 / 개수: 3대",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "2775506",
+        "name": "대전목재문화체험장",
+        "region": "대전 중구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/28/3347028_image2_1.jpg",
+        "accessibilityNote": "대여 위치: 매표소 / 종류: 수동 휠체어 / 개수: 1대",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "1997221",
+        "name": "부산 감천문화마을",
+        "region": "부산 사하구",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/91/3365491_image2_1.jpg",
+        "accessibilityNote": "대여 위치 : 마을안내센터, 휠체어 종류: 수동 휠체어, 개수 : 2대",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "136208",
+        "name": "한화리조트 경주",
+        "region": "경북 경주시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/00/3592400_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여 가능(2대/프론트)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "2638528",
+        "name": "꿀벌나라테마공원",
+        "region": "경북 칠곡군",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/10/3590810_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여가능(2대, 안내데스크)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "138185",
+        "name": "금호리조트 제주",
+        "region": "제주 서귀포시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/67/3024967_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여가능(3대/프론트)",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "143062",
+        "name": "청풍리조트",
+        "region": "충북 제천시",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/48/3583948_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여 가능함",
+        "feature": "wheelchairAccessible"
+      },
+      {
+        "id": "407051",
+        "name": "세미원",
+        "region": "경기 양평군",
+        "imageURL": "https://tong.visitkorea.or.kr/cms/resource/90/3447890_image2_1.jpg",
+        "accessibilityNote": "휠체어 대여 가능(5대/판매점, 신분증 보관)",
         "feature": "wheelchairAccessible"
       }
     ],
