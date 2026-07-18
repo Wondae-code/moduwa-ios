@@ -12,6 +12,6 @@ enum Spacing {
 
 enum Radius {
     static let badge: CGFloat = 8
-    static let card: CGFloat = 16
-    static let sheet: CGFloat = 20
+    static let card: CGFloat = 18
+    static let sheet: CGFloat = 22
 }

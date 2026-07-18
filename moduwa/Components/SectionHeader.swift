@@ -11,7 +11,7 @@ struct SectionHeader: View {
                 .font(.sectionTitle)
                 .foregroundStyle(.textPrimary)
             Text(subtitle)
-                .font(.meta13)
+                .font(.pretendard(14))
                 .foregroundStyle(.textSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

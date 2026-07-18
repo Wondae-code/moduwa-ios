@@ -7,7 +7,7 @@ struct RootView: View {
                 .tabItem { Label("피드", image: "home") }
 
             PlanView()
-                .tabItem { Label("플랜", image: "explore") }
+                .tabItem { Label("계획", image: "explore") }
 
             ScheduleView()
                 .tabItem { Label("일정", image: "calendar_month") }

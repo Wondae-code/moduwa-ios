@@ -7,14 +7,14 @@ struct PlaceCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             photo
-                .frame(height: 108)
+                .frame(height: 120)
                 .clipped()
                 .overlay(alignment: .topLeading) {
                     AccessibilityBadge(feature: place.feature)
                         .padding(8)
                 }
 
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(place.name)
                     .font(.cardTitle)
                     .foregroundStyle(.textPrimary)
@@ -24,18 +24,17 @@ struct PlaceCard: View {
                     Image("location_on")
                         .renderingMode(.template)
                     Text(place.region)
-                        .font(.meta13)
+                        .font(.caption12)
                 }
                 .foregroundStyle(.textSecondary)
 
                 if let rating = place.rating {
-                    HStack(spacing: 3) {
+                    HStack(spacing: 4) {
                         Image("star")
                             .renderingMode(.template)
                             .foregroundStyle(.deepGreen)
                         Text(rating, format: .number.precision(.fractionLength(1)))
                             .font(.meta13)
-                            .fontWeight(.semibold)
                             .foregroundStyle(.textPrimary)
                     }
                 }
@@ -45,7 +44,9 @@ struct PlaceCard: View {
                     .foregroundStyle(.textSecondary)
                     .lineLimit(1)
             }
-            .padding(10)
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
+            .padding(.bottom, 14)
         }
         .background(.white)
         .clipShape(RoundedRectangle(cornerRadius: Radius.card))
@@ -53,6 +54,7 @@ struct PlaceCard: View {
             RoundedRectangle(cornerRadius: Radius.card)
                 .stroke(Color.cardStroke, lineWidth: 1)
         )
+        .shadow(color: .deepGreen.opacity(0.05), radius: 10, y: 2)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilitySummary)
         .accessibilityAddTraits(.isButton)
@@ -84,10 +86,10 @@ struct PlaceCard: View {
 }
 
 #Preview {
-    HStack {
+    HStack(spacing: 14) {
         PlaceCard(place: MockData.recommendedPlaces[0])
         PlaceCard(place: MockData.recommendedPlaces[2])
     }
     .padding()
-    .background(Color.appBackground)
+    .background(Color.photoPlaceholder)
 }

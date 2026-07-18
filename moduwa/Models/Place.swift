@@ -18,13 +18,13 @@ enum PlaceCategory: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// Assets.xcassets의 아이콘 이름 (디자이너 제공 SVG)
+    /// Assets.xcassets의 아이콘 이름 (Figma "모두와 UI" 커스텀 아이콘)
     var iconName: String {
         switch self {
-        case .stay: "hotel"
-        case .food: "restaurant"
-        case .attraction: "photo_camera"
-        case .festival: "celebration"
+        case .stay: "category_stay"
+        case .food: "category_food"
+        case .attraction: "category_attraction"
+        case .festival: "category_festival"
         }
     }
 }
@@ -33,12 +33,32 @@ enum AccessibilityFeature: String, Sendable, Decodable {
     case wheelchairAccessible
     case flatPath
     case barrierFreeRoom
+    // 브랜드 가이드 접근성 아이콘 5종에 맞춘 확장 (백엔드 속성 연동은 추후)
+    case hearingFriendly
+    case visuallyImpairedFriendly
+    case elderlyFriendly
+    case childFriendly
 
     var label: String {
         switch self {
         case .wheelchairAccessible: "휠체어 접근"
         case .flatPath: "평탄 동선"
         case .barrierFreeRoom: "무장애 객실"
+        case .hearingFriendly: "청각 지원"
+        case .visuallyImpairedFriendly: "시각 지원"
+        case .elderlyFriendly: "고령자 친화"
+        case .childFriendly: "유아 동반"
+        }
+    }
+
+    /// 뱃지 아이콘 (Figma 접근성 아이콘 5종)
+    var iconName: String {
+        switch self {
+        case .wheelchairAccessible, .flatPath, .barrierFreeRoom: "access_wheelchair"
+        case .hearingFriendly: "access_hearing"
+        case .visuallyImpairedFriendly: "access_visual"
+        case .elderlyFriendly: "access_elderly"
+        case .childFriendly: "access_child"
         }
     }
 }

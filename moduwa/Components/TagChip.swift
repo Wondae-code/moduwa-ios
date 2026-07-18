@@ -6,12 +6,12 @@ struct TagChip: View {
 
     var body: some View {
         Text(text)
-            .font(.chip14)
+            .font(.pretendard(13, .bold))
             .foregroundStyle(.deepGreen)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
             .overlay(
-                Capsule().stroke(Color.deepGreen.opacity(0.5), lineWidth: 1)
+                Capsule().stroke(Color.deepGreen, lineWidth: 1)
             )
     }
 }

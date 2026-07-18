@@ -4,7 +4,7 @@ import Foundation
 enum MockData {
     static let heroRecommendation = HeroRecommendation(
         userName: "모두와",
-        headline: "휠체어로 이용하기 좋은\n여행지를 추천드려요",
+        headline: "휠체어로 이동하기 좋은 코스를 추천드려요",
         caption: "같은 태그의 여행자들이 추천한 코스예요",
         tags: ["#경사로", "#휠체어", "#효도여행"]
     )
@@ -25,18 +25,18 @@ enum MockData {
             name: "강릉 오션뷰 호텔",
             region: "강원 강릉시",
             rating: 4.7,
-            accessibilityNote: "엘리베이터·경사로 완비",
-            feature: .wheelchairAccessible,
+            accessibilityNote: "음성 안내판·점자블록 있음",
+            feature: .visuallyImpairedFriendly,
             category: .stay,
             imageURL: nil
         ),
         Place(
             id: "mock-stay-3",
-            name: "경주 한옥 스테이 담",
+            name: "경주 한옥 스테이",
             region: "경북 경주시",
             rating: 4.8,
-            accessibilityNote: "마당까지 무단차 연결",
-            feature: .flatPath,
+            accessibilityNote: "휠체어·유모차 대여 가능",
+            feature: .childFriendly,
             category: .stay,
             imageURL: nil
         ),
@@ -45,8 +45,8 @@ enum MockData {
             name: "해운대 베이 리조트",
             region: "부산 해운대구",
             rating: 4.6,
-            accessibilityNote: "전용 주차·램프 제공",
-            feature: .barrierFreeRoom,
+            accessibilityNote: "보청기 제공",
+            feature: .hearingFriendly,
             category: .stay,
             imageURL: nil
         ),

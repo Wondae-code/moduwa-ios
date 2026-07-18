@@ -7,8 +7,8 @@ struct HomeView: View {
     @State private var isSortPickerPresented = false
 
     private let gridColumns = [
-        GridItem(.flexible(), spacing: 12),
-        GridItem(.flexible(), spacing: 12),
+        GridItem(.flexible(), spacing: 14),
+        GridItem(.flexible(), spacing: 14),
     ]
 
     var body: some View {
@@ -16,16 +16,11 @@ struct HomeView: View {
             VStack(spacing: 0) {
                 topSection
                 recommendationSection
-                    .padding(.horizontal, Spacing.l)
+                    .padding(.horizontal, Spacing.xl)
                     .padding(.vertical, Spacing.xl)
 
-                Rectangle()
-                    .fill(Color.appBackground)
-                    .frame(height: 8)
-                    .accessibilityHidden(true)
-
                 reviewSection
-                    .padding(.horizontal, Spacing.l)
+                    .padding(.horizontal, Spacing.xl)
                     .padding(.vertical, Spacing.xl)
             }
         }
@@ -50,14 +45,20 @@ struct HomeView: View {
                 .accessibilityLabel("검색")
 
                 Button {} label: {
-                    // 알림 벨 에셋은 아직 미제공 — SF Symbol 유지
+                    // 알림 벨 에셋은 아직 미제공 — SF Symbol 유지 (시안은 Material Symbols 글리프)
                     Image(systemName: "bell")
                         .font(.system(size: 19, weight: .medium))
                         .overlay(alignment: .topTrailing) {
-                            Circle().fill(.brandGreen).frame(width: 6, height: 6)
+                            // 새 알림이 있을 때만 도트 표시
+                            if viewModel.hasNewNotifications {
+                                Circle()
+                                    .fill(.deepGreen)
+                                    .stroke(.white, lineWidth: 1)
+                                    .frame(width: 7, height: 7)
+                            }
                         }
                 }
-                .accessibilityLabel("알림, 새 알림 있음")
+                .accessibilityLabel(viewModel.hasNewNotifications ? "알림, 새 알림 있음" : "알림")
 
                 Button {} label: {
                     Image("hamburger")
@@ -73,31 +74,32 @@ struct HomeView: View {
 
     // MARK: - 상단 (헤더 + 히어로, 배경 공유)
 
-    private var heroGradientTop: Color {
-        Color(hex: 0xE0F3A6)
-    }
-
     /// 헤더와 히어로 카드가 하나의 그라데이션 배경을 공유하며 함께 스크롤된다.
+    /// Figma: #CAF354 → 흰색 그라디언트 (히어로 카드 하단 부근에서 흰색 도달)
     private var topSection: some View {
         VStack(spacing: 0) {
             headerBar
             if let hero = viewModel.hero {
                 HeroCard(recommendation: hero)
-                    .padding(.horizontal, Spacing.l)
+                    .padding(.horizontal, Spacing.xl)
                     .padding(.top, Spacing.m)
                     .padding(.bottom, Spacing.xl)
             }
         }
         .background(
             LinearGradient(
-                colors: [heroGradientTop, Color(hex: 0xF3FADC), .white],
+                stops: [
+                    .init(color: .gradientLime, location: 0),
+                    .init(color: .gradientLime, location: 0.3),
+                    .init(color: .white, location: 1),
+                ],
                 startPoint: .top,
                 endPoint: .bottom
             )
         )
         .background(alignment: .top) {
             // 상태바 뒤와 오버스크롤(바운스) 영역까지 배경이 이어지도록 위로 연장
-            heroGradientTop
+            Color.gradientLime
                 .frame(height: 1000)
                 .offset(y: -1000)
         }
@@ -122,7 +124,7 @@ struct HomeView: View {
                 }
             }
 
-            LazyVGrid(columns: gridColumns, spacing: 12) {
+            LazyVGrid(columns: gridColumns, spacing: 14) {
                 ForEach(viewModel.places) { place in
                     PlaceCard(place: place)
                 }
@@ -131,19 +133,17 @@ struct HomeView: View {
             Button {
                 // TODO: 추천 더보기
             } label: {
-                HStack(spacing: 6) {
+                HStack(spacing: 5) {
                     Text("맞춤 추천 더보기")
-                        .font(.pretendard(15, .semiBold))
+                        .font(.pretendard(15, .bold))
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 13, weight: .bold))
                 }
                 .foregroundStyle(.deepGreen)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .overlay(
-                    RoundedRectangle(cornerRadius: Radius.card)
-                        .stroke(Color.cardStroke, lineWidth: 1)
-                )
+                .padding(.vertical, 15)
+                .background(Capsule().fill(.white))
+                .overlay(Capsule().stroke(Color.cardStroke, lineWidth: 1))
             }
             .buttonStyle(.plain)
         }
@@ -173,15 +173,16 @@ struct HomeView: View {
         Button {
             isSortPickerPresented = true
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: 5) {
                 Text(viewModel.reviewSort.rawValue)
-                    .font(.chip14)
+                    .font(.pretendard(14, .bold))
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 12, weight: .bold))
             }
-            .foregroundStyle(.textPrimary)
+            .foregroundStyle(.deepGreen)
             .padding(.horizontal, 14)
-            .padding(.vertical, 8)
+            .padding(.vertical, 10)
+            .background(Capsule().fill(.white))
             .overlay(Capsule().stroke(Color.cardStroke, lineWidth: 1))
             .contentShape(Capsule())
         }

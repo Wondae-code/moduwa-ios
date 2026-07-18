@@ -9,6 +9,8 @@ final class HomeViewModel {
     private(set) var reviews: [TravelReview] = []
     private(set) var selectedCategory: PlaceCategory = .stay
     private(set) var reviewSort: ReviewSort = .recommended
+    /// 새 알림 여부 — 뱃지 도트 표시용. 알림 API 연동 전까지 기본 false.
+    private(set) var hasNewNotifications = false
 
     func loadInitial(using service: any FeedService) async {
         // TODO: API 연동 시 로딩/에러 상태 추가

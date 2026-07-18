@@ -108,7 +108,7 @@ for (const { key, contentTypeId } of CATEGORIES) {
 const feed = {
   hero: {
     userName: '모두와',
-    headline: '휠체어로 이용하기 좋은\n여행지를 추천드려요',
+    headline: '휠체어로 이동하기 좋은 코스를 추천드려요',
     caption: '같은 태그의 여행자들이 추천한 코스예요',
     tags: ['#경사로', '#휠체어', '#효도여행'],
   },

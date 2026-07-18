@@ -149,7 +149,7 @@ struct APIFeedService: FeedService {
     }
 
     /// 뱃지 우선순위: 휠체어 > (숙소)무장애 객실 > 평탄 동선(접근로/엘리베이터/화장실) > 객실
-    static func pickFeature(_ dto: BarrierFreeDTO, _ category: PlaceCategory) -> (feature: AccessibilityFeature, note: String)? {
+    private static func pickFeature(_ dto: BarrierFreeDTO, _ category: PlaceCategory) -> (feature: AccessibilityFeature, note: String)? {
         let wheelchair = cleanNote(dto.wheelchair)
         let room = cleanNote(dto.room)
         let route = cleanNote(dto.route)

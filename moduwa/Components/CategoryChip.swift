@@ -8,21 +8,25 @@ struct CategoryChip: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 5) {
+            HStack(spacing: 2) {
                 Image(category.iconName)
                     .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 22)
                 Text(category.rawValue)
-                    .font(.chip14)
+                    .font(.pretendard(14, isSelected ? .bold : .regular))
             }
-            .foregroundStyle(isSelected ? .white : .textPrimary)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
+            .foregroundStyle(isSelected ? Color.white : .textSecondary)
+            .padding(.horizontal, 15)
+            .frame(height: 36)
             .background(
                 Capsule().fill(isSelected ? Color.deepGreen : .white)
             )
             .overlay(
-                Capsule().stroke(isSelected ? Color.clear : Color.cardStroke, lineWidth: 1)
+                Capsule().stroke(isSelected ? Color.deepGreen : .cardStroke, lineWidth: 1)
             )
+            .shadow(color: isSelected ? .deepGreen.opacity(0.18) : .clear, radius: 4, y: 2)
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -33,6 +37,7 @@ struct CategoryChip: View {
     HStack {
         CategoryChip(category: .stay, isSelected: true) {}
         CategoryChip(category: .food, isSelected: false) {}
+        CategoryChip(category: .attraction, isSelected: false) {}
     }
     .padding()
 }

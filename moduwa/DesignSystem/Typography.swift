@@ -16,7 +16,7 @@ extension Font {
     // 시맨틱 스타일 — Figma 메인화면 실측 기준
     static let heroTitle = pretendard(24, .bold, relativeTo: .title2)
     static let sectionTitle = pretendard(20, .bold, relativeTo: .title3)
-    static let cardTitle = pretendard(16, .semiBold, relativeTo: .headline)
+    static let cardTitle = pretendard(16, .bold, relativeTo: .headline)
     static let body15 = pretendard(15, .regular, relativeTo: .body)
     static let chip14 = pretendard(14, .medium, relativeTo: .subheadline)
     static let meta13 = pretendard(13, .regular, relativeTo: .footnote)
