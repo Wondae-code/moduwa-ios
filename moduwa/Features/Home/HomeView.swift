@@ -37,10 +37,12 @@ struct HomeView: View {
 
             Spacer()
 
-            HStack(spacing: 18) {
+            // Figma: 아이콘마다 25×25 정렬 박스, 간격 10
+            HStack(spacing: 10) {
                 Button {} label: {
                     Image("search")
                         .renderingMode(.template)
+                        .frame(width: 25, height: 25)
                 }
                 .accessibilityLabel("검색")
 
@@ -48,6 +50,7 @@ struct HomeView: View {
                     // 알림 벨 에셋은 아직 미제공 — SF Symbol 유지 (시안은 Material Symbols 글리프)
                     Image(systemName: "bell")
                         .font(.system(size: 19, weight: .medium))
+                        .frame(width: 25, height: 25)
                         .overlay(alignment: .topTrailing) {
                             // 새 알림이 있을 때만 도트 표시
                             if viewModel.hasNewNotifications {
@@ -55,6 +58,7 @@ struct HomeView: View {
                                     .fill(.deepGreen)
                                     .stroke(.white, lineWidth: 1)
                                     .frame(width: 7, height: 7)
+                                    .offset(x: -1, y: 1)
                             }
                         }
                 }
@@ -63,12 +67,15 @@ struct HomeView: View {
                 Button {} label: {
                     Image("hamburger")
                         .renderingMode(.template)
+                        .frame(width: 25, height: 25)
                 }
                 .accessibilityLabel("메뉴")
             }
             .foregroundStyle(.textPrimary)
         }
-        .padding(.horizontal, Spacing.l)
+        // Figma header: 로고 좌측 28, 아이콘 우측 24 (비대칭), 아이콘 간격 10
+        .padding(.leading, 28)
+        .padding(.trailing, 24)
         .padding(.vertical, 10)
     }
 
@@ -114,6 +121,7 @@ struct HomeView: View {
                 subtitle: "온보딩 정보를 바탕으로 골라봤어요"
             )
 
+            // 칩 스크롤은 섹션 좌우 마진을 뚫고 화면 끝까지 보이게 한다 (음수 패딩 + 내부 인셋)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(PlaceCategory.allCases) { category in
@@ -122,7 +130,11 @@ struct HomeView: View {
                         }
                     }
                 }
+                .padding(.horizontal, Spacing.xl)
+                .padding(.vertical, 6) // 선택 칩 그림자가 잘리지 않도록
             }
+            .padding(.horizontal, -Spacing.xl)
+            .padding(.vertical, -6)
 
             LazyVGrid(columns: gridColumns, spacing: 14) {
                 ForEach(viewModel.places) { place in
@@ -130,22 +142,24 @@ struct HomeView: View {
                 }
             }
 
-            Button {
-                // TODO: 추천 더보기
-            } label: {
-                HStack(spacing: 5) {
-                    Text("맞춤 추천 더보기")
-                        .font(.pretendard(15, .bold))
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 13, weight: .bold))
+            if viewModel.canLoadMorePlaces {
+                Button {
+                    Task { await viewModel.loadMorePlaces(using: feedService) }
+                } label: {
+                    HStack(spacing: 5) {
+                        Text("맞춤 추천 더보기")
+                            .font(.pretendard(15, .bold))
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 13, weight: .bold))
+                    }
+                    .foregroundStyle(.deepGreen)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 15)
+                    .background(Capsule().fill(.white))
+                    .overlay(Capsule().stroke(Color.cardStroke, lineWidth: 1))
                 }
-                .foregroundStyle(.deepGreen)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 15)
-                .background(Capsule().fill(.white))
-                .overlay(Capsule().stroke(Color.cardStroke, lineWidth: 1))
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
     }
 
@@ -163,6 +177,16 @@ struct HomeView: View {
 
             ForEach(viewModel.reviews) { review in
                 ReviewCard(review: review)
+                    .onAppear {
+                        // 마지막 카드가 보이면 다음 페이지 로드 (무한 스크롤)
+                        Task { await viewModel.loadMoreReviewsIfNeeded(after: review, using: feedService) }
+                    }
+            }
+
+            if viewModel.isLoadingMoreReviews {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, Spacing.m)
             }
         }
     }

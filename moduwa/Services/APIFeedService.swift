@@ -71,13 +71,16 @@ struct APIFeedService: FeedService {
         let restroom: String?
     }
 
-    func fetchRecommendedPlaces(category: PlaceCategory) async throws -> [Place] {
+    func fetchRecommendedPlaces(category: PlaceCategory, page: Int) async throws -> [Place] {
         do {
+            // 백엔드가 offset을 지원하지 않아, 필요한 페이지까지 넉넉히 받아 로컬에서 슬라이스한다.
+            // (compactMap 필터로 빠지는 항목이 있어 페이지 크기의 2배 버퍼를 둔다)
+            let limit = min((page + 1) * FeedPage.placeSize * 2, 100)
             let dtos: [BarrierFreeDTO] = try await getItems("/v1/barrier-free", [
                 .init(name: "type", value: typeId(category)),
                 .init(name: "hasImage", value: "true"),
                 .init(name: "hasAccess", value: "true"),
-                .init(name: "limit", value: "30"),
+                .init(name: "limit", value: "\(limit)"),
             ])
             let places: [Place] = dtos.compactMap { dto in
                 guard let id = dto.contentid, let name = dto.title?.trimmingCharacters(in: .whitespaces), !name.isEmpty,
@@ -94,9 +97,9 @@ struct APIFeedService: FeedService {
                     imageURL: URL(string: img)
                 )
             }
-            return Array(places.prefix(6))
+            return places.page(page, size: FeedPage.placeSize)
         } catch {
-            return try await fallback.fetchRecommendedPlaces(category: category)
+            return try await fallback.fetchRecommendedPlaces(category: category, page: page)
         }
     }
 
@@ -112,14 +115,16 @@ struct APIFeedService: FeedService {
         let isAccessibilityVerified: Bool
     }
 
-    func fetchReviews(sort: ReviewSort) async throws -> [TravelReview] {
+    func fetchReviews(sort: ReviewSort, page: Int) async throws -> [TravelReview] {
         do {
+            // 백엔드가 offset을 지원하지 않아, 필요한 페이지까지 받아 로컬에서 슬라이스한다.
+            let limit = min((page + 1) * FeedPage.reviewSize, 100)
             let dtos: [ReviewDTO] = try await getItems("/v1/reviews", [
                 .init(name: "sort", value: sort == .recommended ? "recommended" : "latest"),
-                .init(name: "limit", value: "20"),
+                .init(name: "limit", value: "\(limit)"),
             ])
             let iso = ISO8601DateFormatter()
-            return dtos.map { dto in
+            let reviews: [TravelReview] = dtos.map { dto in
                 TravelReview(
                     author: dto.author,
                     location: dto.location,
@@ -130,8 +135,9 @@ struct APIFeedService: FeedService {
                     isAccessibilityVerified: dto.isAccessibilityVerified
                 )
             }
+            return reviews.page(page, size: FeedPage.reviewSize)
         } catch {
-            return try await fallback.fetchReviews(sort: sort)
+            return try await fallback.fetchReviews(sort: sort, page: page)
         }
     }
 

@@ -8,10 +8,15 @@ struct PlaceCard: View {
         VStack(alignment: .leading, spacing: 0) {
             photo
                 .frame(height: 120)
+                .frame(maxWidth: .infinity)
                 .clipped()
                 .overlay(alignment: .topLeading) {
-                    AccessibilityBadge(feature: place.feature)
-                        .padding(8)
+                    // 사진 위에서는 흰 원 + 딥그린 아이콘, 플레이스홀더 위에서는 딥그린 원 + 흰 아이콘
+                    AccessibilityBadge(
+                        feature: place.feature,
+                        style: place.imageURL != nil ? .inverted : .filled
+                    )
+                    .padding(8)
                 }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -60,18 +65,21 @@ struct PlaceCard: View {
         .accessibilityAddTraits(.isButton)
     }
 
+    /// 이미지가 레이아웃 크기를 결정하지 못하도록 투명 뷰 위에 오버레이한다.
+    /// (scaledToFill 이미지의 원본 폭이 그리드 셀을 밀어내 카드 폭이 어긋나는 문제 방지)
     private var photo: some View {
-        Group {
-            if let imageURL = place.imageURL {
-                AsyncImage(url: imageURL) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: {
+        Color.clear
+            .overlay {
+                if let imageURL = place.imageURL {
+                    AsyncImage(url: imageURL) { image in
+                        image.resizable().scaledToFill()
+                    } placeholder: {
+                        PhotoPlaceholder()
+                    }
+                } else {
                     PhotoPlaceholder()
                 }
-            } else {
-                PhotoPlaceholder()
             }
-        }
     }
 
     private var accessibilitySummary: String {

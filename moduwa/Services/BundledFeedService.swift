@@ -44,8 +44,9 @@ struct BundledFeedService: FeedService {
         )
     }
 
-    func fetchRecommendedPlaces(category: PlaceCategory) async throws -> [Place] {
-        let dtos = try loadFeed().placesByCategory[category.apiKey] ?? []
+    func fetchRecommendedPlaces(category: PlaceCategory, page: Int) async throws -> [Place] {
+        let dtos = (try loadFeed().placesByCategory[category.apiKey] ?? [])
+            .page(page, size: FeedPage.placeSize)
         return dtos.map { dto in
             Place(
                 id: dto.id,
@@ -60,8 +61,8 @@ struct BundledFeedService: FeedService {
         }
     }
 
-    func fetchReviews(sort: ReviewSort) async throws -> [TravelReview] {
+    func fetchReviews(sort: ReviewSort, page: Int) async throws -> [TravelReview] {
         // 백엔드에 리뷰/평점 데이터가 아직 없다 — 목으로 대체
-        try await MockFeedService().fetchReviews(sort: sort)
+        try await MockFeedService().fetchReviews(sort: sort, page: page)
     }
 }

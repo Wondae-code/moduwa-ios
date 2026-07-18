@@ -4,7 +4,7 @@ enum PlaceCategory: String, CaseIterable, Identifiable, Sendable {
     case stay = "숙소"
     case food = "맛집"
     case attraction = "관광지"
-    case festival = "축제·공연"
+    case festival = "축제·공연·전시"
 
     var id: String { rawValue }
 

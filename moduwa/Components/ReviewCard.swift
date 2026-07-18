@@ -20,13 +20,13 @@ struct ReviewCard: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 12) {
+                HStack(spacing: 9) {
                     Circle()
                         .fill(Color.deepGreen)
-                        .frame(width: 28, height: 28)
+                        .frame(width: 36, height: 36)
                         .overlay(
                             Text(String(review.author.prefix(1)))
-                                .font(.pretendard(12, .bold))
+                                .font(.pretendard(14, .bold))
                                 .foregroundStyle(.white)
                         )
                     VStack(alignment: .leading, spacing: 1) {
