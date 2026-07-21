@@ -97,9 +97,10 @@ struct KakaoMapView: UIViewRepresentable {
             )
             let layer = manager.addLabelLayer(option: layerOptions)
 
-            // 카카오맵 공식 핀 아이콘 (디자인 시안의 kakao_map 에셋)
+            // SDK 번들의 카카오 기본 파란 핀 (없으면 앱의 kakao_map 에셋으로 폴백)
+            let symbol = Self.kakaoBundledPin() ?? UIImage(named: "kakao_map")
             let iconStyle = PoiIconStyle(
-                symbol: UIImage(named: "kakao_map"),
+                symbol: symbol,
                 anchorPoint: CGPoint(x: 0.5, y: 1.0)
             )
             let poiStyle = PoiStyle(
@@ -110,6 +111,22 @@ struct KakaoMapView: UIViewRepresentable {
 
             let poi = layer?.addPoi(option: PoiOptions(styleID: "placePinStyle"), at: position)
             poi?.show()
+        }
+
+        /// SDK 리소스 번들에 포함된 카카오 기본 핀(search_ico_pin_map, 76×104px)을
+        /// 화면 크기에 맞게 축소해 반환한다.
+        private static func kakaoBundledPin() -> UIImage? {
+            guard let bundleURL = Bundle.main.url(
+                forResource: "KakaoMapsSDK-SPM_KakaoMapsSDK-SPM", withExtension: "bundle"
+            ), let bundle = Bundle(url: bundleURL) else { return nil }
+            let path = bundle.bundlePath + "/assets/svc/images/symbols/search_ico_pin_map.png"
+            guard let raw = UIImage(contentsOfFile: path) else { return nil }
+            // 원본은 1x 취급이라 그대로 쓰면 과대 — 높이 38pt로 축소
+            let targetHeight: CGFloat = 38
+            let targetSize = CGSize(width: raw.size.width * targetHeight / raw.size.height, height: targetHeight)
+            return UIGraphicsImageRenderer(size: targetSize).image { _ in
+                raw.draw(in: CGRect(origin: .zero, size: targetSize))
+            }
         }
 
         func authenticationFailed(_ errorCode: Int, desc: String) {
