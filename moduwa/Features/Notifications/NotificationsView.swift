@@ -10,6 +10,10 @@ struct NotificationsView: View {
         VStack(spacing: 0) {
             headerBar
 
+            #if DEBUG
+            debugBanner
+            #endif
+
             if store.items.isEmpty {
                 emptyState
             } else {
@@ -37,23 +41,6 @@ struct NotificationsView: View {
                 .accessibilityAddTraits(.isHeader)
 
             Spacer()
-
-            #if DEBUG
-            // 디버그 전용 — mock 알림 추가/비우기
-            HStack(spacing: 12) {
-                Button { store.addMockNotification() } label: {
-                    Image(systemName: "plus.circle")
-                        .font(.system(size: 18, weight: .medium))
-                }
-                .accessibilityLabel("목 알림 추가 (디버그)")
-                Button { store.removeAll() } label: {
-                    Image(systemName: "trash")
-                        .font(.system(size: 16, weight: .medium))
-                }
-                .accessibilityLabel("알림 전체 삭제 (디버그)")
-            }
-            .foregroundStyle(.textSecondary)
-            #endif
         }
         .foregroundStyle(.textPrimary)
         .padding(.leading, 28)
@@ -64,6 +51,43 @@ struct NotificationsView: View {
             Rectangle().fill(Color.cardStroke).frame(height: 1)
         }
     }
+
+    #if DEBUG
+    /// 디버그 전용 배너 — 의도적으로 브랜드 디자인과 어긋나게(주황·점선·모노스페이스)
+    /// 만들어 임시 도구임이 한눈에 보이게 한다. 알림 API 연동 시 통째로 제거.
+    private var debugBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "wrench.and.screwdriver.fill")
+                .font(.system(size: 12))
+            Text("DEBUG")
+                .font(.system(size: 12, weight: .heavy, design: .monospaced))
+            Spacer()
+            Button("+ 목 알림") { store.addMockNotification() }
+                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(.orange, in: RoundedRectangle(cornerRadius: 4))
+                .foregroundStyle(.white)
+            Button("비우기") { store.removeAll() }
+                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(.gray, in: RoundedRectangle(cornerRadius: 4))
+                .foregroundStyle(.white)
+        }
+        .foregroundStyle(.orange)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.orange.opacity(0.12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .strokeBorder(.orange, style: StrokeStyle(lineWidth: 1.5, dash: [5, 3]))
+        )
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .accessibilityLabel("디버그 도구: 목 알림 추가, 비우기")
+    }
+    #endif
 
     private var emptyState: some View {
         VStack(spacing: 10) {
