@@ -11,6 +11,8 @@ struct PlaceDetailView: View {
     @State private var isOverviewExpanded = false
     /// 사진 위 원형 뱃지 중 선택된 유형 — 선택 시에만 안내 칩을 띄운다
     @State private var selectedFeature: AccessibilityFeature?
+    /// 카카오맵 엔진은 지도 영역이 화면에 나타난 뒤 활성화해야 한다
+    @State private var isMapVisible = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -307,7 +309,9 @@ struct PlaceDetailView: View {
                 if let latitude = detail?.latitude, let longitude = detail?.longitude,
                    Secrets.kakaoNativeAppKey != nil {
                     // 임베드 카카오맵 — 보기 전용, 제스처는 스크롤에 양보하고 조작은 카카오맵 앱으로
-                    KakaoMapView(latitude: latitude, longitude: longitude)
+                    KakaoMapView(latitude: latitude, longitude: longitude, draw: $isMapVisible)
+                        .onAppear { isMapVisible = true }
+                        .onDisappear { isMapVisible = false }
                         .allowsHitTesting(false)
                         .overlay {
                             // 중심 좌표 핀 (끝점이 중심을 가리키도록 절반 올림)
