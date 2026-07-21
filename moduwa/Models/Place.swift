@@ -73,5 +73,7 @@ struct Place: Identifiable, Hashable, Sendable {
     let accessibilityNote: String
     let feature: AccessibilityFeature
     let category: PlaceCategory
+    /// 통합 검색 API의 관광 타입 라벨. 홈 피드에는 별도 표기가 없어 `nil`이다.
+    var categoryLabel: String? = nil
     let imageURL: URL?
 }

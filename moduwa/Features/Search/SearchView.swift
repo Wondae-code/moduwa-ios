@@ -1,13 +1,13 @@
 import SwiftUI
 
 /// 검색 화면 (Figma "모두와 UI — 서브 > 검색").
-/// 검색 API(moduwa-backend#3) 확정 전이라 입력·최근 검색어 관리까지만 동작하고,
-/// 검색 실행 시엔 준비 중 안내를 보여준다.
 struct SearchView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.placeSearchService) private var placeSearchService
     @FocusState private var isFieldFocused: Bool
     @State private var query = ""
-    @State private var submittedQuery: String?
+    @State private var searchRequest: SearchRequest?
+    @State private var searchState: SearchState = .idle
     /// 최근 검색어 — 기기 로컬 저장 (최대 10개, 최신순)
     @AppStorage("recentSearches") private var recentSearchesData = Data()
 
@@ -19,15 +19,12 @@ struct SearchView: View {
         VStack(spacing: 0) {
             headerBar
 
-            if let submitted = submittedQuery {
-                preparingState(for: submitted)
-            } else {
-                idleContent
-            }
+            content
         }
         .background(.white)
         .toolbar(.hidden, for: .navigationBar)
         .onAppear { isFieldFocused = true }
+        .task(id: searchRequest) { await loadSearchResults() }
     }
 
     // MARK: - 헤더 (뒤로가기 + 검색 입력 필드)
@@ -53,12 +50,14 @@ struct SearchView: View {
                     .submitLabel(.search)
                     .onSubmit { submit(query) }
                     .onChange(of: query) {
-                        if query.isEmpty { submittedQuery = nil }
+                        if query != searchRequest?.term {
+                            searchRequest = nil
+                            searchState = .idle
+                        }
                     }
                 if !query.isEmpty {
                     Button {
                         query = ""
-                        submittedQuery = nil
                         isFieldFocused = true
                     } label: {
                         Image(systemName: "xmark.circle.fill")
@@ -117,11 +116,94 @@ struct SearchView: View {
         }
     }
 
-    // MARK: - 검색 실행 후 (API 준비 중)
+    // MARK: - 검색 결과
 
-    private func preparingState(for term: String) -> some View {
+    @ViewBuilder
+    private var content: some View {
+        switch searchState {
+        case .idle:
+            idleContent
+        case .loading:
+            loadingState
+        case let .results(page):
+            resultsState(page)
+        case .empty:
+            emptyState
+        case .failed:
+            failedState
+        }
+    }
+
+    private var loadingState: some View {
         VStack(spacing: 10) {
             Spacer()
+            ProgressView()
+                .tint(.deepGreen)
+            Text("검색 결과를 불러오는 중이에요")
+                .font(.pretendard(18, .bold))
+                .foregroundStyle(.textPrimary)
+                .padding(.top, 4)
+            Spacer()
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func resultsState(_ page: PlaceSearchPage) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Spacing.s) {
+                Text("검색 결과 \(page.total)")
+                    .font(.meta13)
+                    .foregroundStyle(.textSecondary)
+                    .accessibilityAddTraits(.isHeader)
+
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(page.items.enumerated()), id: \.element.id) { index, place in
+                        NavigationLink(value: place) {
+                            SearchResultRow(place: place)
+                        }
+                        .buttonStyle(.plain)
+
+                        if index < page.items.count - 1 {
+                            Rectangle()
+                                .fill(Color.photoPlaceholder)
+                                .frame(height: 1)
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, Spacing.xl)
+            .padding(.top, Spacing.l)
+            .padding(.bottom, Spacing.xl)
+        }
+    }
+
+    private var emptyState: some View {
+        searchMessageState(
+            title: "검색 결과가 없어요",
+            subtitle: "다른 장소 이름이나 지역으로 검색해 보세요"
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var failedState: some View {
+        VStack(spacing: 14) {
+            searchMessageState(
+                title: "검색 결과를 불러오지 못했어요",
+                subtitle: "네트워크를 확인한 뒤 다시 시도해 주세요"
+            )
+            Button("다시 시도") { retrySearch() }
+                .font(.pretendard(14, .bold))
+                .foregroundStyle(.deepGreen)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 10)
+                .overlay(Capsule().stroke(.deepGreen, lineWidth: 1))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func searchMessageState(title: String, subtitle: String) -> some View {
+        VStack(spacing: 10) {
             Circle()
                 .fill(Color.photoPlaceholder)
                 .frame(width: 96, height: 96)
@@ -133,15 +215,13 @@ struct SearchView: View {
                         .frame(width: 36, height: 36)
                         .foregroundStyle(.iconGray)
                 }
-            Text("‘\(term)’ 검색 결과를 준비 중이에요")
+            Text(title)
                 .font(.pretendard(18, .bold))
                 .foregroundStyle(.textPrimary)
                 .padding(.top, 4)
-            Text("장소 검색 기능이 곧 열릴 예정이에요")
+            Text(subtitle)
                 .font(.pretendard(14))
                 .foregroundStyle(.textSecondary)
-            Spacer()
-            Spacer()
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
@@ -155,12 +235,116 @@ struct SearchView: View {
         var next = recentSearches.filter { $0 != trimmed }
         next.insert(trimmed, at: 0)
         saveRecentSearches(Array(next.prefix(10)))
-        submittedQuery = trimmed
+        searchState = .loading
+        searchRequest = SearchRequest(term: trimmed)
         isFieldFocused = false
+    }
+
+    private func retrySearch() {
+        guard let term = searchRequest?.term else { return }
+        searchState = .loading
+        searchRequest = SearchRequest(term: term)
+    }
+
+    private func loadSearchResults() async {
+        guard let request = searchRequest else { return }
+
+        do {
+            let page = try await placeSearchService.searchPlaces(query: request.term, limit: 20, offset: 0)
+            guard !Task.isCancelled, searchRequest == request else { return }
+            searchState = page.items.isEmpty ? .empty : .results(page)
+        } catch is CancellationError {
+            // 새 검색어가 입력되면 이전 요청은 자동으로 취소된다.
+        } catch {
+            guard !Task.isCancelled, searchRequest == request else { return }
+            searchState = .failed
+        }
     }
 
     private func saveRecentSearches(_ items: [String]) {
         recentSearchesData = (try? JSONEncoder().encode(items)) ?? Data()
+    }
+
+    private struct SearchRequest: Hashable {
+        let term: String
+        private let id = UUID()
+    }
+
+    private enum SearchState {
+        case idle
+        case loading
+        case results(PlaceSearchPage)
+        case empty
+        case failed
+    }
+}
+
+/// Figma "검색 — 결과"의 56pt 썸네일 목록 행.
+private struct SearchResultRow: View {
+    let place: Place
+
+    var body: some View {
+        HStack(spacing: Spacing.m) {
+            thumbnail
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(place.name)
+                        .font(.cardTitle)
+                        .foregroundStyle(.textPrimary)
+                        .lineLimit(1)
+
+                    accessibilityBadge
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Text("\(place.region) · \(place.categoryLabel ?? place.category.rawValue)")
+                    .font(.meta13)
+                    .foregroundStyle(.textSecondary)
+                    .lineLimit(1)
+            }
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.iconGray)
+                .frame(width: 20, height: 20)
+        }
+        .padding(.vertical, Spacing.m)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(place.name), \(place.region), \(place.categoryLabel ?? place.category.rawValue), \(place.feature.label)")
+        .accessibilityHint("장소 상세 보기")
+    }
+
+    private var thumbnail: some View {
+        Color.photoPlaceholder
+            .frame(width: 56, height: 56)
+            .overlay {
+                if let imageURL = place.imageURL {
+                    AsyncImage(url: imageURL) { image in
+                        image.resizable().scaledToFill()
+                    } placeholder: {
+                        Color.photoPlaceholder
+                    }
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .accessibilityHidden(true)
+    }
+
+    private var accessibilityBadge: some View {
+        Circle()
+            .fill(Color.deepGreen)
+            .frame(width: 20, height: 20)
+            .overlay {
+                Image("access_wheelchair")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 13, height: 13)
+                    .foregroundStyle(.white)
+            }
+            .accessibilityHidden(true)
     }
 }
 
