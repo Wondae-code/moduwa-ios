@@ -12,19 +12,25 @@ struct HomeView: View {
     ]
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                topSection
-                recommendationSection
-                    .padding(.horizontal, Spacing.xl)
-                    .padding(.vertical, Spacing.xl)
+        // 헤더는 스크롤 밖에 두어 상단에 고정한다 (Figma: top 프레임 sticky)
+        VStack(spacing: 0) {
+            headerBar
+                .background(Color.gradientLime.ignoresSafeArea(edges: .top))
 
-                reviewSection
-                    .padding(.horizontal, Spacing.xl)
-                    .padding(.vertical, Spacing.xl)
+            ScrollView {
+                VStack(spacing: 0) {
+                    heroSection
+                    recommendationSection
+                        .padding(.horizontal, Spacing.xl)
+                        .padding(.vertical, Spacing.xl)
+
+                    reviewSection
+                        .padding(.horizontal, Spacing.xl)
+                        .padding(.vertical, Spacing.xl)
+                }
             }
+            .background(.white)
         }
-        .background(.white)
         .task { await viewModel.loadInitial(using: feedService) }
     }
 
@@ -81,11 +87,10 @@ struct HomeView: View {
 
     // MARK: - 상단 (헤더 + 히어로, 배경 공유)
 
-    /// 헤더와 히어로 카드가 하나의 그라데이션 배경을 공유하며 함께 스크롤된다.
+    /// 히어로 카드 영역 — 고정 헤더의 라임색에서 이어지는 그라데이션 배경.
     /// Figma: #CAF354 → 흰색 그라디언트 (히어로 카드 하단 부근에서 흰색 도달)
-    private var topSection: some View {
+    private var heroSection: some View {
         VStack(spacing: 0) {
-            headerBar
             if let hero = viewModel.hero {
                 HeroCard(recommendation: hero)
                     .padding(.horizontal, Spacing.xl)
@@ -93,11 +98,12 @@ struct HomeView: View {
                     .padding(.bottom, Spacing.xl)
             }
         }
+        .frame(maxWidth: .infinity)
         .background(
             LinearGradient(
                 stops: [
                     .init(color: .gradientLime, location: 0),
-                    .init(color: .gradientLime, location: 0.3),
+                    .init(color: .gradientLime, location: 0.15),
                     .init(color: .white, location: 1),
                 ],
                 startPoint: .top,
@@ -105,7 +111,7 @@ struct HomeView: View {
             )
         )
         .background(alignment: .top) {
-            // 상태바 뒤와 오버스크롤(바운스) 영역까지 배경이 이어지도록 위로 연장
+            // 오버스크롤(바운스) 영역까지 라임 배경이 이어지도록 위로 연장
             Color.gradientLime
                 .frame(height: 1000)
                 .offset(y: -1000)
