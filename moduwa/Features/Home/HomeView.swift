@@ -12,24 +12,30 @@ struct HomeView: View {
     ]
 
     var body: some View {
-        // 헤더는 스크롤 밖에 두어 상단에 고정한다 (Figma: top 프레임 sticky)
-        VStack(spacing: 0) {
-            headerBar
-                .background(Color.gradientLime.ignoresSafeArea(edges: .top))
+        NavigationStack {
+            // 헤더는 스크롤 밖에 두어 상단에 고정한다 (Figma: top 프레임 sticky)
+            VStack(spacing: 0) {
+                headerBar
+                    .background(Color.gradientLime.ignoresSafeArea(edges: .top))
 
-            ScrollView {
-                VStack(spacing: 0) {
-                    heroSection
-                    recommendationSection
-                        .padding(.horizontal, Spacing.xl)
-                        .padding(.vertical, Spacing.xl)
+                ScrollView {
+                    VStack(spacing: 0) {
+                        heroSection
+                        recommendationSection
+                            .padding(.horizontal, Spacing.xl)
+                            .padding(.vertical, Spacing.xl)
 
-                    reviewSection
-                        .padding(.horizontal, Spacing.xl)
-                        .padding(.vertical, Spacing.xl)
+                        reviewSection
+                            .padding(.horizontal, Spacing.xl)
+                            .padding(.vertical, Spacing.xl)
+                    }
                 }
+                .background(.white)
             }
-            .background(.white)
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: Place.self) { place in
+                PlaceDetailView(place: place)
+            }
         }
         .task { await viewModel.loadInitial(using: feedService) }
     }
@@ -144,7 +150,10 @@ struct HomeView: View {
 
             LazyVGrid(columns: gridColumns, spacing: 14) {
                 ForEach(viewModel.places) { place in
-                    PlaceCard(place: place)
+                    NavigationLink(value: place) {
+                        PlaceCard(place: place)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
 

@@ -65,4 +65,28 @@ struct BundledFeedService: FeedService {
         // 백엔드에 리뷰/평점 데이터가 아직 없다 — 목으로 대체
         try await MockFeedService().fetchReviews(sort: sort, page: page)
     }
+
+    func fetchPlaceDetail(contentId: String) async throws -> PlaceDetail {
+        // 번들엔 상세(28속성)가 없다 — 목록 데이터로 최소 구성
+        let feed = try loadFeed()
+        for dtos in feed.placesByCategory.values {
+            guard let dto = dtos.first(where: { $0.id == contentId }) else { continue }
+            return PlaceDetail(
+                id: dto.id,
+                name: dto.name,
+                address: dto.region,
+                imageURL: URL(string: dto.imageURL),
+                rating: nil,
+                reviewCount: nil,
+                overview: nil,
+                info: [],
+                accessibilityFeatures: [dto.feature],
+                accessibilityNotes: [dto.accessibilityNote],
+                cautionTags: [],
+                latitude: nil,
+                longitude: nil
+            )
+        }
+        throw LoadError.missingResource
+    }
 }

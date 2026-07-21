@@ -15,6 +15,8 @@ protocol FeedService: Sendable {
     func fetchRecommendedPlaces(category: PlaceCategory, page: Int) async throws -> [Place]
     /// `page`는 0부터. `FeedPage.reviewSize`보다 적게 반환되면 마지막 페이지다.
     func fetchReviews(sort: ReviewSort, page: Int) async throws -> [TravelReview]
+    /// 장소 상세 (무장애 속성 포함)
+    func fetchPlaceDetail(contentId: String) async throws -> PlaceDetail
 }
 
 extension EnvironmentValues {

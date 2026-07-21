@@ -117,6 +117,106 @@ struct APIFeedService: FeedService {
         }
     }
 
+    // MARK: - Place Detail
+
+    /// 무장애 28속성 상세 DTO — 카테고리 매핑에 쓰는 필드만 디코딩
+    private struct BarrierFreeDetailDTO: Decodable {
+        let contentid: String?
+        let title: String?
+        let addr1: String?
+        let addr2: String?
+        let firstimage: String?
+        let mapx: Double?
+        let mapy: Double?
+
+        // 지체장애인(이동) 계열
+        let wheelchair: String?
+        let exit: String?
+        let elevator: String?
+        let route: String?
+        let parking: String?
+        let restroom: String?
+        let publictransport: String?
+        let ticketoffice: String?
+        let promotion: String?
+        let auditorium: String?
+        let room: String?
+        let handicapetc: String?
+        // 시각장애인 계열
+        let braileblock: String?
+        let helpdog: String?
+        let guidehuman: String?
+        let audioguide: String?
+        let bigprint: String?
+        let brailepromotion: String?
+        let guidesystem: String?
+        let blindhandicapetc: String?
+        // 청각장애인 계열
+        let signguide: String?
+        let videoguide: String?
+        let hearingroom: String?
+        let hearinghandicapetc: String?
+        // 유아동반 계열
+        let stroller: String?
+        let lactationroom: String?
+        let babysparechair: String?
+        let infantsfamilyetc: String?
+    }
+
+    func fetchPlaceDetail(contentId: String) async throws -> PlaceDetail {
+        do {
+            guard !apiKey.isEmpty else { throw APIError.notConfigured }
+            var req = URLRequest(url: baseURL.appending(path: "/v1/barrier-free/\(contentId)"))
+            req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+            let (data, resp) = try await session.data(for: req)
+            guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                throw APIError.badStatus((resp as? HTTPURLResponse)?.statusCode ?? -1)
+            }
+            let dto = try JSONDecoder().decode(BarrierFreeDetailDTO.self, from: data)
+
+            // 접근성 유형별 속성 그룹 → 뱃지 + bullet 문장
+            let groups: [(AccessibilityFeature, [String?])] = [
+                (.wheelchairAccessible, [dto.wheelchair, dto.exit, dto.elevator, dto.route, dto.parking,
+                                         dto.restroom, dto.publictransport, dto.ticketoffice, dto.promotion,
+                                         dto.auditorium, dto.room, dto.handicapetc]),
+                (.visuallyImpairedFriendly, [dto.braileblock, dto.helpdog, dto.guidehuman, dto.audioguide,
+                                             dto.bigprint, dto.brailepromotion, dto.guidesystem, dto.blindhandicapetc]),
+                (.hearingFriendly, [dto.signguide, dto.videoguide, dto.hearingroom, dto.hearinghandicapetc]),
+                (.childFriendly, [dto.stroller, dto.lactationroom, dto.babysparechair, dto.infantsfamilyetc]),
+            ]
+            var features: [AccessibilityFeature] = []
+            var notes: [String] = []
+            for (feature, values) in groups {
+                let cleaned = values.compactMap { Self.cleanNote($0) }
+                if !cleaned.isEmpty { features.append(feature) }
+                notes.append(contentsOf: cleaned)
+            }
+
+            let img = (dto.firstimage ?? "").replacingOccurrences(of: "http://", with: "https://")
+            let address = [dto.addr1, dto.addr2]
+                .compactMap { $0?.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+            return PlaceDetail(
+                id: dto.contentid ?? contentId,
+                name: dto.title?.trimmingCharacters(in: .whitespaces) ?? "",
+                address: address,
+                imageURL: URL(string: img),
+                rating: nil,      // 평점·리뷰수 데이터 소스 없음
+                reviewCount: nil,
+                overview: nil,    // 상세 API에 설명(overview) 미노출
+                info: [],         // 운영시간 등 기본정보 미노출
+                accessibilityFeatures: features,
+                accessibilityNotes: notes,
+                cautionTags: [],
+                latitude: dto.mapy,
+                longitude: dto.mapx
+            )
+        } catch {
+            return try await fallback.fetchPlaceDetail(contentId: contentId)
+        }
+    }
+
     // MARK: - Reviews
 
     private struct ReviewDTO: Decodable {

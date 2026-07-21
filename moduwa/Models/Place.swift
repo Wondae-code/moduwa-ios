@@ -63,7 +63,7 @@ enum AccessibilityFeature: String, Sendable, Decodable {
     }
 }
 
-struct Place: Identifiable, Sendable {
+struct Place: Identifiable, Hashable, Sendable {
     /// 관광공사 contentId (목 데이터는 "mock-*")
     let id: String
     let name: String
