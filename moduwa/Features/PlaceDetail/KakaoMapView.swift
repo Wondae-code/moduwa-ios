@@ -121,8 +121,8 @@ struct KakaoMapView: UIViewRepresentable {
             ), let bundle = Bundle(url: bundleURL) else { return nil }
             let path = bundle.bundlePath + "/assets/svc/images/symbols/search_ico_pin_map.png"
             guard let raw = UIImage(contentsOfFile: path) else { return nil }
-            // 원본은 1x 취급이라 그대로 쓰면 과대 — 높이 38pt로 축소
-            let targetHeight: CGFloat = 38
+            // 원본은 1x 취급이라 그대로 쓰면 과대 — 높이 19pt로 축소
+            let targetHeight: CGFloat = 19
             let targetSize = CGSize(width: raw.size.width * targetHeight / raw.size.height, height: targetHeight)
             return UIGraphicsImageRenderer(size: targetSize).image { _ in
                 raw.draw(in: CGRect(origin: .zero, size: targetSize))
