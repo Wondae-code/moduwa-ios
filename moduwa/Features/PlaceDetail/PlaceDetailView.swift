@@ -335,9 +335,16 @@ struct PlaceDetailView: View {
                         .accessibilityHidden(true)
                 }
             }
-            .frame(height: 126)
-            .overlay(Rectangle().stroke(Color.cardStroke, lineWidth: 1))
-            .padding(.horizontal, 52)
+            // 풀블리드 — 기존 박스 비율(289:126) 유지한 채 화면 폭에 맞춰 확대
+            .frame(maxWidth: .infinity)
+            .aspectRatio(289.0 / 126.0, contentMode: .fit)
+            .clipped()
+            .overlay(alignment: .top) {
+                Rectangle().fill(Color.cardStroke).frame(height: 1)
+            }
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(Color.cardStroke).frame(height: 1)
+            }
 
             Button {
                 if let url = detail?.kakaoMapURL { openURL(url) }
@@ -353,7 +360,7 @@ struct PlaceDetailView: View {
                 }
             }
             .buttonStyle(.plain)
-            .padding(.trailing, 52)
+            .padding(.trailing, Spacing.xl)
             .disabled(detail?.kakaoMapURL == nil)
             .accessibilityLabel("카카오맵에서 보기")
         }

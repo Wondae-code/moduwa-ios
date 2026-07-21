@@ -27,6 +27,8 @@ struct KakaoMapView: UIViewRepresentable {
         } else {
             context.coordinator.pauseEngine()
         }
+        // 레이아웃 확정 후 지도 서피스를 실제 크기에 맞춘다 — 초기 프레임과 어긋나면 비율이 깨져 보인다
+        context.coordinator.syncViewRect(uiView.bounds.size)
     }
 
     static func dismantleUIView(_ uiView: KMViewContainer, coordinator: Coordinator) {
@@ -78,6 +80,12 @@ struct KakaoMapView: UIViewRepresentable {
         }
 
         func containerDidResized(_ size: CGSize) {
+            syncViewRect(size)
+        }
+
+        /// 지도 뷰 서피스를 컨테이너 크기에 동기화 (0 크기 방어)
+        func syncViewRect(_ size: CGSize) {
+            guard size.width > 0, size.height > 0 else { return }
             (controller?.getView("placeDetailMap") as? KakaoMap)?.viewRect = CGRect(origin: .zero, size: size)
         }
     }
