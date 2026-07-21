@@ -10,11 +10,15 @@ struct moduwaApp: App {
         }
     }
 
+    /// 홈 헤더 뱃지와 알림 화면이 공유하는 알림 상태
+    @State private var notificationStore = NotificationStore()
+
     var body: some Scene {
         WindowGroup {
             RootView()
                 // 라이브 API(moduwa-backend). MODUWA_API_KEY 미설정/네트워크 실패 시 번들 데이터로 자동 폴백.
                 .environment(\.feedService, APIFeedService())
+                .environment(notificationStore)
         }
     }
 }

@@ -9,8 +9,6 @@ final class HomeViewModel {
     private(set) var reviews: [TravelReview] = []
     private(set) var selectedCategory: PlaceCategory = .stay
     private(set) var reviewSort: ReviewSort = .recommended
-    /// 새 알림 여부 — 뱃지 도트 표시용. 알림 API 연동 전까지 기본 false.
-    private(set) var hasNewNotifications = false
 
     // 페이지네이션 상태
     private(set) var canLoadMorePlaces = false

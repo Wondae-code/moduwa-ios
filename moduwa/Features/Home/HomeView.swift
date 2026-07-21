@@ -1,8 +1,15 @@
 import SwiftUI
 
 /// 홈 피드 (Figma "메인화면")
+/// 홈 헤더에서 진입하는 서브 화면 라우트
+enum HomeRoute: Hashable {
+    case search
+    case notifications
+}
+
 struct HomeView: View {
     @Environment(\.feedService) private var feedService
+    @Environment(NotificationStore.self) private var notificationStore
     @State private var viewModel = HomeViewModel()
     @State private var isSortPickerPresented = false
 
@@ -36,6 +43,12 @@ struct HomeView: View {
             .navigationDestination(for: Place.self) { place in
                 PlaceDetailView(place: place)
             }
+            .navigationDestination(for: HomeRoute.self) { route in
+                switch route {
+                case .search: SearchView()
+                case .notifications: NotificationsView()
+                }
+            }
         }
         .task { await viewModel.loadInitial(using: feedService) }
     }
@@ -51,21 +64,21 @@ struct HomeView: View {
 
             // Figma: 아이콘마다 25×25 정렬 박스, 간격 10
             HStack(spacing: 10) {
-                Button {} label: {
+                NavigationLink(value: HomeRoute.search) {
                     Image("search")
                         .renderingMode(.template)
                         .frame(width: 25, height: 25)
                 }
                 .accessibilityLabel("검색")
 
-                Button {} label: {
+                NavigationLink(value: HomeRoute.notifications) {
                     // 알림 벨 에셋은 아직 미제공 — SF Symbol 유지 (시안은 Material Symbols 글리프)
                     Image(systemName: "bell")
                         .font(.system(size: 19, weight: .medium))
                         .frame(width: 25, height: 25)
                         .overlay(alignment: .topTrailing) {
-                            // 새 알림이 있을 때만 도트 표시
-                            if viewModel.hasNewNotifications {
+                            // 안 읽은 알림이 있을 때만 도트 표시
+                            if notificationStore.hasUnread {
                                 Circle()
                                     .fill(.deepGreen)
                                     .stroke(.white, lineWidth: 1)
@@ -74,7 +87,7 @@ struct HomeView: View {
                             }
                         }
                 }
-                .accessibilityLabel(viewModel.hasNewNotifications ? "알림, 새 알림 있음" : "알림")
+                .accessibilityLabel(notificationStore.hasUnread ? "알림, 새 알림 있음" : "알림")
 
                 Button {} label: {
                     Image("hamburger")
@@ -245,4 +258,5 @@ struct HomeView: View {
 
 #Preview {
     HomeView()
+        .environment(NotificationStore())
 }
