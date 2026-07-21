@@ -313,16 +313,6 @@ struct PlaceDetailView: View {
                         .onAppear { isMapVisible = true }
                         .onDisappear { isMapVisible = false }
                         .allowsHitTesting(false)
-                        .overlay {
-                            // 중심 좌표 핀 (끝점이 중심을 가리키도록 절반 올림)
-                            Image("location_on")
-                                .renderingMode(.template)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 30, height: 30)
-                                .foregroundStyle(.deepGreen)
-                                .offset(y: -15)
-                        }
                         .accessibilityLabel("\(detail?.name ?? place.name) 위치 지도")
                 } else {
                     Rectangle()
