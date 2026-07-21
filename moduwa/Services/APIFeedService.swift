@@ -112,6 +112,13 @@ struct APIFeedService: FeedService {
 
     /// 무장애 28속성 상세 DTO — 카테고리 매핑에 쓰는 필드만 디코딩
     private struct BarrierFreeDetailDTO: Decodable {
+        struct BasicInfo: Decodable {
+            let usetime: String?
+            let restdate: String?
+            let parking: String?
+            let fee: String?
+        }
+
         let contentid: String?
         let title: String?
         let addr1: String?
@@ -119,6 +126,11 @@ struct APIFeedService: FeedService {
         let firstimage: String?
         let mapx: Double?
         let mapy: Double?
+        // kor_detail enrich (구 서버 호환을 위해 전부 옵셔널)
+        let overview: String?
+        let homepage: String?
+        let tel: String?
+        let basicInfo: BasicInfo?
 
         // 지체장애인(이동) 계열
         let wheelchair: String?
@@ -185,6 +197,16 @@ struct APIFeedService: FeedService {
                 .compactMap { $0?.trimmingCharacters(in: .whitespaces) }
                 .filter { !$0.isEmpty }
                 .joined(separator: " ")
+
+            // 기본정보 — 값이 있는 행만 (Figma 기본정보 섹션 순서)
+            var info: [PlaceDetail.InfoRow] = []
+            if let v = dto.basicInfo?.usetime { info.append(.init(label: "운영시간", value: v)) }
+            if let v = dto.basicInfo?.restdate { info.append(.init(label: "휴무일", value: v)) }
+            if let v = dto.basicInfo?.parking { info.append(.init(label: "주차정보", value: v)) }
+            if let v = dto.basicInfo?.fee { info.append(.init(label: "이용요금", value: v)) }
+            if let v = dto.tel { info.append(.init(label: "전화번호", value: v)) }
+            if let v = dto.homepage { info.append(.init(label: "홈페이지", value: v, isLink: true)) }
+
             return PlaceDetail(
                 id: dto.contentid ?? contentId,
                 name: dto.title?.trimmingCharacters(in: .whitespaces) ?? "",
@@ -192,8 +214,8 @@ struct APIFeedService: FeedService {
                 imageURL: URL(string: img),
                 rating: nil,      // 평점·리뷰수 데이터 소스 없음
                 reviewCount: nil,
-                overview: nil,    // 상세 API에 설명(overview) 미노출
-                info: [],         // 운영시간 등 기본정보 미노출
+                overview: dto.overview?.trimmingCharacters(in: .whitespacesAndNewlines),
+                info: info,
                 accessibilityGroups: accessibilityGroups,
                 cautionTags: [],
                 latitude: dto.mapy,
