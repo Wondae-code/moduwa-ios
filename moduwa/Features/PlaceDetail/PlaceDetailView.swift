@@ -145,9 +145,10 @@ struct PlaceDetailView: View {
                 selectedFeature = selectedFeature == feature ? nil : feature
             }
         } label: {
-            photoBadge(feature)
+            // 사진 위 뱃지는 흰 배경 + 딥그린 아이콘 (Figma "추천장소 A/B")
+            photoBadge(feature, style: .inverted)
                 .overlay(
-                    Circle().stroke(selectedFeature == feature ? Color.moduwaGreen : .white, lineWidth: 1.5)
+                    Circle().stroke(selectedFeature == feature ? Color.moduwaGreen : .clear, lineWidth: 1.5)
                 )
         }
         .buttonStyle(.plain)
@@ -156,10 +157,14 @@ struct PlaceDetailView: View {
         .accessibilityAddTraits(selectedFeature == feature ? .isSelected : [])
     }
 
-    /// 딥그린 원 + 흰 아이콘 (34pt)
-    private func photoBadge(_ feature: AccessibilityFeature) -> some View {
+    /// 원형 접근성 뱃지 (34pt)
+    /// - `.filled`: 딥그린 원 + 흰 아이콘 (추가정보 섹션)
+    /// - `.inverted`: 흰 원 + 딥그린 아이콘 (사진 위 — 사진과 대비 위해 옅은 그림자)
+    private enum BadgeStyle { case filled, inverted }
+
+    private func photoBadge(_ feature: AccessibilityFeature, style: BadgeStyle = .filled) -> some View {
         Circle()
-            .fill(Color.deepGreen)
+            .fill(style == .filled ? Color.deepGreen : .white)
             .frame(width: 34, height: 34)
             .overlay {
                 Image(feature.iconName)
@@ -167,9 +172,9 @@ struct PlaceDetailView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 16, height: 16)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(style == .filled ? Color.white : .deepGreen)
             }
-            .overlay(Circle().stroke(.white, lineWidth: 1.5))
+            .shadow(color: style == .inverted ? .black.opacity(0.15) : .clear, radius: 2.5, y: 1)
             .accessibilityLabel(feature.label)
     }
 
@@ -251,19 +256,27 @@ struct PlaceDetailView: View {
     @ViewBuilder
     private var overviewSection: some View {
         if let overview = detail?.overview {
-            Text(overview)
-                .font(.pretendard(14))
-                .foregroundStyle(.textSecondary)
-                .lineSpacing(6)
-                .lineLimit(isOverviewExpanded ? nil : 6)
-                .padding(.top, 22)
+            // 본문도 접근성 요약과 동일하게 양쪽 정렬(justified) — SwiftUI Text는 미지원이라 UILabel 래퍼 사용
+            JustifiedText(
+                text: overview,
+                font: UIFont(name: Pretendard.regular.rawValue, size: 14) ?? .systemFont(ofSize: 14),
+                textColor: UIColor(Color.textSecondary),
+                lineSpacing: 6,
+                lineLimit: isOverviewExpanded ? nil : 6
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 22)
 
-            if !isOverviewExpanded {
-                LoadMoreButton(title: "설명 더보기") {
-                    withAnimation { isOverviewExpanded = true }
-                }
-                .padding(.top, 18)
+            // 펼침/접힘 단일 토글 — withAnimation 밖에서 토글하고 .animation(nil)로 높이 변화 애니메이션을 차단해
+            // "더 보기" 시 글자가 밀려나는 애니메이션을 없앤다.
+            LoadMoreButton(
+                title: isOverviewExpanded ? "설명 접기" : "설명 더보기",
+                pointsUp: isOverviewExpanded
+            ) {
+                isOverviewExpanded.toggle()
             }
+            .padding(.top, 18)
+            .animation(nil, value: isOverviewExpanded)
         }
     }
 
