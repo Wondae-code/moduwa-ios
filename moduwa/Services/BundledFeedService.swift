@@ -80,8 +80,7 @@ struct BundledFeedService: FeedService {
                 reviewCount: nil,
                 overview: nil,
                 info: [],
-                accessibilityFeatures: [dto.feature],
-                accessibilityNotes: [dto.accessibilityNote],
+                accessibilityGroups: [.init(feature: dto.feature, notes: [dto.accessibilityNote])],
                 cautionTags: [],
                 latitude: nil,
                 longitude: nil

@@ -37,8 +37,11 @@ struct MockFeedService: FeedService {
                 .init(label: "전화번호", value: "054-746-9913"),
                 .init(label: "홈페이지", value: "http://www.bulguksa.or.kr", isLink: true),
             ],
-            accessibilityFeatures: [.wheelchairAccessible, .visuallyImpairedFriendly, .hearingFriendly],
-            accessibilityNotes: ["휠체어 경사로가 있어요", "점자블록 있어요", "휠체어 대여서비스가 있어요"],
+            accessibilityGroups: [
+                .init(feature: .wheelchairAccessible, notes: ["휠체어 경사로가 있어요", "휠체어 대여서비스가 있어요"]),
+                .init(feature: .visuallyImpairedFriendly, notes: ["점자블록 있어요"]),
+                .init(feature: .hearingFriendly, notes: ["보청기 대여가 가능해요"]),
+            ],
             cautionTags: ["아이동반주의", "애견동반주의"],
             latitude: 35.789885,
             longitude: 129.331920

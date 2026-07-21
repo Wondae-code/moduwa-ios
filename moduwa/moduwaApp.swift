@@ -1,7 +1,15 @@
+import KakaoMapsSDK
 import SwiftUI
 
 @main
 struct moduwaApp: App {
+    init() {
+        // 카카오맵 SDK — 키가 있을 때만 초기화 (미설정 시 지도 섹션은 플레이스홀더 표시)
+        if let key = Secrets.kakaoNativeAppKey {
+            SDKInitializer.InitSDK(appKey: key)
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()

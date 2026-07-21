@@ -9,6 +9,8 @@ struct PlaceDetailView: View {
     @Environment(\.openURL) private var openURL
     @State private var detail: PlaceDetail?
     @State private var isOverviewExpanded = false
+    /// 사진 위 원형 뱃지 중 선택된 유형 — 선택 시에만 안내 칩을 띄운다
+    @State private var selectedFeature: AccessibilityFeature?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -112,28 +114,47 @@ struct PlaceDetailView: View {
             .clipped()
             .overlay(alignment: .bottomTrailing) {
                 VStack(alignment: .trailing, spacing: 10) {
-                    if let note = detail?.accessibilityNotes.first {
+                    // 선택된 뱃지의 안내만 칩으로 표시
+                    if let group = detail?.accessibilityGroups.first(where: { $0.feature == selectedFeature }),
+                       let note = group.notes.first {
                         Text("• \(note)")
                             .font(.pretendard(15, .medium))
                             .foregroundStyle(.textPrimary)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
                             .background(Capsule().fill(.white.opacity(0.85)))
+                            .transition(.opacity)
                     }
                     HStack(spacing: 9) {
                         ForEach(detail?.accessibilityFeatures ?? [], id: \.self) { feature in
-                            photoBadge(feature)
+                            photoBadgeButton(feature)
                         }
                     }
                 }
                 .padding(.trailing, 26)
                 .padding(.bottom, 15)
             }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("장소 사진. \(detail?.accessibilityNotes.first ?? "")")
     }
 
-    /// 사진 위 원형 접근성 뱃지 — 딥그린 원 + 흰 아이콘 + 흰 보더 (34pt)
+    /// 사진 위 원형 접근성 뱃지 버튼 — 탭하면 해당 유형의 안내 칩을 토글한다
+    private func photoBadgeButton(_ feature: AccessibilityFeature) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                selectedFeature = selectedFeature == feature ? nil : feature
+            }
+        } label: {
+            photoBadge(feature)
+                .overlay(
+                    Circle().stroke(selectedFeature == feature ? Color.moduwaGreen : .white, lineWidth: 1.5)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("접근성: \(feature.label)")
+        .accessibilityHint("안내 보기")
+        .accessibilityAddTraits(selectedFeature == feature ? .isSelected : [])
+    }
+
+    /// 딥그린 원 + 흰 아이콘 (34pt)
     private func photoBadge(_ feature: AccessibilityFeature) -> some View {
         Circle()
             .fill(Color.deepGreen)
@@ -282,18 +303,37 @@ struct PlaceDetailView: View {
 
     private var mapSection: some View {
         VStack(alignment: .trailing, spacing: 10) {
-            // TODO: 지도 SDK 연동 전 플레이스홀더 (시안과 동일)
-            Rectangle()
-                .fill(.white)
-                .frame(height: 126)
-                .overlay(
-                    Text("지도")
-                        .font(.pretendard(24, .bold))
-                        .foregroundStyle(.textPrimary)
-                )
-                .overlay(Rectangle().stroke(Color.cardStroke, lineWidth: 1))
-                .padding(.horizontal, 52)
-                .accessibilityHidden(true)
+            Group {
+                if let latitude = detail?.latitude, let longitude = detail?.longitude,
+                   Secrets.kakaoNativeAppKey != nil {
+                    // 임베드 카카오맵 — 보기 전용, 제스처는 스크롤에 양보하고 조작은 카카오맵 앱으로
+                    KakaoMapView(latitude: latitude, longitude: longitude)
+                        .allowsHitTesting(false)
+                        .overlay {
+                            // 중심 좌표 핀 (끝점이 중심을 가리키도록 절반 올림)
+                            Image("location_on")
+                                .renderingMode(.template)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 30, height: 30)
+                                .foregroundStyle(.deepGreen)
+                                .offset(y: -15)
+                        }
+                        .accessibilityLabel("\(detail?.name ?? place.name) 위치 지도")
+                } else {
+                    Rectangle()
+                        .fill(.white)
+                        .overlay(
+                            Text("지도")
+                                .font(.pretendard(24, .bold))
+                                .foregroundStyle(.textPrimary)
+                        )
+                        .accessibilityHidden(true)
+                }
+            }
+            .frame(height: 126)
+            .overlay(Rectangle().stroke(Color.cardStroke, lineWidth: 1))
+            .padding(.horizontal, 52)
 
             Button {
                 if let url = detail?.kakaoMapURL { openURL(url) }

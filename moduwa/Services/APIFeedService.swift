@@ -24,18 +24,9 @@ struct APIFeedService: FeedService {
     init(apiKey: String? = nil, session: URLSession = .shared) {
         self.apiKey = apiKey
             ?? (Bundle.main.object(forInfoDictionaryKey: "MODUWA_API_KEY") as? String)
-            ?? Self.secretsKey()
+            ?? Secrets.moduwaAPIKey
             ?? ""
         self.session = session
-    }
-
-    /// 번들 Secrets.plist에서 API 키를 읽는다 (없으면 nil).
-    private static func secretsKey() -> String? {
-        guard let url = Bundle.main.url(forResource: "Secrets", withExtension: "plist"),
-              let dict = NSDictionary(contentsOf: url) as? [String: Any],
-              let key = dict["MODUWA_API_KEY"] as? String, !key.isEmpty
-        else { return nil }
-        return key
     }
 
     // 앱 카테고리 → 관광공사 contentTypeId
@@ -184,12 +175,9 @@ struct APIFeedService: FeedService {
                 (.hearingFriendly, [dto.signguide, dto.videoguide, dto.hearingroom, dto.hearinghandicapetc]),
                 (.childFriendly, [dto.stroller, dto.lactationroom, dto.babysparechair, dto.infantsfamilyetc]),
             ]
-            var features: [AccessibilityFeature] = []
-            var notes: [String] = []
-            for (feature, values) in groups {
+            let accessibilityGroups: [PlaceDetail.AccessibilityGroup] = groups.compactMap { feature, values in
                 let cleaned = values.compactMap { Self.cleanNote($0) }
-                if !cleaned.isEmpty { features.append(feature) }
-                notes.append(contentsOf: cleaned)
+                return cleaned.isEmpty ? nil : .init(feature: feature, notes: cleaned)
             }
 
             let img = (dto.firstimage ?? "").replacingOccurrences(of: "http://", with: "https://")
@@ -206,8 +194,7 @@ struct APIFeedService: FeedService {
                 reviewCount: nil,
                 overview: nil,    // 상세 API에 설명(overview) 미노출
                 info: [],         // 운영시간 등 기본정보 미노출
-                accessibilityFeatures: features,
-                accessibilityNotes: notes,
+                accessibilityGroups: accessibilityGroups,
                 cautionTags: [],
                 latitude: dto.mapy,
                 longitude: dto.mapx
