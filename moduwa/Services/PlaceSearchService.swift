@@ -117,7 +117,7 @@ struct APISearchService: PlaceSearchService {
     private static func categoryLabel(for dto: PlaceDTO, fallback: PlaceCategory) -> String {
         switch dto.contenttypeid {
         case "12", "15", "32", "39":
-            fallback.rawValue
+            return fallback.rawValue
         default:
             if let label = dto.category?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty {
                 return label
