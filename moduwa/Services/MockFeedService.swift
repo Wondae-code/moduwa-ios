@@ -61,7 +61,9 @@ struct MockFeedService: FeedService {
                 likeCount: max(1, source.likeCount - i * 37),
                 commentCount: max(0, source.commentCount - i * 3),
                 createdAt: source.createdAt.addingTimeInterval(-Double(i) * 86_400),
-                isAccessibilityVerified: source.isAccessibilityVerified
+                isAccessibilityVerified: source.isAccessibilityVerified,
+                imageURLs: source.imageURLs,
+                contentId: source.contentId
             )
         }
     }()

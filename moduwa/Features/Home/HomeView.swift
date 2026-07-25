@@ -49,6 +49,9 @@ struct HomeView: View {
                 case .notifications: NotificationsView()
                 }
             }
+            .navigationDestination(for: TravelReview.self) { review in
+                ReviewDetailView(review: review)
+            }
         }
         .task { await viewModel.loadInitial(using: feedService) }
     }
@@ -191,7 +194,10 @@ struct HomeView: View {
             }
 
             ForEach(viewModel.reviews) { review in
-                ReviewCard(review: review)
+                NavigationLink(value: review) {
+                    ReviewCard(review: review)
+                }
+                .buttonStyle(.plain)
             }
 
             if viewModel.canLoadMoreReviews {

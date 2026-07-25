@@ -5,7 +5,7 @@ enum ReviewSort: String, CaseIterable, Sendable {
     case latest = "최신"
 }
 
-struct TravelReview: Identifiable, Sendable {
+struct TravelReview: Identifiable, Hashable, Sendable {
     let id = UUID()
     let author: String
     let location: String
@@ -17,4 +17,6 @@ struct TravelReview: Identifiable, Sendable {
     let isAccessibilityVerified: Bool
     /// 리뷰 사진 (카드 상단 2분할 슬롯 — 부족하면 플레이스홀더)
     var imageURLs: [URL] = []
+    /// 방문한 장소의 관광공사 contentId — 있으면 리뷰 상세의 '방문한 장소' 카드가 장소 상세로 연결된다.
+    var contentId: String? = nil
 }

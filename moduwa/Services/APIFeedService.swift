@@ -238,6 +238,8 @@ struct APIFeedService: FeedService {
         let isAccessibilityVerified: Bool
         /// 구 서버 호환을 위해 옵셔널 (필드 없으면 사진 없음으로 처리)
         let imageURLs: [String]?
+        /// 방문한 장소 contentId — 자유 방문지면 null
+        let contentId: String?
     }
 
     func fetchReviews(sort: ReviewSort, page: Int) async throws -> [TravelReview] {
@@ -259,7 +261,8 @@ struct APIFeedService: FeedService {
                     isAccessibilityVerified: dto.isAccessibilityVerified,
                     imageURLs: (dto.imageURLs ?? []).compactMap {
                         URL(string: $0.replacingOccurrences(of: "http://", with: "https://"))
-                    }
+                    },
+                    contentId: dto.contentId
                 )
             }
             return reviews

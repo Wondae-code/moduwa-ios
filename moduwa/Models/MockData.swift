@@ -55,21 +55,31 @@ enum MockData {
     static let reviews: [TravelReview] = [
         TravelReview(
             author: "평지러버",
-            location: "강릉 안목해변",
+            location: "강릉 녹색도시체험센터",
             body: "음성안내 서비스가 잘 되어있네요~!",
             likeCount: 761,
             commentCount: 42,
             createdAt: Date(timeIntervalSince1970: 1_781_000_000), // 2026-06-10경
-            isAccessibilityVerified: true
+            isAccessibilityVerified: true,
+            imageURLs: [
+                URL(string: "https://tong.visitkorea.or.kr/cms/resource/33/3072433_image2_1.jpg")!,
+                URL(string: "https://tong.visitkorea.or.kr/cms/resource/08/4083808_image2_1.jpg")!,
+                URL(string: "https://tong.visitkorea.or.kr/cms/resource_photo/52/4072652_image2_1.jpg")!,
+            ],
+            contentId: "2465063"
         ),
         TravelReview(
             author: "효도여행중",
-            location: "강릉 안목해변",
+            location: "무릉별유천지",
             body: "부모님 모시고 편안하게 다녀왔습니다. 단차가 없어서 휠체어로 다니기에 무리없네요.",
             likeCount: 3001,
             commentCount: 64,
             createdAt: Date(timeIntervalSince1970: 1_783_200_000), // 2026-07-05경
-            isAccessibilityVerified: true
+            isAccessibilityVerified: true,
+            imageURLs: [
+                URL(string: "https://tong.visitkorea.or.kr/cms/resource/08/4083808_image2_1.jpg")!,
+            ],
+            contentId: "2820546"
         ),
     ]
 }
