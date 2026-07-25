@@ -214,7 +214,11 @@ struct APIFeedService: FeedService {
                 imageURL: URL(string: img),
                 rating: nil,      // 평점·리뷰수 데이터 소스 없음
                 reviewCount: nil,
-                overview: dto.overview?.trimmingCharacters(in: .whitespacesAndNewlines),
+                overview: dto.overview.map {
+                    Self.htmlToPlainText($0)
+                        .replacingOccurrences(of: "\n{3,}", with: "\n\n", options: .regularExpression)
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                },
                 info: info,
                 accessibilityGroups: accessibilityGroups,
                 cautionTags: [],
@@ -273,15 +277,32 @@ struct APIFeedService: FeedService {
 
     // MARK: - 가공 규칙 (scripts/compose-home-feed.mjs 와 동일)
 
-    /// 접근성 원문 정리: 첫 줄만, "_…편의시설" 꼬리표 제거, 공백 정리, 40자 컷.
+    /// 접근성 원문 정리: HTML(`<br>` 등) 정리 → 첫 줄만, "_…편의시설" 꼬리표 제거, 공백 정리, 40자 컷.
     static func cleanNote(_ text: String?) -> String? {
         guard let text, !text.isEmpty else { return nil }
-        var t = text.components(separatedBy: .newlines).first ?? text
+        // 원문에 `<br/>` 같은 HTML이 섞여 있다 — 줄바꿈으로 바꿔 첫 문장만 남긴다.
+        var t = htmlToPlainText(text).components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .first(where: { !$0.isEmpty }) ?? ""
         t = t.replacingOccurrences(of: "_[^_]*편의시설\\s*$", with: "", options: .regularExpression)
         t = t.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespaces)
         if t.count > 40 { t = String(t.prefix(39)) + "…" }
         return t.isEmpty ? nil : t
+    }
+
+    /// 관광공사 원문에 섞인 HTML을 평문으로: `<br>` 계열은 줄바꿈, 나머지 태그는 제거, 주요 엔티티 복원.
+    static func htmlToPlainText(_ text: String) -> String {
+        var t = text.replacingOccurrences(
+            of: "<\\s*br\\s*/?\\s*>", with: "\n", options: [.regularExpression, .caseInsensitive])
+        // 실제 HTML 태그(문자로 시작)만 제거 — "폭 < 90 > 안전" 같은 부등호 텍스트는 보존
+        t = t.replacingOccurrences(of: "</?[a-zA-Z][^>]*>", with: "", options: .regularExpression)
+        let entities = ["&nbsp;": " ", "&amp;": "&", "&lt;": "<", "&gt;": ">",
+                        "&quot;": "\"", "&#39;": "'", "&apos;": "'"]
+        for (key, value) in entities {
+            t = t.replacingOccurrences(of: key, with: value)
+        }
+        return t
     }
 
     /// 뱃지 우선순위: 휠체어 > (숙소)무장애 객실 > 평탄 동선(접근로/엘리베이터/화장실) > 객실
