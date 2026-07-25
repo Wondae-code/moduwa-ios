@@ -34,8 +34,8 @@ struct AccessibilityBadge: View {
                     .frame(width: feature.iconSize(height: 14).width, height: 14)
                 if isExpanded {
                     Text(feature.label)
-                        .font(.caption12)
-                        .fontWeight(.semibold)
+                        // 커스텀 폰트는 .fontWeight로 굵기가 안 바뀐다 — SemiBold 페이스를 직접 지정
+                        .font(.notoSans(12, .semiBold))
                         .fixedSize()
                         .transition(.opacity)
                 }
