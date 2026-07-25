@@ -257,16 +257,14 @@ struct PlaceDetailView: View {
     @ViewBuilder
     private var overviewSection: some View {
         if let overview = detail?.overview {
-            // 본문도 접근성 요약과 동일하게 양쪽 정렬(justified) — SwiftUI Text는 미지원이라 UILabel 래퍼 사용
-            JustifiedText(
-                text: overview,
-                font: UIFont(name: NotoSans.regular.rawValue, size: 14) ?? .systemFont(ofSize: 14),
-                textColor: UIColor(Color.textSecondary),
-                lineSpacing: 6,
-                lineLimit: isOverviewExpanded ? nil : 6
-            )
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.top, 22)
+            // 피그마 본문은 왼쪽 정렬(LEFT). 한국어를 양쪽 정렬하면 어간이 과하게 벌어져 왼쪽 정렬로 둔다.
+            Text(overview)
+                .font(.notoSans(14))
+                .foregroundStyle(.textSecondary)
+                .lineSpacing(5)
+                .lineLimit(isOverviewExpanded ? nil : 6)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 22)
 
             // 펼침/접힘 단일 토글 — withAnimation 밖에서 토글하고 .animation(nil)로 높이 변화 애니메이션을 차단해
             // "더 보기" 시 글자가 밀려나는 애니메이션을 없앤다.
