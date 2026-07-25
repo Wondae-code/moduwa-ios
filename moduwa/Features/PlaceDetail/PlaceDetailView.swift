@@ -214,12 +214,12 @@ struct PlaceDetailView: View {
     // MARK: - 이름·주소·별점
 
     private var titleRow: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
+        // Figma "추천장소": 이름 아래로 주소가 오는 세로 배치 (이전엔 이름 오른쪽 가로 배치였음)
+        VStack(alignment: .leading, spacing: 8) {
             Text(detail?.name ?? place.name)
                 .font(.notoSans(22, .bold))
                 .foregroundStyle(.textPrimary)
                 .lineLimit(1)
-                .layoutPriority(1)
                 .accessibilityAddTraits(.isHeader)
             Text(detail?.address ?? place.region)
                 .font(.notoSans(14))
