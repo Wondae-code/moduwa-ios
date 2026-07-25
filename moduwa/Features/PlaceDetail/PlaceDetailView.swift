@@ -30,19 +30,19 @@ struct PlaceDetailView: View {
                             .padding(.top, 8)
                         overviewSection
                     }
-                    .padding(.horizontal, 32)
+                    .padding(.horizontal, 24)
 
                     if let info = detail?.info, !info.isEmpty {
                         sectionDivider
                         basicInfoSection
-                            .padding(.horizontal, 32)
+                            .padding(.horizontal, 24)
                     }
 
                     sectionDivider
                     mapSection
                     sectionDivider
                     extraInfoSection
-                        .padding(.horizontal, 32)
+                        .padding(.horizontal, 24)
                         .padding(.bottom, Spacing.xxl)
                 }
             }
@@ -64,7 +64,7 @@ struct PlaceDetailView: View {
             .accessibilityLabel("뒤로")
 
             Text("장소 상세")
-                .font(.pretendard(20, .bold))
+                .font(.notoSans(20, .bold))
                 .padding(.leading, 12)
 
             Spacer()
@@ -120,7 +120,7 @@ struct PlaceDetailView: View {
                     if let group = detail?.accessibilityGroups.first(where: { $0.feature == selectedFeature }),
                        let note = group.notes.first {
                         Text("• \(note)")
-                            .font(.pretendard(15, .medium))
+                            .font(.notoSans(15, .medium))
                             .foregroundStyle(.textPrimary)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
@@ -200,7 +200,7 @@ struct PlaceDetailView: View {
                     .frame(width: 22, height: 22)
                     .foregroundStyle(.deepGreen)
                 Text(title)
-                    .font(.pretendard(13, .semiBold))
+                    .font(.notoSans(13, .semiBold))
                     .foregroundStyle(.textPrimary)
             }
             .padding(.horizontal, 20)
@@ -215,13 +215,13 @@ struct PlaceDetailView: View {
     private var titleRow: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(detail?.name ?? place.name)
-                .font(.pretendard(22, .bold))
+                .font(.notoSans(22, .bold))
                 .foregroundStyle(.textPrimary)
                 .lineLimit(1)
                 .layoutPriority(1)
                 .accessibilityAddTraits(.isHeader)
             Text(detail?.address ?? place.region)
-                .font(.pretendard(14))
+                .font(.notoSans(14))
                 .foregroundStyle(.textPrimary)
                 .lineLimit(1)
         }
@@ -232,7 +232,7 @@ struct PlaceDetailView: View {
         if let rating = detail?.rating {
             HStack(spacing: 8) {
                 Text(rating, format: .number.precision(.fractionLength(1)))
-                    .font(.pretendard(14, .medium))
+                    .font(.notoSans(14, .medium))
                 HStack(spacing: 2.5) {
                     ForEach(0..<5, id: \.self) { i in
                         Image("star")
@@ -242,7 +242,7 @@ struct PlaceDetailView: View {
                 }
                 if let count = detail?.reviewCount {
                     Text("(\(count))")
-                        .font(.pretendard(14))
+                        .font(.notoSans(14))
                 }
             }
             .foregroundStyle(.textPrimary)
@@ -259,7 +259,7 @@ struct PlaceDetailView: View {
             // 본문도 접근성 요약과 동일하게 양쪽 정렬(justified) — SwiftUI Text는 미지원이라 UILabel 래퍼 사용
             JustifiedText(
                 text: overview,
-                font: UIFont(name: Pretendard.regular.rawValue, size: 14) ?? .systemFont(ofSize: 14),
+                font: UIFont(name: NotoSans.regular.rawValue, size: 14) ?? .systemFont(ofSize: 14),
                 textColor: UIColor(Color.textSecondary),
                 lineSpacing: 6,
                 lineLimit: isOverviewExpanded ? nil : 6
@@ -293,18 +293,18 @@ struct PlaceDetailView: View {
                 ForEach(detail?.info ?? []) { row in
                     HStack(alignment: .firstTextBaseline, spacing: 0) {
                         Text("•  \(row.label)")
-                            .font(.pretendard(16, .semiBold))
+                            .font(.notoSans(16, .semiBold))
                             .foregroundStyle(.textSecondary)
                             .frame(width: 110, alignment: .leading)
                         if row.isLink, let url = URL(string: row.value) {
                             Link(row.value, destination: url)
-                                .font(.pretendard(14))
+                                .font(.notoSans(14))
                                 .foregroundStyle(.deepGreen)
                                 .underline()
                                 .lineLimit(1)
                         } else {
                             Text(row.value)
-                                .font(.pretendard(14))
+                                .font(.notoSans(14))
                                 .foregroundStyle(.textSecondary)
                         }
                     }
@@ -332,7 +332,7 @@ struct PlaceDetailView: View {
                         .fill(.white)
                         .overlay(
                             Text("지도")
-                                .font(.pretendard(24, .bold))
+                                .font(.notoSans(24, .bold))
                                 .foregroundStyle(.textPrimary)
                         )
                         .accessibilityHidden(true)
@@ -358,7 +358,7 @@ struct PlaceDetailView: View {
                         .scaledToFit()
                         .frame(width: 20, height: 20)
                     Text("카카오맵에서 보기")
-                        .font(.pretendard(14))
+                        .font(.notoSans(14))
                         .foregroundStyle(.textPrimary)
                 }
             }
@@ -388,7 +388,7 @@ struct PlaceDetailView: View {
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(detail?.accessibilityNotes ?? [], id: \.self) { note in
                     Text("•  \(note)")
-                        .font(.pretendard(15, .medium))
+                        .font(.notoSans(15, .medium))
                         .foregroundStyle(.textPrimary)
                         .lineSpacing(4)
                 }
@@ -398,7 +398,7 @@ struct PlaceDetailView: View {
                 HStack(spacing: 10) {
                     ForEach(tags, id: \.self) { tag in
                         Text(tag)
-                            .font(.pretendard(14, .semiBold))
+                            .font(.notoSans(14, .semiBold))
                             .foregroundStyle(.textPrimary)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)

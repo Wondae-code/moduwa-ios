@@ -36,7 +36,7 @@ struct NotificationsView: View {
             .accessibilityLabel("뒤로")
 
             Text("알림")
-                .font(.pretendard(20, .bold))
+                .font(.notoSans(20, .bold))
                 .padding(.leading, 12)
                 .accessibilityAddTraits(.isHeader)
 
@@ -101,11 +101,11 @@ struct NotificationsView: View {
                         .foregroundStyle(.iconGray)
                 }
             Text("아직 알림이 없어요")
-                .font(.pretendard(18, .bold))
+                .font(.notoSans(18, .bold))
                 .foregroundStyle(.textPrimary)
                 .padding(.top, 4)
             Text("새로운 소식이 도착하면 여기에서 알려드릴게요")
-                .font(.pretendard(14))
+                .font(.notoSans(14))
                 .foregroundStyle(.textSecondary)
             Spacer()
             Spacer()
@@ -129,10 +129,10 @@ struct NotificationsView: View {
                             }
                         VStack(alignment: .leading, spacing: 3) {
                             Text(item.title)
-                                .font(.pretendard(15, .bold))
+                                .font(.notoSans(15, .bold))
                                 .foregroundStyle(.textPrimary)
                             Text(item.body)
-                                .font(.pretendard(14))
+                                .font(.notoSans(14))
                                 .foregroundStyle(.textSecondary)
                             Text(item.receivedAt, format: .relative(presentation: .named))
                                 .font(.caption12)

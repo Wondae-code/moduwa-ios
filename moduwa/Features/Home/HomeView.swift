@@ -210,7 +210,7 @@ struct HomeView: View {
         } label: {
             HStack(spacing: 5) {
                 Text(viewModel.reviewSort.rawValue)
-                    .font(.pretendard(14, .bold))
+                    .font(.notoSans(14, .bold))
                 Image(systemName: "chevron.down")
                     .font(.system(size: 12, weight: .bold))
             }

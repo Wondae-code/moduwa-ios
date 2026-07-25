@@ -23,12 +23,12 @@ struct ReviewCard: View {
                         .frame(width: 36, height: 36)
                         .overlay(
                             Text(String(review.author.prefix(1)))
-                                .font(.pretendard(14, .bold))
+                                .font(.notoSans(14, .bold))
                                 .foregroundStyle(.white)
                         )
                     VStack(alignment: .leading, spacing: 1) {
                         Text(review.author)
-                            .font(.pretendard(14, .bold))
+                            .font(.notoSans(14, .bold))
                             .foregroundStyle(.textPrimary)
                         Text(review.location)
                             .font(.caption12)
@@ -37,7 +37,7 @@ struct ReviewCard: View {
                 }
 
                 Text(review.body)
-                    .font(.pretendard(16))
+                    .font(.notoSans(16))
                     .foregroundStyle(.textSecondary)
                     .lineSpacing(6)
 
@@ -124,7 +124,7 @@ struct ReviewCard: View {
                     ZStack {
                         Color.black.opacity(0.4)
                         Text("+\(overflow)")
-                            .font(.pretendard(18, .bold))
+                            .font(.notoSans(18, .bold))
                             .foregroundStyle(.white)
                     }
                 }

@@ -15,7 +15,7 @@ struct CategoryChip: View {
                     .scaledToFit()
                     .frame(height: 22)
                 Text(category.rawValue)
-                    .font(.pretendard(14, isSelected ? .bold : .regular))
+                    .font(.notoSans(14, isSelected ? .bold : .regular))
             }
             .foregroundStyle(isSelected ? Color.white : .textSecondary)
             .padding(.horizontal, 15)

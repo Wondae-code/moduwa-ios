@@ -44,7 +44,7 @@ struct SearchView: View {
                     .renderingMode(.template)
                     .foregroundStyle(.textSecondary)
                 TextField("장소, 지역으로 검색", text: $query)
-                    .font(.pretendard(15))
+                    .font(.notoSans(15))
                     .foregroundStyle(.textPrimary)
                     .focused($isFieldFocused)
                     .submitLabel(.search)
@@ -88,12 +88,12 @@ struct SearchView: View {
                 if !recentSearches.isEmpty {
                     HStack {
                         Text("최근 검색어")
-                            .font(.pretendard(16, .bold))
+                            .font(.notoSans(16, .bold))
                             .foregroundStyle(.textPrimary)
                             .accessibilityAddTraits(.isHeader)
                         Spacer()
                         Button("전체 삭제") { saveRecentSearches([]) }
-                            .font(.pretendard(13))
+                            .font(.notoSans(13))
                             .foregroundStyle(.textSecondary)
                     }
 
@@ -106,7 +106,7 @@ struct SearchView: View {
                 }
 
                 Text("장소 이름이나 지역으로 검색할 수 있어요")
-                    .font(.pretendard(14))
+                    .font(.notoSans(14))
                     .foregroundStyle(.iconGray)
                     .frame(maxWidth: .infinity)
                     .padding(.top, recentSearches.isEmpty ? 200 : 120)
@@ -140,7 +140,7 @@ struct SearchView: View {
             ProgressView()
                 .tint(.deepGreen)
             Text("검색 결과를 불러오는 중이에요")
-                .font(.pretendard(18, .bold))
+                .font(.notoSans(18, .bold))
                 .foregroundStyle(.textPrimary)
                 .padding(.top, 4)
             Spacer()
@@ -193,7 +193,7 @@ struct SearchView: View {
                 subtitle: "네트워크를 확인한 뒤 다시 시도해 주세요"
             )
             Button("다시 시도") { retrySearch() }
-                .font(.pretendard(14, .bold))
+                .font(.notoSans(14, .bold))
                 .foregroundStyle(.deepGreen)
                 .padding(.horizontal, 18)
                 .padding(.vertical, 10)
@@ -216,11 +216,11 @@ struct SearchView: View {
                         .foregroundStyle(.iconGray)
                 }
             Text(title)
-                .font(.pretendard(18, .bold))
+                .font(.notoSans(18, .bold))
                 .foregroundStyle(.textPrimary)
                 .padding(.top, 4)
             Text(subtitle)
-                .font(.pretendard(14))
+                .font(.notoSans(14))
                 .foregroundStyle(.textSecondary)
         }
         .frame(maxWidth: .infinity)
@@ -366,7 +366,7 @@ private struct FlowChips: View {
                 HStack(spacing: 6) {
                     Button { onTap(term) } label: {
                         Text(term)
-                            .font(.pretendard(14))
+                            .font(.notoSans(14))
                             .foregroundStyle(.textSecondary)
                     }
                     Button { onDelete(term) } label: {

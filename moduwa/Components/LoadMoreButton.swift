@@ -11,7 +11,7 @@ struct LoadMoreButton: View {
         Button(action: action) {
             HStack(spacing: 5) {
                 Text(title)
-                    .font(.pretendard(15, .bold))
+                    .font(.notoSans(15, .bold))
                 Image(systemName: pointsUp ? "chevron.up" : "chevron.down")
                     .font(.system(size: 13, weight: .bold))
             }

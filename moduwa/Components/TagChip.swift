@@ -6,7 +6,7 @@ struct TagChip: View {
 
     var body: some View {
         Text(text)
-            .font(.pretendard(13, .bold))
+            .font(.notoSans(13, .bold))
             .foregroundStyle(.deepGreen)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)

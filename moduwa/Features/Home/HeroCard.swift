@@ -13,7 +13,7 @@ struct HeroCard: View {
                     .scaledToFit()
                     .frame(height: 16)
                 Text("맞춤 접근성 추천")
-                    .font(.pretendard(15, .bold))
+                    .font(.notoSans(15, .bold))
             }
             .foregroundStyle(.deepGreen)
 
@@ -32,7 +32,7 @@ struct HeroCard: View {
             } label: {
                 HStack(spacing: 4) {
                     Text("추천 여행 코스 보러가기")
-                        .font(.pretendard(16, .bold))
+                        .font(.notoSans(16, .bold))
                     Image(systemName: "chevron.right")
                         .font(.system(size: 14, weight: .bold))
                 }
