@@ -182,12 +182,15 @@ struct PlaceDetailView: View {
     // MARK: - 액션 버튼 (저장·일정추가·후기쓰기·공유)
 
     private var actionButtons: some View {
+        // 버튼을 4등분 균등 폭으로 채워 좌우 여백을 다른 섹션과 같은 24로 고정한다.
+        // (intrinsic 폭 + 가운데 정렬이면 여백이 글자 크기/기기에 따라 달라진다)
         HStack(spacing: 0) {
             actionButton(title: "저장하기", icon: "detail_bookmark") {}
             actionButton(title: "일정추가", icon: "detail_plus") {}
             actionButton(title: "후기쓰기", icon: "detail_pencil") {}
             actionButton(title: "공유하기", icon: "detail_share") {}
         }
+        .padding(.horizontal, 24)
         .padding(.vertical, 14)
     }
 
@@ -203,9 +206,10 @@ struct PlaceDetailView: View {
                 Text(title)
                     .font(.notoSans(13, .semiBold))
                     .foregroundStyle(.textPrimary)
+                    .lineLimit(1)
             }
-            .padding(.horizontal, 20)
             .padding(.vertical, 11)
+            .frame(maxWidth: .infinity)
             .overlay(Rectangle().stroke(Color.cardStroke, lineWidth: 1))
         }
         .buttonStyle(.plain)
