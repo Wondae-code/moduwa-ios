@@ -341,7 +341,7 @@ private struct SearchResultRow: View {
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 13, height: 13)
+                    .frame(width: AccessibilityFeature.wheelchairAccessible.iconSize(height: 14).width, height: 14)
                     .foregroundStyle(.white)
             }
             .accessibilityHidden(true)

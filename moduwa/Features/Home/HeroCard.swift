@@ -11,7 +11,7 @@ struct HeroCard: View {
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFit()
-                    .frame(height: 16)
+                    .frame(width: AccessibilityFeature.wheelchairAccessible.iconSize(height: 16).width, height: 16)
                 Text("맞춤 접근성 추천")
                     .font(.notoSans(15, .bold))
             }

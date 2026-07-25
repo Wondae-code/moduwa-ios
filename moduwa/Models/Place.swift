@@ -61,6 +61,32 @@ enum AccessibilityFeature: String, Sendable, Decodable {
         case .childFriendly: "access_child"
         }
     }
+
+    /// 브랜드 가이드 픽토그램의 원본 viewBox 크기 — 아이콘마다 종횡비가 달라 고정 정사각형에 넣지 않는다.
+    var iconViewBox: CGSize {
+        switch self {
+        case .wheelchairAccessible, .flatPath, .barrierFreeRoom: CGSize(width: 41.9674, height: 59.3729)
+        case .hearingFriendly: CGSize(width: 63.3006, height: 63.4238)
+        case .visuallyImpairedFriendly: CGSize(width: 58.1494, height: 61.8197)
+        case .elderlyFriendly: CGSize(width: 27.2837, height: 63.5232)
+        case .childFriendly: CGSize(width: 28.0514, height: 51.2362)
+        }
+    }
+
+    /// 원형 뱃지(지름 `diameter`) 안에서의 아이콘 크기.
+    /// 피그마 규칙: 픽토그램 종횡비를 유지한 채 대각선이 지름의 ≈0.82가 되도록 맞춘다
+    /// (아이콘마다 폭/높이가 달라짐 — 34pt 뱃지에서 지체 16.3×23.0, 시각 19.1×20.3, 유아 13.3×24.3).
+    func iconSize(inBadgeDiameter diameter: CGFloat) -> CGSize {
+        let vb = iconViewBox
+        let diagonal = (vb.width * vb.width + vb.height * vb.height).squareRoot()
+        let target = diameter * 0.82
+        return CGSize(width: target * vb.width / diagonal, height: target * vb.height / diagonal)
+    }
+
+    /// 종횡비를 유지한 채 높이 `height`에 맞춘 아이콘 크기 (인라인·알약 뱃지용).
+    func iconSize(height: CGFloat) -> CGSize {
+        CGSize(width: height * iconViewBox.width / iconViewBox.height, height: height)
+    }
 }
 
 struct Place: Identifiable, Hashable, Sendable {

@@ -163,7 +163,8 @@ struct PlaceDetailView: View {
     private enum BadgeStyle { case filled, inverted }
 
     private func photoBadge(_ feature: AccessibilityFeature, style: BadgeStyle = .filled) -> some View {
-        Circle()
+        let iconSize = feature.iconSize(inBadgeDiameter: 34)
+        return Circle()
             .fill(style == .filled ? Color.deepGreen : .white)
             .frame(width: 34, height: 34)
             .overlay {
@@ -171,7 +172,7 @@ struct PlaceDetailView: View {
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 16, height: 16)
+                    .frame(width: iconSize.width, height: iconSize.height)
                     .foregroundStyle(style == .filled ? Color.white : .deepGreen)
             }
             .shadow(color: style == .inverted ? .black.opacity(0.15) : .clear, radius: 2.5, y: 1)

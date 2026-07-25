@@ -31,7 +31,7 @@ struct AccessibilityBadge: View {
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 13, height: 13)
+                    .frame(width: feature.iconSize(height: 14).width, height: 14)
                 if isExpanded {
                     Text(feature.label)
                         .font(.caption12)
