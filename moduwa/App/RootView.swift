@@ -1,22 +1,37 @@
 import SwiftUI
 
 struct RootView: View {
+    private enum Tab: Hashable {
+        case home, plan, schedule, saved
+    }
+
+    /// 피그마 시안이 탭바를 "Navigation Bar"(아웃라인)와 "Navigation Bar - 선택시"(채움) 두 상태로 나눠 정의한다.
+    /// tabItem에 이미지를 하나만 넘기면 모양을 바꿀 수 없어서 선택 상태를 직접 들고 아이콘을 갈아끼운다.
+    @State private var selection: Tab = .home
+
     var body: some View {
-        TabView {
+        TabView(selection: $selection) {
             HomeView()
-                .tabItem { Label("피드", image: "home") }
+                .tabItem { tabLabel("홈", icon: "tab_home", tab: .home) }
+                .tag(Tab.home)
 
             PlanView()
-                .tabItem { Label("계획", image: "explore") }
+                .tabItem { tabLabel("플랜", icon: "tab_plan", tab: .plan) }
+                .tag(Tab.plan)
 
             ScheduleView()
-                .tabItem { Label("일정", image: "calendar_month") }
+                .tabItem { tabLabel("일정", icon: "tab_schedule", tab: .schedule) }
+                .tag(Tab.schedule)
 
-            // 시안이 사람 아이콘 + "저장" 라벨 조합 — 시안 그대로 유지 (불일치는 디자이너 확인 대기)
             CollectionView()
-                .tabItem { Label("저장", image: "person") }
+                .tabItem { tabLabel("저장", icon: "tab_saved", tab: .saved) }
+                .tag(Tab.saved)
         }
         .tint(.deepGreen)
+    }
+
+    private func tabLabel(_ title: String, icon: String, tab: Tab) -> some View {
+        Label(title, image: selection == tab ? "\(icon)_fill" : icon)
     }
 }
 

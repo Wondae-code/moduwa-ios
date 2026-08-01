@@ -12,17 +12,20 @@ struct moduwaApp: App {
         }
     }
 
-    /// 탭바 라벨(피드/계획/일정/저장)도 브랜드 폰트(Noto Sans)로 — UITabBarItem은 기본이 시스템 폰트라 별도 지정이 필요하다.
-    /// 배경은 시스템 기본값을 유지하고 라벨 폰트만 덮어쓴다.
+    /// 탭바 라벨(홈/플랜/일정/저장)도 브랜드 폰트(Noto Sans)로 — UITabBarItem은 기본이 시스템 폰트라 별도 지정이 필요하다.
+    /// 시안은 Bold 12에 미선택 #B3B3B3 / 선택 딥그린이고, 미선택색은 SwiftUI 쪽 모디파이어가 없어 여기서 잡는다.
+    /// 배경은 시스템 기본값을 유지하고 라벨 폰트와 색만 덮어쓴다.
     private static func applyBrandTabBarFont() {
-        guard let font = UIFont(name: NotoSans.medium.rawValue, size: 10) else { return }
+        guard let font = UIFont(name: NotoSans.bold.rawValue, size: 12) else { return }
         let appearance = UITabBarAppearance()
         appearance.configureWithDefaultBackground()
         for layout in [appearance.stackedLayoutAppearance,
                        appearance.inlineLayoutAppearance,
                        appearance.compactInlineLayoutAppearance] {
-            layout.normal.titleTextAttributes = [.font: font]
-            layout.selected.titleTextAttributes = [.font: font]
+            layout.normal.iconColor = UIColor(Color.iconGray)
+            layout.normal.titleTextAttributes = [.font: font, .foregroundColor: UIColor(Color.iconGray)]
+            layout.selected.iconColor = UIColor(Color.deepGreen)
+            layout.selected.titleTextAttributes = [.font: font, .foregroundColor: UIColor(Color.deepGreen)]
         }
         UITabBar.appearance().standardAppearance = appearance
         UITabBar.appearance().scrollEdgeAppearance = appearance
