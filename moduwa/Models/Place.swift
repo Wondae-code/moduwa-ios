@@ -29,6 +29,26 @@ enum PlaceCategory: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// rawValue가 한글 표시 문구라 저장 키로 쓸 수 없다 — 플랜 직렬화에는 안정 키인 `apiKey`를 쓴다.
+extension PlaceCategory: Codable {
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let key = try container.decode(String.self)
+        guard let match = PlaceCategory.allCases.first(where: { $0.apiKey == key }) else {
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "알 수 없는 카테고리 키: \(key)"
+            )
+        }
+        self = match
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(apiKey)
+    }
+}
+
 enum AccessibilityFeature: String, Sendable, Decodable {
     case wheelchairAccessible
     case flatPath
