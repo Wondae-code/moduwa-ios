@@ -13,10 +13,14 @@ struct moduwaApp: App {
     }
 
     /// 탭바 라벨(홈/플랜/일정/저장)도 브랜드 폰트(Noto Sans)로 — UITabBarItem은 기본이 시스템 폰트라 별도 지정이 필요하다.
-    /// 시안은 Bold 12에 미선택 #B3B3B3 / 선택 딥그린이고, 미선택색은 SwiftUI 쪽 모디파이어가 없어 여기서 잡는다.
+    /// 시안은 Bold 12에 미선택 #B3B3B3 / 선택 딥그린이지만 Medium 10으로 간다 —
+    /// 기기에서 Bold 12는 iOS 기본 탭바 라벨보다 너무 무겁게 읽힌다.
     /// 배경은 시스템 기본값을 유지하고 라벨 폰트와 색만 덮어쓴다.
+    ///
+    /// 아래 미선택색 지정은 iOS 26 유리 탭바에서 무시된다 — 시스템이 소재 대비용 색으로 덮어쓴다.
+    /// iOS 18 이하와 유리를 끈 경우를 위해 남겨두지만, 현재 기기에서 보이는 회색은 시스템 값이다.
     private static func applyBrandTabBarFont() {
-        guard let font = UIFont(name: NotoSans.bold.rawValue, size: 12) else { return }
+        guard let font = UIFont(name: NotoSans.medium.rawValue, size: 10) else { return }
         let appearance = UITabBarAppearance()
         appearance.configureWithDefaultBackground()
         for layout in [appearance.stackedLayoutAppearance,
