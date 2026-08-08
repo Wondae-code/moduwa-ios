@@ -144,6 +144,30 @@ extension Plan {
     func isPast(asOf now: Date = .now, calendar: Calendar = .current) -> Bool {
         calendar.startOfDay(for: endDate) < calendar.startOfDay(for: now)
     }
+
+    /// 목록·상세 공통 "7월 26일 - 7월 27일"
+    var dateRangeText: String {
+        "\(PlanDateText.monthDay(startDate)) - \(PlanDateText.monthDay(endDate))"
+    }
+}
+
+/// 한국어 전용 앱이라 DateFormatter 없이 직접 조립한다 —
+/// 포매터를 static으로 들면 Sendable 예외를 달아야 하고, 로케일에 따라 표기가 흔들린다.
+enum PlanDateText {
+    private static let weekdays = ["일", "월", "화", "수", "목", "금", "토"]
+
+    /// "7월 26일"
+    static func monthDay(_ date: Date, calendar: Calendar = .current) -> String {
+        let parts = calendar.dateComponents([.month, .day], from: date)
+        return "\(parts.month ?? 0)월 \(parts.day ?? 0)일"
+    }
+
+    /// "7/26 목"
+    static func shortWithWeekday(_ date: Date, calendar: Calendar = .current) -> String {
+        let parts = calendar.dateComponents([.month, .day, .weekday], from: date)
+        let weekday = weekdays[((parts.weekday ?? 1) - 1) % 7]
+        return "\(parts.month ?? 0)/\(parts.day ?? 0) \(weekday)"
+    }
 }
 
 /// 하루치 일정. 날짜를 시작일+인덱스로 계산하지 않고 명시해 둔다 —
@@ -163,6 +187,18 @@ struct PlanDay: Identifiable, Hashable, Sendable, Codable {
     var stops: [PlanStop] {
         items.compactMap { if case .stop(let stop) = $0 { stop } else { nil } }
     }
+
+    /// items의 `index`에 있는 장소가 몇 번째 장소인지. 메모 자리면 nil.
+    /// 번호가 items 인덱스와 어긋나므로(메모가 번호를 건너뛴다) 장소만 세어 매긴다.
+    func stopNumber(at index: Int) -> Int? {
+        guard items.indices.contains(index), case .stop = items[index] else { return nil }
+        return items[...index].reduce(into: 0) { count, item in
+            if case .stop = item { count += 1 }
+        }
+    }
+
+    /// 시안 Day 헤더의 "7/26 목"
+    var headerText: String { PlanDateText.shortWithWeekday(date) }
 }
 
 /// 하루의 타임라인에 장소와 메모가 섞인다. 메모는 추가하면 맨 아래에 붙고,

@@ -2,11 +2,10 @@ import SwiftUI
 
 struct PlanView: View {
     var body: some View {
-        ComingSoonView(
-            title: "계획",
-            systemImage: "safari",
-            message: "여행 코스 만들기가 준비 중이에요"
-        )
+        NavigationStack {
+            // 플랜 서비스가 아직 없다 — 목 데이터로 화면부터 맞춘다.
+            PlanListView(plans: MockData.plans)
+        }
     }
 }
 
