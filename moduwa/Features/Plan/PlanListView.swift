@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 플랜 목록 — Figma "03. 플랜"(391:232)
+/// 플랜 목록 — Figma "02. 플랜"(391:232)
 struct PlanListView: View {
     let plans: [Plan]
 
@@ -53,7 +53,8 @@ struct PlanListView: View {
 
     private var createPlanButton: some View {
         Button {
-            // 새 플랜 플로우(03-2)는 아직 미구현
+            // 새 플랜 플로우(02-2)는 아직 미구현. 시안은 6단계 중 3단계까지만 나와 있다
+            // — 372:409(1/6) · 519:1219(2/6) · 519:1343(3/6).
         } label: {
             Text("+ 새 플랜 계획하기")
                 .font(.notoSans(16, .bold, relativeTo: .headline))
@@ -69,7 +70,7 @@ struct PlanListView: View {
 // MARK: - 카드
 
 /// 진행 중 플랜은 흰 배경 + 라임 테두리에 버튼 두 개, 지난 플랜은 회색 배경에 흑백 썸네일.
-/// 두 상태를 `Plan.isPast()`로만 가른다 — 시안의 "지난 여행 - 날짜 수정시"(519:378)가
+/// 두 상태를 `Plan.isPast()`로만 가른다 — 시안의 "날짜 수정시 활성화"(553:158)가
 /// 날짜만 고치면 카드가 되살아나는 동작이 이 파생과 맞는다.
 private struct PlanCard: View {
     let plan: Plan
