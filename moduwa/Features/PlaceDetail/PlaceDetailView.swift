@@ -7,12 +7,28 @@ struct PlaceDetailView: View {
     @Environment(\.feedService) private var feedService
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var detail: PlaceDetail?
     @State private var isOverviewExpanded = false
     /// 사진 위 원형 뱃지 중 선택된 유형 — 선택 시에만 안내 칩을 띄운다
     @State private var selectedFeature: AccessibilityFeature?
     /// 카카오맵 엔진은 지도 영역이 화면에 나타난 뒤 활성화해야 한다
     @State private var isMapVisible = false
+    /// 후기 작성 시트 (시안 미확보 — ReviewComposeView 참고)
+    @State private var isComposingReview = false
+    /// 헤더 ☰ 의 "준비 중" 안내 popover
+    @State private var showsMenuNotice = false
+
+    /// 후기 집계 (평점·후기 수). 무장애 상세와 다른 엔드포인트라 따로 받는다.
+    @State private var summary: PlaceReviewSummary?
+    @State private var reviews: [TravelReview] = []
+    /// 다음에 받을 페이지 번호 (0부터)
+    @State private var reviewPage = 0
+    @State private var isLoadingReviews = false
+    @State private var reviewLoadFailed = false
+    @State private var relatedPlaces: [RelatedPlace] = []
+    /// "방문 후기를 남겨주세요!"에서 고른 별점 — 작성 시트의 초기값으로 넘긴다
+    @State private var entryRating = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -43,13 +59,78 @@ struct PlaceDetailView: View {
                     sectionDivider
                     extraInfoSection
                         .padding(.horizontal, 24)
-                        .padding(.bottom, Spacing.xxl)
+
+                    // 이하 시안 하단 3섹션 (333:1495 / 333:1323 / 352:48+352:54)
+                    sectionDivider
+                    reviewEntrySection
+                        .padding(.horizontal, 24)
+
+                    sectionDivider
+                    reviewSection
+
+                    if !relatedPlaces.isEmpty {
+                        sectionDivider
+                        relatedSection
+                    }
                 }
+                .padding(.bottom, Spacing.xxl)
             }
             .background(.white)
         }
         .toolbar(.hidden, for: .navigationBar)
+        // 상세·후기·추천은 서로를 기다릴 이유가 없어 별도 task로 동시에 받는다.
         .task { detail = try? await feedService.fetchPlaceDetail(contentId: place.id) }
+        .task { await loadReviews(reset: true) }
+        .task {
+            relatedPlaces = (try? await feedService.fetchRelatedPlaces(contentId: place.id, limit: 10)) ?? []
+        }
+        .sheet(isPresented: $isComposingReview, onDismiss: { entryRating = 0 }) {
+            ReviewComposeView(
+                placeName: detail?.name ?? place.name,
+                placeAddress: detail?.address ?? place.region,
+                contentId: place.id,
+                initialRating: entryRating,
+                // 등록이 서버에서 성공한 뒤에만 불린다 — 집계·목록을 처음부터 다시 받는다
+                onSubmit: { _ in Task { await loadReviews(reset: true) } }
+            )
+        }
+    }
+
+    // MARK: - 후기 로딩
+
+    private func loadReviews(reset: Bool) async {
+        guard !isLoadingReviews else { return }
+        isLoadingReviews = true
+        reviewLoadFailed = false
+        if reset { reviewPage = 0 }
+
+        do {
+            if reset {
+                summary = try await feedService.fetchReviewSummary(contentId: place.id)
+            }
+            // 장소 상세 프리뷰는 최신 방문 후기가 먼저 보이는 게 유용하다 (정렬 토글은 전용 화면에 있다)
+            let page = try await feedService.fetchPlaceReviews(
+                contentId: place.id, sort: .latest, hasImage: false,
+                page: reviewPage, pageSize: FeedPage.placeReviewSize
+            )
+            reviews = reset ? page : reviews + page
+            reviewPage += 1
+        } catch {
+            reviewLoadFailed = true
+        }
+        isLoadingReviews = false
+    }
+
+    /// 평점·후기 수의 원본은 집계 엔드포인트다. 아직 도착하지 않았을 때만
+    /// `PlaceDetail`의 값(목·프리뷰용)으로 대신한다.
+    private var averageRating: Double? {
+        if let summary { return summary.averageRating }
+        return detail?.rating
+    }
+
+    private var reviewCount: Int {
+        if let summary { return summary.reviewCount }
+        return detail?.reviewCount ?? 0
     }
 
     // MARK: - 헤더 (뒤로가기 + 타이틀 + 지도/메뉴)
@@ -79,12 +160,22 @@ struct PlaceDetailView: View {
                 }
                 .accessibilityLabel("지도에서 보기")
 
-                Button {} label: {
+                // 눌러도 아무 일이 없으면 고장으로 읽힌다 — 장소 후기 화면의 ☰·팔로우와
+                // 같은 방식(기본 popover)으로 준비 중임을 말해 준다.
+                Button { showsMenuNotice = true } label: {
                     Image("hamburger")
                         .renderingMode(.template)
                         .frame(width: 26, height: 26)
                 }
                 .accessibilityLabel("메뉴")
+                .popover(isPresented: $showsMenuNotice) {
+                    Text("메뉴는 아직 준비 중이에요")
+                        .font(.notoSans(14, .medium, relativeTo: .subheadline))
+                        .foregroundStyle(Color.textPrimary)
+                        .padding(16)
+                        // 없으면 iPhone(compact)에서 popover가 시트로 바뀐다
+                        .presentationCompactAdaptation(.popover)
+                }
             }
         }
         .foregroundStyle(.textPrimary)
@@ -187,7 +278,7 @@ struct PlaceDetailView: View {
         HStack(spacing: 0) {
             actionButton(title: "저장하기", icon: "detail_bookmark") {}
             actionButton(title: "일정추가", icon: "detail_plus") {}
-            actionButton(title: "후기쓰기", icon: "detail_pencil") {}
+            actionButton(title: "후기쓰기", icon: "detail_pencil") { isComposingReview = true }
             actionButton(title: "공유하기", icon: "detail_share") {}
         }
         .padding(.horizontal, 24)
@@ -234,25 +325,18 @@ struct PlaceDetailView: View {
 
     @ViewBuilder
     private var ratingRow: some View {
-        if let rating = detail?.rating {
+        if let rating = averageRating {
             HStack(spacing: 8) {
                 Text(rating, format: .number.precision(.fractionLength(1)))
                     .font(.notoSans(14, .medium))
-                HStack(spacing: 2.5) {
-                    ForEach(0..<5, id: \.self) { i in
-                        Image("star")
-                            .renderingMode(.template)
-                            .foregroundStyle(Double(i) < rating.rounded() ? .deepGreen : .cardStroke)
-                    }
-                }
-                if let count = detail?.reviewCount {
-                    Text("(\(count))")
-                        .font(.notoSans(14))
-                }
+                // 채운 별/빈 별을 색이 아니라 모양으로 구분한다 (StarRatingDisplay 참고)
+                StarRatingDisplay(rating: rating, isAccessible: false)
+                Text("(\(reviewCount))")
+                    .font(.notoSans(14))
             }
             .foregroundStyle(.textPrimary)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("평점 \(rating.formatted(.number.precision(.fractionLength(1))))점, 리뷰 \(detail?.reviewCount ?? 0)개")
+            .accessibilityLabel("평점 \(rating.formatted(.number.precision(.fractionLength(1))))점, 후기 \(reviewCount)개")
         }
     }
 
@@ -321,58 +405,38 @@ struct PlaceDetailView: View {
 
     // MARK: - 지도
 
+    /// 시안 420:161에서 지도가 395×180 풀블리드로 커지고, 아래 "카카오맵에서 보기" 링크(249:941)는
+    /// hidden 처리됐다. 카카오맵으로 나가는 동선은 헤더의 지도 버튼이 그대로 담당하므로 링크를 없앤다.
     private var mapSection: some View {
-        VStack(alignment: .trailing, spacing: 10) {
-            Group {
-                if let latitude = detail?.latitude, let longitude = detail?.longitude,
-                   Secrets.kakaoNativeAppKey != nil {
-                    // 임베드 카카오맵 — 보기 전용, 제스처는 스크롤에 양보하고 조작은 카카오맵 앱으로
-                    KakaoMapView(latitude: latitude, longitude: longitude, draw: $isMapVisible)
-                        .onAppear { isMapVisible = true }
-                        .onDisappear { isMapVisible = false }
-                        .allowsHitTesting(false)
-                        .accessibilityLabel("\(detail?.name ?? place.name) 위치 지도")
-                } else {
-                    Rectangle()
-                        .fill(.white)
-                        .overlay(
-                            Text("지도")
-                                .font(.notoSans(24, .bold))
-                                .foregroundStyle(.textPrimary)
-                        )
-                        .accessibilityHidden(true)
-                }
+        Group {
+            if let latitude = detail?.latitude, let longitude = detail?.longitude,
+               Secrets.kakaoNativeAppKey != nil {
+                // 임베드 카카오맵 — 보기 전용, 제스처는 스크롤에 양보하고 조작은 카카오맵 앱으로
+                KakaoMapView(latitude: latitude, longitude: longitude, draw: $isMapVisible)
+                    .onAppear { isMapVisible = true }
+                    .onDisappear { isMapVisible = false }
+                    .allowsHitTesting(false)
+                    .accessibilityLabel("\(detail?.name ?? place.name) 위치 지도")
+            } else {
+                Rectangle()
+                    .fill(.white)
+                    .overlay(
+                        Text("지도")
+                            .font(.notoSans(24, .bold))
+                            .foregroundStyle(.textPrimary)
+                    )
+                    .accessibilityHidden(true)
             }
-            // 풀블리드 — 기존 박스 비율(289:126) 유지한 채 화면 폭에 맞춰 확대
-            .frame(maxWidth: .infinity)
-            .aspectRatio(289.0 / 126.0, contentMode: .fit)
-            .clipped()
-            .overlay(alignment: .top) {
-                Rectangle().fill(Color.cardStroke).frame(height: 1)
-            }
-            .overlay(alignment: .bottom) {
-                Rectangle().fill(Color.cardStroke).frame(height: 1)
-            }
-
-            Button {
-                if let url = detail?.kakaoMapURL { openURL(url) }
-            } label: {
-                HStack(spacing: 4) {
-                    Image("kakao_map")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 20, height: 20)
-                    Text("카카오맵에서 보기")
-                        .font(.notoSans(14))
-                        .foregroundStyle(.textPrimary)
-                }
-            }
-            .buttonStyle(.plain)
-            .padding(.trailing, Spacing.xl)
-            .disabled(detail?.kakaoMapURL == nil)
-            .accessibilityLabel("카카오맵에서 보기")
         }
         .frame(maxWidth: .infinity)
+        .frame(height: 180)
+        .clipped()
+        .overlay(alignment: .top) {
+            Rectangle().fill(Color.cardStroke).frame(height: 1)
+        }
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.cardStroke).frame(height: 1)
+        }
     }
 
     // MARK: - 추가정보 (접근성 뱃지·안내·주의 칩)
@@ -416,6 +480,308 @@ struct PlaceDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    // MARK: - 방문 후기를 남겨주세요! (333:1495)
+
+    /// 별점 입력이 곧 후기 작성 진입점이다. 별을 고르면 그 점수를 초기값으로 작성 시트를 연다.
+    private var reviewEntrySection: some View {
+        VStack(spacing: 8) {
+            Text("방문 후기를 남겨주세요!")
+                .font(.notoSans(16))
+                .foregroundStyle(.textSecondary)
+                .accessibilityAddTraits(.isHeader)
+
+            // 작성 화면과 같은 컨트롤을 쓴다 — 별점 조작·낭독 규칙(단일 조절 요소)이 두 곳에서 같아야 한다.
+            // StarRatingInput은 44pt 터치 영역을 별 오른쪽으로 넓히므로, 가운데 정렬해도
+            // 시각적으로는 별 절반 간격만큼 오른쪽으로 치우친다.
+            StarRatingInput(rating: $entryRating)
+        }
+        .frame(maxWidth: .infinity)
+        .onChange(of: entryRating) { _, newValue in
+            // 시트를 닫을 때 0으로 되돌리므로 0은 무시한다 (되돌림이 시트를 다시 열지 않게)
+            guard newValue > 0 else { return }
+            isComposingReview = true
+        }
+    }
+
+    // MARK: - Review (333:1323)
+
+    private var reviewSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            overallRatingBlock
+
+            if !reviews.isEmpty {
+                // 시안 352:28 — 이 구분선만 좌우 마진 없이 풀블리드다
+                Rectangle()
+                    .fill(Color.cardStroke)
+                    .frame(height: 1)
+                    .padding(.top, 30)
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 24) {
+                    ForEach(reviews) { review in
+                        NavigationLink(value: review) {
+                            PlaceReviewRow(review: review)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.top, 22)
+                .padding(.horizontal, 24)
+
+                // 이 섹션은 프리뷰다 — 여기서 더 받지 않고 전용 화면으로 넘긴다.
+                //  예전에는 인라인 페이징 버튼이었는데, 후기가 페이지 크기보다 적으면
+                //  (예: 1건) 버튼이 아예 나타나지 않아 전용 화면으로 갈 길이 없었다.
+                //  이제 후기가 하나라도 있으면 항상 보인다.
+                reviewsScreenLink
+                    .padding(.top, 18)
+                    .padding(.horizontal, 24)
+            }
+        }
+    }
+
+    /// "리뷰 더 보기" — 장소 후기 전용 화면으로 이동. `LoadMoreButton`과 같은 알약 모양을 쓰되,
+    /// 동작이 "더 받기"가 아니라 "화면 이동"이라 `NavigationLink`로 만든다.
+    private var reviewsScreenLink: some View {
+        NavigationLink {
+            PlaceReviewsView(
+                contentId: place.id,
+                placeName: detail?.name ?? place.name,
+                placeAddress: detail?.address ?? place.region
+            )
+        } label: {
+            HStack(spacing: 5) {
+                Text("리뷰 더 보기")
+                    .font(.notoSans(15, .bold))
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .bold))
+            }
+            .foregroundStyle(.deepGreen)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 15)
+            .background(Capsule().fill(.white))
+            .overlay(Capsule().stroke(Color.cardStroke, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("리뷰 더 보기")
+        .accessibilityHint("장소 후기 화면으로 이동합니다")
+    }
+
+    /// 전체 평점 (352:30) — 제목 · 평균 별점 · 후기 수 · 후기 사진 캐러셀
+    private var overallRatingBlock: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("전체 평점")
+                .font(.sectionTitle)
+                .foregroundStyle(.textPrimary)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.horizontal, 24)
+
+            if isLoadingReviews && summary == nil {
+                loadingRow.padding(.top, 14).padding(.horizontal, 24)
+            } else if reviewLoadFailed && reviews.isEmpty {
+                reviewErrorRow.padding(.top, 14).padding(.horizontal, 24)
+            } else if reviewCount == 0 {
+                emptyReviewsRow.padding(.top, 14).padding(.horizontal, 24)
+            } else {
+                // 접근성 글자 크기에서 한 줄에 두면 "4.3"이 폭 0으로 눌려 사라진다 — 세로로 쌓는다.
+                Group {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: 10) {
+                            ratingSummaryLine
+                            reviewCountLink
+                        }
+                    } else {
+                        HStack(alignment: .center, spacing: 8) {
+                            ratingSummaryLine
+                            Spacer(minLength: 12)
+                            reviewCountLink
+                        }
+                    }
+                }
+                .padding(.top, 10)
+                .padding(.horizontal, 24)
+
+                if !reviewPhotos.isEmpty {
+                    reviewPhotoStrip.padding(.top, 21)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var ratingSummaryLine: some View {
+        HStack(spacing: 5) {
+            if let rating = averageRating {
+                Text(rating, format: .number.precision(.fractionLength(1)))
+                    .font(.notoSans(14, .medium))
+                    .foregroundStyle(.textPrimary)
+                    // 폭이 부족할 때 별이 아니라 점수가 먼저 눌리는 것을 막는다
+                    .fixedSize()
+                StarRatingDisplay(rating: rating, isAccessible: false)
+            } else {
+                // 후기는 있지만 아무도 별점을 남기지 않은 경우 — 평균을 0점으로 꾸미지 않는다
+                Text("별점 없음")
+                    .font(.notoSans(14, .medium))
+                    .foregroundStyle(.textSecondary)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            averageRating.map {
+                "평균 별점 5점 중 \($0.formatted(.number.precision(.fractionLength(1))))점, 별점을 남긴 후기 \(summary?.ratedCount ?? 0)개"
+            } ?? "아직 별점을 남긴 후기가 없어요"
+        )
+    }
+
+    /// "후기 235 ›" (333:1423) — 장소 후기 전용 화면(`PlaceReviewsView`)으로 이동한다.
+    ///
+    /// 예전에는 여기서 다음 페이지를 이어 받았다(전용 화면이 없던 임시 동작). 이제 정렬·필터·태그 집계는
+    /// 전용 화면이 담당하고, 이 섹션은 프리뷰로 남는다 — 아래 "후기 더보기"가 프리뷰 안에서 더 받는 길이다.
+    @ViewBuilder
+    private var reviewCountLink: some View {
+        let label = Text("후기 \(reviewCount)")
+            .font(.notoSans(14, .medium))
+            .foregroundStyle(.textPrimary)
+
+        if reviewCount > 0 {
+            NavigationLink {
+                PlaceReviewsView(
+                    contentId: place.id,
+                    placeName: detail?.name ?? place.name,
+                    placeAddress: detail?.address ?? place.region
+                )
+            } label: {
+                HStack(spacing: 8) {
+                    label
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.textPrimary)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("후기 \(reviewCount)개")
+            .accessibilityHint("장소 후기 화면으로 이동합니다")
+        } else {
+            label.accessibilityLabel("후기 \(reviewCount)개")
+        }
+    }
+
+    /// 불러온 후기들의 사진을 모아 만든 캐러셀 (333:1425, 128×128 · 컨테이너가 화면 폭을 넘어 가로 스크롤)
+    private var reviewPhotos: [URL] {
+        reviews.flatMap(\.imageURLs)
+    }
+
+    private var reviewPhotoStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                ForEach(Array(reviewPhotos.enumerated()), id: \.offset) { index, url in
+                    Color.clear
+                        .frame(width: 128, height: 128)
+                        .overlay {
+                            AsyncImage(url: url) { image in
+                                image.resizable().scaledToFill()
+                            } placeholder: {
+                                PhotoPlaceholder(label: "여행 사진")
+                            }
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.card))
+                        // 사진 하나하나가 VoiceOver 정지점이어야 캐러셀을 끝까지 순회할 수 있다
+                        .accessibilityElement()
+                        .accessibilityLabel("후기 사진 \(index + 1), 전체 \(reviewPhotos.count)장")
+                }
+            }
+            .padding(.horizontal, 24)
+        }
+        .accessibilityLabel("후기 사진")
+    }
+
+    // MARK: - 후기 로딩 · 실패 · 빈 상태
+
+    private var loadingRow: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .tint(.deepGreen)
+            Text("후기를 불러오는 중이에요")
+                .font(.notoSans(14))
+                .foregroundStyle(.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // 스피너만으로는 스크린리더에 아무것도 전달되지 않는다
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("후기를 불러오는 중이에요")
+    }
+
+    private var reviewErrorRow: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("후기를 불러오지 못했어요")
+                .font(.notoSans(15, .bold))
+                .foregroundStyle(.textPrimary)
+            Text("네트워크 상태를 확인하고 다시 시도해 주세요")
+                .font(.notoSans(13))
+                .foregroundStyle(.textSecondary)
+            Button {
+                Task { await loadReviews(reset: true) }
+            } label: {
+                Text("다시 시도")
+                    .font(.notoSans(14, .bold))
+                    .foregroundStyle(.deepGreen)
+                    .padding(.horizontal, 16)
+                    .frame(height: 40)
+                    .background(Capsule().fill(.white))
+                    .overlay(Capsule().stroke(Color.cardStroke, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("후기 다시 불러오기")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// 시안에 빈 상태가 없다 — 시연 데이터가 7건뿐이라 대부분의 장소가 이 상태다.
+    /// 리뷰 상세의 '댓글 없음'과 같은 톤으로 만들었다.
+    private var emptyReviewsRow: some View {
+        VStack(spacing: 6) {
+            Text("아직 후기가 없어요")
+                .font(.notoSans(15, .bold))
+                .foregroundStyle(.textPrimary)
+            Text("이 장소의 첫 후기를 남겨보세요")
+                .font(.notoSans(13))
+                .foregroundStyle(.textSecondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 20)
+        .accessibilityElement(children: .combine)
+    }
+
+    // MARK: - 함께 가볼만한 곳 (352:48 + 352:54)
+
+    private var relatedSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("함께 가볼만한 곳")
+                .font(.sectionTitle)
+                .foregroundStyle(.textPrimary)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.horizontal, 24)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 12) {
+                    ForEach(relatedPlaces) { related in
+                        NavigationLink(value: related.place) {
+                            RelatedPlaceCard(place: related)
+                                // 이름이 두 줄인 카드가 섞여도 테두리 높이는 맞춘다
+                                // (HStack의 fixedSize가 정한 이상 높이까지 늘어난다)
+                                .frame(maxHeight: .infinity, alignment: .top)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 24)
+                // 카드 그림자가 스크롤 뷰 경계에서 잘리지 않게
+                .padding(.vertical, 4)
+            }
+            .padding(.top, 16)
+        }
+    }
+
     private var sectionDivider: some View {
         Rectangle()
             .fill(Color.cardStroke)
@@ -425,8 +791,53 @@ struct PlaceDetailView: View {
     }
 }
 
-#Preview {
+#Preview("목 데이터") {
+    NavigationStack {
+        PlaceDetailView(place: MockData.recommendedPlaces[0])
+            .navigationDestination(for: Place.self) { PlaceDetailView(place: $0) }
+            .navigationDestination(for: TravelReview.self) { ReviewDetailView(review: $0) }
+    }
+}
+
+#Preview("후기 없는 장소") {
+    NavigationStack {
+        PlaceDetailView(place: MockData.recommendedPlaces[0])
+            .environment(\.feedService, EmptyReviewPreviewService())
+    }
+}
+
+#Preview("큰 글자 (AX3)") {
     NavigationStack {
         PlaceDetailView(place: MockData.recommendedPlaces[0])
     }
+    .environment(\.dynamicTypeSize, .accessibility3)
+}
+
+/// 프리뷰 전용 — 상세는 목 그대로 두고 후기·추천만 비운다.
+/// (프로덕션 리뷰가 7건뿐이라 대부분의 장소가 실제로 이 상태다)
+private struct EmptyReviewPreviewService: FeedService {
+    private let base = MockFeedService()
+
+    func fetchHeroRecommendation() async throws -> HeroRecommendation {
+        try await base.fetchHeroRecommendation()
+    }
+
+    func fetchRecommendedPlaces(category: PlaceCategory, page: Int) async throws -> [Place] {
+        try await base.fetchRecommendedPlaces(category: category, page: page)
+    }
+
+    func fetchReviews(sort: ReviewSort, page: Int) async throws -> [TravelReview] {
+        try await base.fetchReviews(sort: sort, page: page)
+    }
+
+    func fetchPlaceDetail(contentId: String) async throws -> PlaceDetail {
+        let detail = try await base.fetchPlaceDetail(contentId: contentId)
+        return PlaceDetail(
+            id: detail.id, name: detail.name, address: detail.address, imageURL: detail.imageURL,
+            rating: nil, reviewCount: nil, overview: detail.overview, info: detail.info,
+            accessibilityGroups: detail.accessibilityGroups, cautionTags: detail.cautionTags,
+            latitude: detail.latitude, longitude: detail.longitude
+        )
+    }
+    // 나머지(집계·목록·추천)는 프로토콜 기본 구현 = "이 소스에는 데이터 없음"
 }
