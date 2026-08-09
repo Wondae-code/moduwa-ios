@@ -1,6 +1,17 @@
 import KakaoMapsSDK
 import SwiftUI
 
+/// SwiftUI 프레임이 바뀌어도 엔진 뷰포트를 따라가게 하려고 레이아웃 시점을 넘겨받는다.
+/// (`updateUIView` 는 입력이 바뀔 때만 불려서 크기 변경을 놓친다)
+final class ResizingMapContainer: KMViewContainer {
+    var onLayout: ((CGSize) -> Void)?
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        onLayout?(bounds.size)
+    }
+}
+
 /// 나만의 장소는 라임, 그 외는 딥그린 — `PlanPlace.isCustom` 하나로 갈린다.
 /// 지도 핀과 목록 뱃지가 같은 모양이라 한 뷰를 공유하고, 지도 쪽은 이 뷰를 이미지로 구워 POI 심볼로 쓴다.
 /// 시안(509:527)에서 지도 핀과 목록 뱃지는 24×24로 완전히 같은 규격이다.
@@ -35,14 +46,22 @@ struct PlanRouteMap: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> KMViewContainer {
-        let container = KMViewContainer(
+        // 초기 크기는 임시값이다 — 실제 크기는 아래 layoutSubviews 콜백이 잡아 준다.
+        let container = ResizingMapContainer(
             frame: CGRect(x: 0, y: 0, width: UIScreen.main.bounds.width, height: 331)
         )
+        // SwiftUI 는 프레임 크기만 바뀔 때 updateUIView 를 부르지 않는다. 그대로 두면 엔진의
+        // viewRect 가 옛 크기에 머물러, 카카오 로고가 **옛 뷰포트의 모서리**(지금 화면에서는
+        // 오른쪽 가운데)에 찍히고 카메라 맞춤도 어긋난다. UIKit 레이아웃에 직접 붙여 동기화한다.
+        container.onLayout = { [weak coordinator = context.coordinator] size in
+            coordinator?.syncViewRect(size)
+        }
         context.coordinator.createController(container)
         return container
     }
 
     func updateUIView(_ uiView: KMViewContainer, context: Context) {
+        context.coordinator.updateStops(stops)
         if draw {
             context.coordinator.activateEngineIfNeeded()
         } else {
@@ -68,9 +87,11 @@ struct PlanRouteMap: UIViewRepresentable {
             let longitude: Double
         }
 
-        private let points: [MapPoint]
-        private let coordinates: [Coordinate]
-        private let badges: [(point: MapPoint, image: UIImage?)]
+        /// 다시 그릴지 판단하는 기준. 순서만 바뀌어도 번호 뱃지가 전부 달라진다.
+        private var stops: [PlanStop]
+        private var points: [MapPoint]
+        private var coordinates: [Coordinate]
+        private var badges: [(point: MapPoint, image: UIImage?)]
         private let bottomInset: CGFloat
         private var isActive = false
         private var didDrawOverlays = false
@@ -79,16 +100,43 @@ struct PlanRouteMap: UIViewRepresentable {
 
         @MainActor
         init(stops: [PlanStop], bottomInset: CGFloat) {
+            self.stops = stops
+            self.bottomInset = bottomInset
+            (coordinates, points, badges) = Self.derive(from: stops)
+        }
+
+        /// 좌표가 있는 정류지만 순서대로 뽑아 지도에 쓸 값으로 바꾼다.
+        @MainActor
+        private static func derive(
+            from stops: [PlanStop]
+        ) -> ([Coordinate], [MapPoint], [(point: MapPoint, image: UIImage?)]) {
             let located = stops.compactMap { stop -> (Coordinate, Bool)? in
                 guard let latitude = stop.place.latitude, let longitude = stop.place.longitude else { return nil }
                 return (Coordinate(latitude: latitude, longitude: longitude), stop.place.isCustom)
             }
-            coordinates = located.map(\.0)
-            points = located.map { MapPoint(longitude: $0.0.longitude, latitude: $0.0.latitude) }
-            badges = zip(points, located.enumerated()).map { point, item in
-                (point, Self.badgeImage(number: item.offset + 1, isCustom: item.element.1))
+            let coordinates = located.map(\.0)
+            let points = located.map { MapPoint(longitude: $0.0.longitude, latitude: $0.0.latitude) }
+            let badges = zip(points, located.enumerated()).map { point, item in
+                (point: point, image: Self.badgeImage(number: item.offset + 1, isCustom: item.element.1))
             }
-            self.bottomInset = bottomInset
+            return (coordinates, points, badges)
+        }
+
+        /// 정류지가 바뀌면 핀·경로를 지우고 다시 그린다.
+        ///
+        /// 편집에서 순서를 바꾸면 좌표 집합은 그대로여도 **번호 뱃지가 전부 달라진다** —
+        /// 좌표만 비교하면 이 경우를 놓치므로 `PlanStop` 배열 자체를 비교한다.
+        @MainActor
+        func updateStops(_ newStops: [PlanStop]) {
+            guard newStops != stops else { return }
+            stops = newStops
+            (coordinates, points, badges) = Self.derive(from: newStops)
+
+            guard let mapView = controller?.getView(Self.viewName) as? KakaoMap else { return }
+            mapView.getLabelManager().removeLabelLayer(layerID: Self.poiLayerID)
+            mapView.getShapeManager().removeShapeLayer(layerID: Self.routeLayerID)
+            didDrawOverlays = false
+            drawOverlaysIfNeeded()
         }
 
         func createController(_ container: KMViewContainer) {
@@ -131,6 +179,8 @@ struct PlanRouteMap: UIViewRepresentable {
             didDrawOverlays = true
 
             // 시트에 가리는 만큼 하단 마진 — 카메라 맞춤이 드러난 영역만 쓰도록 한다.
+            //  로고는 화면 맨 아래에 고정돼 있고 핀은 이 마진 덕에 그보다 위에 맞춰지므로
+            //  로고 몫을 따로 뺄 필요가 없다.
             mapView.setMargins(UIEdgeInsets(top: 0, left: 0, bottom: bottomInset, right: 0))
 
             addPins(on: mapView)
@@ -306,8 +356,24 @@ struct PlanRouteMap: UIViewRepresentable {
         }
 
         func syncViewRect(_ size: CGSize) {
-            guard size.width > 0, size.height > 0 else { return }
-            (controller?.getView(Self.viewName) as? KakaoMap)?.viewRect = CGRect(origin: .zero, size: size)
+            guard size.width > 0, size.height > 0,
+                  let mapView = controller?.getView(Self.viewName) as? KakaoMap else { return }
+            mapView.viewRect = CGRect(origin: .zero, size: size)
+            placeLogo(on: mapView)
+        }
+
+        /// 카카오 로고는 **가려도 지워도 안 되는 필수 표기**다(카카오맵 이용약관).
+        ///  지도 뷰의 좌하단에 고정한다 — 시트 높이와 무관하다.
+        ///
+        ///  ⚠️ `setMargins`(카메라를 시트 위 영역에만 맞추려고 준다)는 카메라뿐 아니라 **GUI 배치
+        ///     기준까지 함께 안쪽으로 당긴다.** 그래서 로고가 마진만큼 떠올라 시트 바로 위에 붙었다.
+        ///     마진 값을 빼서 실제 뷰 하단으로 되돌린다. 카메라용 마진과 로고 위치를 따로 줄 수 있는
+        ///     API가 없어(`CameraUpdate.make(area:)`에 패딩 인자가 없다) 이렇게 상쇄한다.
+        private func placeLogo(on mapView: KakaoMap) {
+            mapView.setLogoPosition(
+                origin: GuiAlignment(vAlign: .bottom, hAlign: .left),
+                position: CGPoint(x: 12, y: 48 - bottomInset)
+            )
         }
     }
 }

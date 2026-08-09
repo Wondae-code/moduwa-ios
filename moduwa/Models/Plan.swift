@@ -3,8 +3,9 @@ import Foundation
 // 피그마 "모두와 UI" 플랜 계열 시안 기준 스키마.
 // 목록 391:232 / 상세 509:340·519:775 / 편집 519:987 / 새 플랜 플로우 372:409·519:1219·519:1343
 //
-// 전부 Codable이다 — 저장 방식(로컬 JSON·SwiftData·서버 API)이 아직 미정이라
-// 어느 쪽으로 가도 그대로 직렬화되도록 값 타입으로 둔다.
+// 저장은 서버(`/v1/plans`)로 정해졌다 — `APIPlanService` 참고.
+// 다만 서버 표기(날짜 두 형식, `kind` 판별자)는 이 타입들이 아니라 그쪽 DTO가 안다.
+// 여기 붙은 Codable은 도메인 모델의 직렬화일 뿐 **전송 형식이 아니다**.
 
 // MARK: - 동반자 정보
 
@@ -109,6 +110,17 @@ struct Plan: Identifiable, Hashable, Sendable, Codable {
     var party: TravelParty
     /// 목록 카드 썸네일. 미지정이면 UI가 첫 장소 사진으로 폴백한다.
     var coverImageURL: URL?
+
+    /// 새 플랜 플로우 4/6 에서 고른 선호 테마 코드. 표시 문구는 서버(`/v1/plan-options`)가 준다 —
+    /// 앱에 하드코딩하면 문구 하나 고치는 데 앱 재배포가 필요하다.
+    ///  ⚠️ enum 이 아니라 문자열인 이유: 서버가 테마를 하나 추가하면 구 버전 앱의 디코딩이
+    ///  통째로 실패한다. 모르는 코드는 칩을 안 그리면 그만이다.
+    var themes: [String]
+    /// 5/6 예산 — `low`/`medium`/`high`. **nil 은 "고르지 않음"**이고 저예산과 다른 값이다.
+    var budget: String?
+    /// 4/6 "당일치기만 즐길게요". 날짜로 유추하지 않는다 — 하루짜리 일정과 당일치기 선호는 다르다.
+    var dayTripOnly: Bool
+
     var days: [PlanDay]
     var createdAt: Date
     var updatedAt: Date
@@ -121,6 +133,9 @@ struct Plan: Identifiable, Hashable, Sendable, Codable {
         region: TravelRegion? = nil,
         party: TravelParty = TravelParty(),
         coverImageURL: URL? = nil,
+        themes: [String] = [],
+        budget: String? = nil,
+        dayTripOnly: Bool = false,
         days: [PlanDay] = [],
         createdAt: Date = .now,
         updatedAt: Date = .now
@@ -132,6 +147,9 @@ struct Plan: Identifiable, Hashable, Sendable, Codable {
         self.region = region
         self.party = party
         self.coverImageURL = coverImageURL
+        self.themes = themes
+        self.budget = budget
+        self.dayTripOnly = dayTripOnly
         self.days = days
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -188,6 +206,25 @@ struct PlanDay: Identifiable, Hashable, Sendable, Codable {
         items.compactMap { if case .stop(let stop) = $0 { stop } else { nil } }
     }
 
+    /// `index` 바로 앞의 장소. 사이에 메모가 몇 개 끼어 있어도 건너뛰고 찾는다 —
+    /// 이동 거리는 장소와 장소 사이의 값이라 메모가 구간을 끊으면 안 된다.
+    func stopBefore(_ index: Int) -> PlanStop? {
+        guard index > 0 else { return nil }
+        for item in items[..<index].reversed() {
+            if case .stop(let stop) = item { return stop }
+        }
+        return nil
+    }
+
+    /// `index` 바로 뒤의 장소. 사이의 메모는 건너뛴다 — 거리는 장소끼리의 값이다.
+    func stopAfter(_ index: Int) -> PlanStop? {
+        guard items.indices.contains(index) else { return nil }
+        for item in items[(index + 1)...] {
+            if case .stop(let stop) = item { return stop }
+        }
+        return nil
+    }
+
     /// items의 `index`에 있는 장소가 몇 번째 장소인지. 메모 자리면 nil.
     /// 번호가 items 인덱스와 어긋나므로(메모가 번호를 건너뛴다) 장소만 세어 매긴다.
     func stopNumber(at index: Int) -> Int? {
@@ -219,18 +256,10 @@ enum PlanDayItem: Identifiable, Hashable, Sendable, Codable {
 struct PlanStop: Identifiable, Hashable, Sendable, Codable {
     let id: UUID
     var place: PlanPlace
-    /// 바로 앞 장소에서 여기까지의 이동 거리 — 첫 장소는 nil.
-    ///
-    /// 시안은 이동 정보를 각 장소 프레임의 자식으로 두고 마지막 장소에서만 hidden 처리한다(519:631).
-    /// 즉 시안 기준으로는 "다음 장소로의 이동"이지만, 렌더 결과는 앞으로부터의 이동과 동일하고
-    /// (첫 장소만 비는 것과 마지막 장소만 비는 것이 같은 그림이 된다) 순서를 바꿨을 때
-    /// 어느 구간이 무효가 되는지는 이쪽이 분명해서 방향을 뒤집어 잡았다.
-    var travelFromPrevious: TravelLeg?
 
-    init(id: UUID = UUID(), place: PlanPlace, travelFromPrevious: TravelLeg? = nil) {
+    init(id: UUID = UUID(), place: PlanPlace) {
         self.id = id
         self.place = place
-        self.travelFromPrevious = travelFromPrevious
     }
 }
 
@@ -277,6 +306,25 @@ struct PlanPlace: Hashable, Sendable, Codable {
 /// 경로 API가 붙으면 mode·minutes를 여기에 더하면 된다.
 struct TravelLeg: Hashable, Sendable, Codable {
     var meters: Int
+
+    /// 두 장소의 **직선** 거리(하버사인). 좌표가 없는 장소가 끼면 구간 자체를 만들지 않는다.
+    ///
+    /// 실제 이동 거리가 아니라 최단 직선이다 — 경로 API 없이 정직하게 낼 수 있는 값이 이것뿐이라
+    /// 화면에도 수단·소요시간을 적지 않는다. 저장하지 않고 매번 계산하는 이유는, 장소 순서를
+    /// 바꾸면 모든 구간이 무효가 되는데 저장해 두면 그 갱신을 어딘가에서 빠뜨리기 때문이다.
+    static func straightLine(from: PlanPlace, to: PlanPlace) -> TravelLeg? {
+        guard let lat1 = from.latitude, let lon1 = from.longitude,
+              let lat2 = to.latitude, let lon2 = to.longitude else { return nil }
+
+        let earthRadius = 6_371_000.0
+        let toRad = Double.pi / 180
+        let dLat = (lat2 - lat1) * toRad
+        let dLon = (lon2 - lon1) * toRad
+        let a = sin(dLat / 2) * sin(dLat / 2)
+            + cos(lat1 * toRad) * cos(lat2 * toRad) * sin(dLon / 2) * sin(dLon / 2)
+        let meters = 2 * earthRadius * atan2(sqrt(a), sqrt(1 - a))
+        return TravelLeg(meters: Int(meters.rounded()))
+    }
 
     /// 시안 표기 — 1km 미만은 "520m", 그 이상은 "58.6km"
     var distanceText: String {

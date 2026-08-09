@@ -44,6 +44,8 @@ struct moduwaApp: App {
                 // 라이브 API(moduwa-backend). MODUWA_API_KEY 미설정/네트워크 실패 시 번들 데이터로 자동 폴백.
                 .environment(\.feedService, APIFeedService())
                 .environment(\.placeSearchService, APISearchService())
+                // 플랜은 번들 폴백이 없다 — 내가 만든 데이터라 대체할 원본이 없다.
+                .environment(\.planService, APIPlanService())
                 .environment(notificationStore)
         }
     }

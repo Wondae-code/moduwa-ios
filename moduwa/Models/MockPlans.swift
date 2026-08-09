@@ -26,16 +26,13 @@ extension MockData {
                 items: [
                     .stop(PlanStop(place: hwangridanGil)),
                     .stop(PlanStop(
-                        place: poseokjeong,
-                        travelFromPrevious: TravelLeg(meters: 520)
+                        place: poseokjeong
                     )),
                     .stop(PlanStop(
-                        place: hanaroMart,
-                        travelFromPrevious: TravelLeg(meters: 58_600)
+                        place: hanaroMart
                     )),
                     .stop(PlanStop(
-                        place: najeongBeach,
-                        travelFromPrevious: TravelLeg(meters: 600)
+                        place: najeongBeach
                     )),
                 ]
             ),
@@ -61,8 +58,7 @@ extension MockData {
                 items: [
                     .stop(PlanStop(place: gamcheonVillage)),
                     .stop(PlanStop(
-                        place: haeundae,
-                        travelFromPrevious: TravelLeg(meters: 17_800)
+                        place: haeundae
                     )),
                 ]
             )
