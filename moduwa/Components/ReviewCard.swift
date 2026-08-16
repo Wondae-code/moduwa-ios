@@ -5,15 +5,23 @@ struct ReviewCard: View {
     let review: TravelReview
 
     var body: some View {
+        // ⚠️ 폭을 여기서 못 박는다. 예전에는 사진 칸의 `Color.clear` 가 가로로 늘어나며
+        //  카드 폭을 만들어 줬는데, 사진 없는 후기에서 그 칸이 빠지면서 카드가 **글자 길이만큼만**
+        //  좁아졌다 — 목록에서 한 장만 폭이 다른 카드가 됐다. 폭은 내용이 아니라 카드가 정해야 한다.
         VStack(alignment: .leading, spacing: 0) {
-            photoArea
-                .frame(height: 180)
-                .clipped()
-            .overlay(alignment: .topLeading) {
-                if review.isAccessibilityVerified {
-                    AccessibilityBadge(feature: .wheelchairAccessible, style: .inverted)
-                        .padding(12)
-                }
+            // 사진이 한 장도 없으면 사진 칸을 아예 두지 않는다. 예전에는 회색 자리 표시를 두 칸
+            //  깔았는데, 없는 사진을 180pt나 차지하며 "여행 사진"이라고 알리는 꼴이었다.
+            //  후기 사진은 선택이라 글로만 쓴 후기는 정상적인 경우다 — 결함처럼 보이면 안 된다.
+            if !review.imageURLs.isEmpty {
+                photoArea
+                    .frame(height: 180)
+                    .clipped()
+                    .overlay(alignment: .topLeading) {
+                        if review.isAccessibilityVerified {
+                            AccessibilityBadge(feature: .wheelchairAccessible, style: .inverted)
+                                .padding(12)
+                        }
+                    }
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -34,6 +42,12 @@ struct ReviewCard: View {
                             .font(.caption12)
                             .foregroundStyle(.textSecondary)
                     }
+                }
+
+                // 사진이 있을 때 뱃지는 사진 위에 얹힌다. 사진이 없으면 얹을 곳이 사라지므로
+                // 본문 위로 옮긴다 — 밝은 배경이라 `.filled` 를 쓴다(`PlaceCard` 와 같은 규칙).
+                if review.imageURLs.isEmpty, review.isAccessibilityVerified {
+                    AccessibilityBadge(feature: .wheelchairAccessible, style: .filled)
                 }
 
                 Text(review.body)
@@ -63,6 +77,7 @@ struct ReviewCard: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(.white)
         .clipShape(RoundedRectangle(cornerRadius: Radius.card))
         .overlay(
@@ -80,8 +95,7 @@ struct ReviewCard: View {
         HStack(spacing: 1) {
             photoSlot(0)
             switch count {
-            case 0, 2:
-                // 사진이 없으면 기존처럼 2분할 플레이스홀더를 유지한다
+            case 2:
                 photoSlot(1)
             case 1:
                 EmptyView()

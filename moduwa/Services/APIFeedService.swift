@@ -92,9 +92,13 @@ struct APIFeedService: FeedService {
 
     func fetchRecommendedPlaces(category: PlaceCategory, page: Int) async throws -> [Place] {
         do {
+            // ⚠️ `hasImage`를 걸지 않는다. 걸면 무장애 장소 5곳 중 1곳(2,045/10,262)이 홈에서
+            //  통째로 빠진다 — 그런데 사진 유무로 접근성 정보량이 갈리지 않는다(2026-08-16 측정:
+            //  무사진 평균 4.0 / 유사진 4.4, 최대 둘 다 18). 사진이 없다는 건 관광공사가 사진을
+            //  안 올렸다는 뜻일 뿐이라, 무장애 여행 앱에서 그걸로 후보를 지울 이유가 없다.
+            //  대신 서버의 `access` 정렬이 감점 3으로 뒤로 민다(백엔드 a153987).
             let dtos: [BarrierFreeDTO] = try await getItems("/v1/barrier-free", [
                 .init(name: "type", value: typeId(category)),
-                .init(name: "hasImage", value: "true"),
                 .init(name: "hasAccess", value: "true"),
                 .init(name: "limit", value: "\(FeedPage.placeSize)"),
                 .init(name: "offset", value: "\(page * FeedPage.placeSize)"),
