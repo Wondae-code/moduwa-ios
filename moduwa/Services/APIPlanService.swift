@@ -109,6 +109,18 @@ struct APIPlanService: PlanService {
         return try JSONDecoder().decode(PlanDTO.self, from: data).plan
     }
 
+    // MARK: - 확정
+
+    func setPlanConfirmed(id: UUID, _ confirmed: Bool) async throws -> Plan {
+        guard !apiKey.isEmpty else { throw PlanServiceError.unavailable }
+        var request = authorized(url("/v1/plans/\(id.uuidString)/confirm", [
+            .init(name: "deviceId", value: deviceId),
+        ]))
+        request.httpMethod = confirmed ? "POST" : "DELETE"
+        let data = try await data(for: request)
+        return try JSONDecoder().decode(PlanDTO.self, from: data).plan
+    }
+
     // MARK: - 삭제
 
     func deletePlan(id: UUID) async throws {
@@ -137,11 +149,17 @@ struct APIPlanService: PlanService {
         let themes: [String]?
         let budget: String?
         let dayTripOnly: Bool?
+        /// 확정 시각(ISO8601 UTC). null 이면 초안이다. 구 서버에는 없어 옵셔널이다.
+        let confirmedAt: String?
         /// ISO8601 UTC
         let createdAt: String?
         let updatedAt: String?
         /// **목록 응답에는 없다** — 없으면 "일정이 없다"가 아니라 "아직 안 받았다"는 뜻이다.
         let days: [DayDTO]?
+        /// **목록 응답에만 있다.** 카드가 그릴 날짜별 장소 이름(서버 `9f8a752`).
+        /// 구 서버와도 붙을 수 있게 옵셔널로 둔다 — 없으면 카드가 DAY 줄을 안 그릴 뿐이다.
+        let daySummaries: [DaySummaryDTO]?
+        let fallbackImageUrl: String?
 
         var plan: Plan {
             Plan(
@@ -158,8 +176,30 @@ struct APIPlanService: PlanService {
                 budget: budget,
                 dayTripOnly: dayTripOnly ?? false,
                 days: (days ?? []).map(\.day),
+                daySummaries: (daySummaries ?? []).map(\.summary),
+                fallbackImageURL: fallbackImageUrl.flatMap(URL.init(string:)),
+                // ⚠️ `timestamp(from:)`이 아니다 — 그쪽은 못 읽으면 지금 시각으로 떨어져
+                // 초안이 확정된 것으로 뒤바뀐다.
+                confirmedAt: PlanWireDate.optionalTimestamp(from: confirmedAt),
                 createdAt: PlanWireDate.timestamp(from: createdAt),
                 updatedAt: PlanWireDate.timestamp(from: updatedAt)
+            )
+        }
+    }
+
+    /// 목록 카드용 하루 요약. 날짜를 못 읽으면 그 줄만 버린다 — 카드 한 줄 때문에
+    /// 플랜 전체를 못 읽을 이유가 없다(`region`을 다루는 방식과 같다).
+    private struct DaySummaryDTO: Decodable {
+        let id: UUID
+        /// `YYYY-MM-DD`
+        let date: String
+        let placeNames: [String]?
+
+        var summary: PlanDaySummary {
+            PlanDaySummary(
+                id: id,
+                date: PlanWireDate.date(from: date) ?? .now,
+                placeNames: placeNames ?? []
             )
         }
     }
@@ -368,6 +408,12 @@ private enum PlanWireDate {
 
     /// 생성·수정 시각. 화면에 쓰이지 않는 값이라 못 읽어도 실패로 다루지 않는다.
     static func timestamp(from text: String?) -> Date {
-        text.flatMap { try? Date($0, strategy: .iso8601) } ?? Date()
+        optionalTimestamp(from: text) ?? Date()
+    }
+
+    /// 확정 시각처럼 **없음이 뜻을 가지는** 값. `timestamp(from:)`은 못 읽으면 지금 시각으로
+    /// 떨어지는데, 여기서 그러면 초안이 확정된 것으로 뒤바뀐다.
+    static func optionalTimestamp(from text: String?) -> Date? {
+        text.flatMap { try? Date($0, strategy: .iso8601) }
     }
 }

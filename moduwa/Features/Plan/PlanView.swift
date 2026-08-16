@@ -47,6 +47,33 @@ struct PlanView: View {
                     guard case .loaded(var plans) = state else { return }
                     plans.removeAll { $0.id == plan.id }
                     state = .loaded(plans)
+                },
+                // ⚠️ **목록에서 온 플랜으로 바로 저장하면 안 된다** — `savePlan` 은 PUT 으로 본문을
+                //  통째로 갈아 끼우는데 목록의 `days` 는 빈 배열이라 서버의 일정이 지워진다.
+                //  팀만 고치는 것이라도 상세를 먼저 받아 온전한 플랜에 얹는다.
+                onSaveParty: { plan, party in
+                    var target = try await planService.fetchPlan(id: plan.id)
+                    target.party = party
+                    let saved = try await planService.savePlan(target, authorNm: nil)
+                    guard case .loaded(var plans) = state,
+                          let index = plans.firstIndex(where: { $0.id == saved.id })
+                    else { return }
+                    // 목록 카드는 일정을 쓰지 않는다 — 요약은 그대로 두고 본문만 비운다.
+                    var summary = saved
+                    summary.days = []
+                    summary.daySummaries = plans[index].daySummaries
+                    summary.fallbackImageURL = plans[index].fallbackImageURL
+                    plans[index] = summary
+                    state = .loaded(plans)
+                },
+                // 확정되면 이 플랜은 일정 탭으로 넘어간다 — 플랜 탭 목록에서는 뺀다.
+                // 서버가 성공한 뒤에만 뺀다: 먼저 지웠다가 실패하면 사라진 카드가 되살아나
+                // 무엇이 참인지 알 수 없어진다(삭제와 같은 규칙).
+                onConfirmPlan: { plan in
+                    try await planService.setPlanConfirmed(id: plan.id, true)
+                    guard case .loaded(var plans) = state else { return }
+                    plans.removeAll { $0.id == plan.id }
+                    state = .loaded(plans)
                 }
             )
         }
@@ -56,7 +83,9 @@ struct PlanView: View {
     private func load() async {
         state = .loading
         do {
-            state = .loaded(try await planService.fetchPlans())
+            // 플랜 탭은 **초안만** 본다 — 확정된 것은 일정 탭으로 넘어간다
+            // ("플랜은 초안이고, 일정에 추가하면 확정된다").
+            state = .loaded(try await planService.fetchPlans().filter(\.isDraft))
         } catch {
             state = .failed
         }

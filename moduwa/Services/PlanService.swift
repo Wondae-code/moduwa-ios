@@ -59,6 +59,18 @@ protocol PlanService: Sendable {
     /// 이미 없는 플랜이면 `.notFound`를 던진다 — 목록이 낡았다는 뜻이라 다시 받아야 한다.
     func deletePlan(id: UUID) async throws
 
+    /// 플랜을 일정으로 확정하거나 초안으로 되돌린다
+    /// (`POST`/`DELETE /v1/plans/:planId/confirm`).
+    ///
+    /// **`savePlan`으로 하지 않는 이유**: 저장은 PUT 으로 본문을 통째로 교체하므로, 상태 한 칸을
+    /// 바꾸자고 부르려면 온전한 플랜(`days` 포함)을 먼저 받아 와야 한다. 목록에서 온 플랜을
+    /// 실수로 넘기면 서버의 일정이 지워진다. 그 위험을 아예 없애려고 길을 따로 냈다.
+    ///
+    /// 같은 상태로 다시 불러도 성공한다 — 두 번 눌렀다고 실패를 보여 줄 이유가 없다.
+    /// - Returns: 갱신된 플랜(`confirmedAt`이 반영돼 있다). **`days`가 채워져 온다.**
+    @discardableResult
+    func setPlanConfirmed(id: UUID, _ confirmed: Bool) async throws -> Plan
+
     /// 새 플랜 플로우 4/6·5/6의 선택지 (`GET /v1/plan-options`).
     ///
     /// 플랜 조회와 달리 **기기와 무관한 공용 사전**이라 `deviceId`를 싣지 않는다.

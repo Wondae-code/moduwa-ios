@@ -158,6 +158,26 @@ struct Plan: Identifiable, Hashable, Sendable, Codable {
     var dayTripOnly: Bool
 
     var days: [PlanDay]
+
+    /// 목록 카드가 그릴 만큼의 요약 — 날짜별 **장소 이름만**(`GET /v1/plans`).
+    ///
+    /// 일정 탭 카드(시안 532:241)가 "DAY 1  황리단길 - 포석정" 처럼 그날 동선을 한 줄로 보여 준다.
+    /// `days`는 목록 응답에 없고, 카드마다 상세를 다시 받으면 플랜 개수만큼 왕복이 붙는다.
+    ///
+    /// ⚠️ **`days`와 같은 것이 아니다.** 상세를 받으면 `days`가 채워지지만 이쪽은 목록에서만 온다.
+    /// 항목이 없는 날도 빈 `placeNames`로 들어 있다 — 빼면 DAY 번호가 상세와 어긋난다.
+    var daySummaries: [PlanDaySummary]
+    /// `coverImageURL`이 없을 때 카드 배경으로 쓸 첫 장소 사진.
+    /// 표지를 고르는 화면이 아직 없어 사실상 이쪽이 늘 쓰인다.
+    var fallbackImageURL: URL?
+
+    /// 일정으로 **확정한 시각**. `nil` 이면 아직 초안이다.
+    ///
+    /// "플랜은 초안이고, 일정에 추가하면 확정된다"(2026-08-16 기획 확정) — 이 값 하나가
+    /// 플랜 탭과 일정 탭을 가른다. 플랜 탭은 초안을, 일정 탭은 확정된 것을 본다.
+    /// 언제 확정했는지까지 담는 이유는 "확정됐다"보다 늘 더 많은 것을 말해 주기 때문이다.
+    var confirmedAt: Date?
+
     var createdAt: Date
     var updatedAt: Date
 
@@ -173,6 +193,9 @@ struct Plan: Identifiable, Hashable, Sendable, Codable {
         budget: String? = nil,
         dayTripOnly: Bool = false,
         days: [PlanDay] = [],
+        daySummaries: [PlanDaySummary] = [],
+        fallbackImageURL: URL? = nil,
+        confirmedAt: Date? = nil,
         createdAt: Date = .now,
         updatedAt: Date = .now
     ) {
@@ -187,8 +210,25 @@ struct Plan: Identifiable, Hashable, Sendable, Codable {
         self.budget = budget
         self.dayTripOnly = dayTripOnly
         self.days = days
+        self.daySummaries = daySummaries
+        self.fallbackImageURL = fallbackImageURL
+        self.confirmedAt = confirmedAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+    }
+}
+
+/// 목록 카드용 하루 요약. 상세의 `PlanDay`와 달리 **이름만** 들고 있다.
+struct PlanDaySummary: Identifiable, Hashable, Sendable, Codable {
+    let id: UUID
+    var date: Date
+    /// 그날 담긴 장소 이름을 순서대로. 메모만 있는 날은 비어 있다.
+    var placeNames: [String]
+
+    init(id: UUID = UUID(), date: Date, placeNames: [String]) {
+        self.id = id
+        self.date = date
+        self.placeNames = placeNames
     }
 }
 
@@ -203,6 +243,21 @@ extension Plan {
     var dateRangeText: String {
         "\(PlanDateText.monthDay(startDate)) - \(PlanDateText.monthDay(endDate))"
     }
+
+    /// 일정 탭 카드 표기 "2026.08.02 - 2026.08.04"
+    var dottedDateRangeText: String {
+        "\(PlanDateText.dotted(startDate)) - \(PlanDateText.dotted(endDate))"
+    }
+
+    /// 목록 카드 배경으로 쓸 사진 — 표지가 있으면 그것, 없으면 첫 장소 사진.
+    ///
+    /// **플랜 탭과 일정 탭이 같은 값을 쓰도록 여기 한 곳에 둔다.** 각자 고르게 뒀더니
+    /// 한쪽만 폴백을 붙여 같은 플랜이 탭에 따라 사진이 있기도 없기도 했다(2026-08-16).
+    /// 표지를 고르는 화면이 아직 없어 실제로는 늘 뒤쪽이 쓰인다.
+    var cardImageURL: URL? { coverImageURL ?? fallbackImageURL }
+
+    /// 아직 확정하지 않은 초안인지. 플랜 탭이 이걸로 거른다.
+    var isDraft: Bool { confirmedAt == nil }
 
     /// 출발일부터 종료일까지 하루씩 만든 **빈** 날짜들.
     ///
@@ -253,6 +308,15 @@ enum PlanDateText {
     static func monthDay(_ date: Date, calendar: Calendar = .current) -> String {
         let parts = calendar.dateComponents([.month, .day], from: date)
         return "\(parts.month ?? 0)월 \(parts.day ?? 0)일"
+    }
+
+    /// "2026.08.02" — 일정 탭 카드의 날짜 표기(시안 532:241).
+    ///
+    /// ⚠️ 플랜 탭 시안(391:232)도 이 형식인데 앱은 아직 `monthDay`("8월 2일")로 그린다.
+    /// 두 탭을 한꺼번에 바꾸는 것은 별도 확인 사항이라 일정 탭에만 쓴다.
+    static func dotted(_ date: Date, calendar: Calendar = .current) -> String {
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d.%02d.%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
     }
 
     /// "7/26 목"

@@ -49,6 +49,16 @@ actor MockPlanService: PlanService {
         plans.remove(at: index)
     }
 
+    @discardableResult
+    func setPlanConfirmed(id: UUID, _ confirmed: Bool) async throws -> Plan {
+        guard let index = plans.firstIndex(where: { $0.id == id }) else {
+            throw PlanServiceError.notFound
+        }
+        // 서버와 같이 처음 확정한 시각을 지킨다 — 다시 눌러도 밀리지 않는다.
+        plans[index].confirmedAt = confirmed ? (plans[index].confirmedAt ?? .now) : nil
+        return plans[index]
+    }
+
     func fetchPlanOptions() async throws -> PlanOptions { Self.sampleOptions }
 
     /// 프리뷰에서 4/6·5/6이 빈 화면으로 보이지 않게 두는 사본.
@@ -90,6 +100,11 @@ struct EmptyPlanService: PlanService {
 
     func deletePlan(id: UUID) async throws { throw PlanServiceError.notFound }
 
+    @discardableResult
+    func setPlanConfirmed(id: UUID, _ confirmed: Bool) async throws -> Plan {
+        throw PlanServiceError.notFound
+    }
+
     func fetchPlanOptions() async throws -> PlanOptions { MockPlanService.sampleOptions }
 }
 
@@ -106,6 +121,11 @@ struct FailingPlanService: PlanService {
 
     func deletePlan(id: UUID) async throws {
         throw PlanServiceError.server(message: "플랜을 삭제하지 못했어요. (서버 점검 중)")
+    }
+
+    @discardableResult
+    func setPlanConfirmed(id: UUID, _ confirmed: Bool) async throws -> Plan {
+        throw PlanServiceError.server(message: "일정에 추가하지 못했어요. (서버 점검 중)")
     }
 
     /// 선택지를 못 받으면 새 플랜 플로우가 4/6·5/6을 건너뛴다 — 그 동작을 프리뷰로 볼 수 있게 던진다.

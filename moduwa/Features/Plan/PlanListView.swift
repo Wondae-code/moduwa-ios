@@ -26,12 +26,22 @@ struct PlanListView: View {
     /// 확인까지 받은 뒤의 삭제. **성공할 때까지 기다린다** — 카드를 먼저 지우고 뒤에서 요청하면
     /// 실패했을 때 목록에는 없는데 서버에는 남은 플랜이 생긴다.
     var onDeletePlan: (Plan) async throws -> Void = { _ in }
+    /// "팀 수정" 저장. **성공할 때까지 기다린다** — 시트가 실패를 띄우고 열린 채 남아야 한다.
+    var onSaveParty: (Plan, TravelParty) async throws -> Void = { _, _ in }
+    /// "일정에 추가" — 초안을 확정으로 올린다. 확인까지 받은 뒤에 불린다.
+    var onConfirmPlan: (Plan) async throws -> Void = { _ in }
 
     @State private var isCreatingPlan = false
     /// 삭제 확인 대상. nil 이면 확인 창이 닫혀 있다.
     @State private var deleteTarget: Plan?
     @State private var deletingID: Plan.ID?
     @State private var deleteError: String?
+    /// "팀 수정" 대상. nil 이면 시트가 닫혀 있다.
+    @State private var partyTarget: Plan?
+    /// "일정에 추가" 확인 대상.
+    @State private var confirmTarget: Plan?
+    @State private var confirmingID: Plan.ID?
+    @State private var confirmError: String?
 
     /// 시안은 카드를 393폭 안에서 321로 두어 좌우 36을 남긴다 — 다른 화면(24)과 다르다.
     private static let sideMargin: CGFloat = 36
@@ -54,8 +64,10 @@ struct PlanListView: View {
                             ForEach(plans) { plan in
                                 PlanCard(
                                     plan: plan,
-                                    isDeleting: deletingID == plan.id,
-                                    onRequestDelete: { deleteTarget = plan })
+                                    isDeleting: deletingID == plan.id || confirmingID == plan.id,
+                                    onRequestDelete: { deleteTarget = plan },
+                                    onEditParty: { partyTarget = plan },
+                                    onAddToSchedule: { confirmTarget = plan })
                             }
                         }
                     }
@@ -92,6 +104,30 @@ struct PlanListView: View {
         } message: { plan in
             Text("‘\(plan.title)’의 일정과 메모가 함께 지워지고 되돌릴 수 없어요.")
         }
+        .sheet(item: $partyTarget) { plan in
+            PlanPartyEditView(currentParty: plan.party) { party in
+                try await onSaveParty(plan, party)
+            }
+        }
+        // 확정하면 이 카드가 플랜 탭에서 사라져 일정 탭으로 옮겨간다 — 눌러 놓고 어디 갔는지
+        //  찾게 되는 일이 없도록 한 번 묻고, 어디로 가는지 문장으로 알린다.
+        .alert(
+            "일정에 추가할까요?",
+            isPresented: Binding(get: { confirmTarget != nil }, set: { if !$0 { confirmTarget = nil } }),
+            presenting: confirmTarget
+        ) { plan in
+            Button("추가") { Task { await confirm(plan) } }
+            Button("취소", role: .cancel) {}
+        } message: { plan in
+            Text("‘\(plan.title)’이 확정되어 일정 탭으로 옮겨져요. 일정에서 다시 플랜으로 되돌릴 수 있어요.")
+        }
+        .alert("일정에 추가하지 못했어요", isPresented: Binding(
+            get: { confirmError != nil }, set: { if !$0 { confirmError = nil } })
+        ) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text(confirmError ?? "")
+        }
         .alert("플랜을 삭제하지 못했어요", isPresented: Binding(
             get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })
         ) {
@@ -99,6 +135,20 @@ struct PlanListView: View {
         } message: {
             Text(deleteError ?? "")
         }
+    }
+
+    private func confirm(_ plan: Plan) async {
+        confirmingID = plan.id
+        confirmTarget = nil
+        do {
+            try await onConfirmPlan(plan)
+            // 카드가 사라지는 것 말고는 결과를 알릴 화면이 없다 — 어디로 갔는지까지 말해 준다.
+            UIAccessibility.post(notification: .announcement, argument: "일정에 추가했어요")
+        } catch {
+            confirmError = (error as? PlanServiceError)?.errorDescription
+                ?? "네트워크 상태를 확인하고 다시 시도해 주세요."
+        }
+        confirmingID = nil
     }
 
     private func delete(_ plan: Plan) async {
@@ -246,6 +296,8 @@ private struct PlanCard: View {
     let plan: Plan
     var isDeleting = false
     var onRequestDelete: () -> Void = {}
+    var onEditParty: () -> Void = {}
+    var onAddToSchedule: () -> Void = {}
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -272,13 +324,21 @@ private struct PlanCard: View {
         }
     }
 
+    /// 시안 553:131 — "팀 수정" / "일정에 추가" / 삭제.
+    ///
     /// 지난 카드는 회색 배경 위라 흰 ⋮ 가 보이지 않는다.
+    /// ⚠️ 글리프는 **세로**다(시안 아이콘 642:356 이 3×16). `ellipsis` 는 가로라 90° 돌려 쓴다.
     private var menu: some View {
         Menu {
+            // 새 플랜 플로우 1/6 에서 고른 동반자 정보를 다시 손보는 자리
+            //  (`TravelParty` 주석의 "목록 카드의 '팀 수정'").
+            Button("팀 수정", systemImage: "person.2", action: onEditParty)
+            Button("일정에 추가", systemImage: "calendar.badge.plus", action: onAddToSchedule)
             Button("삭제", systemImage: "trash", role: .destructive, action: onRequestDelete)
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 16, weight: .bold))
+                .rotationEffect(.degrees(90))
                 .foregroundStyle(plan.isPast() ? Color.textSecondary : .white)
                 .shadow(color: .black.opacity(plan.isPast() ? 0 : 0.3), radius: 2)
                 .frame(width: 44, height: 44)
@@ -330,7 +390,8 @@ private struct UpcomingPlanCard: View {
 
     private var cover: some View {
         Group {
-            if let url = plan.coverImageURL {
+            // 표지가 없으면 첫 장소 사진으로 폴백한다(`Plan.cardImageURL`) — 일정 탭 카드와 같은 값.
+            if let url = plan.cardImageURL {
                 AsyncImage(url: url) { image in
                     image.resizable().scaledToFill()
                 } placeholder: {
@@ -379,7 +440,9 @@ private struct PastPlanCard: View {
 /// 목적지가 아직 없는 버튼 — 눌러도 아무 일이 없으면 고장으로 읽히므로 준비 중임을 알린다.
 /// 커스텀 토스트가 아니라 기본 popover 를 쓰는 이유는 VoiceOver 가 내용을 읽어 주기 때문이다
 /// (앱의 다른 준비 중 버튼도 같은 방식이다).
-private struct PlanPlaceholderButton<Label: View>: View {
+///
+/// 일정 탭 헤더의 햄버거도 같은 처지라 파일 전용을 풀었다.
+struct PlanPlaceholderButton<Label: View>: View {
     let notice: String
     @ViewBuilder let label: () -> Label
 

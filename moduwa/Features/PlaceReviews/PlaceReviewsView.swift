@@ -117,43 +117,10 @@ struct PlaceReviewsView: View {
 
     // MARK: - 탭 (방문 후기 / 여행 게시글)
 
-    /// 접근성 판단: `TabView`가 아니라 버튼 두 개 + 밑줄이다. 그래서 컨테이너에 `.isTabBar`를 주고
-    /// 선택 상태를 색(딥그린)·굵기·밑줄에 더해 `.isSelected` 트레이트로도 전달한다.
-    /// 색만 바뀌면 색각 이상 환경에서 지금 어느 탭인지 알 수 없다.
+    /// 규격·접근성 처리는 `UnderlineTabBar` 로 옮겼다 — 일정 탭 세그먼트가 같은 모양이라
+    /// 값을 베끼는 대신 같은 뷰를 쓴다.
     private var tabBar: some View {
-        HStack(spacing: 0) {
-            ForEach(Tab.allCases, id: \.self) { tab in
-                Button {
-                    selectedTab = tab
-                } label: {
-                    VStack(spacing: 8) {
-                        Text(tab.rawValue)
-                            .font(.notoSans(16, selectedTab == tab ? .bold : .medium))
-                            .foregroundStyle(selectedTab == tab ? .textPrimary : .textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .multilineTextAlignment(.center)
-                            .padding(.top, 14)
-                            // 접근성 글자 크기에서 한쪽 라벨만 두 줄로 접히면 밑줄 높이가 서로 어긋난다.
-                            // 글자 영역을 HStack이 정한 높이(둘 중 더 큰 쪽)까지 늘려 밑줄을 같은 선에 맞춘다.
-                            .frame(maxHeight: .infinity, alignment: .center)
-                        // 선택 표시는 2pt 밑줄, 비선택은 1pt 회색 선 — 밑줄의 유무·굵기가 형태 신호다
-                        Rectangle()
-                            .fill(selectedTab == tab ? Color.deepGreen : Color.cardStroke)
-                            .frame(height: selectedTab == tab ? 2.5 : 1)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(tab.rawValue)
-                .accessibilityAddTraits(selectedTab == tab ? [.isButton, .isSelected] : .isButton)
-            }
-        }
-        // 두 탭 중 높은 쪽에 맞춰 줄 높이를 확정한다 (밑줄 정렬의 전제)
-        .fixedSize(horizontal: false, vertical: true)
-        .background(.white)
-        .accessibilityElement(children: .contain)
-        .accessibilityAddTraits(.isTabBar)
+        UnderlineTabBar(tabs: Tab.allCases, selection: $selectedTab)
     }
 
     // MARK: - 탭 A: 방문 후기
