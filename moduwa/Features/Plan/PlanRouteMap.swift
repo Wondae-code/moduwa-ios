@@ -39,10 +39,13 @@ struct PlanRouteMap: UIViewRepresentable {
     let stops: [PlanStop]
     /// 바텀시트에 가리는 높이. 이만큼 하단 마진을 주면 카메라가 드러난 영역에만 경로를 맞춘다.
     let bottomInset: CGFloat
+    /// 좌표가 있는 정류지가 하나도 없을 때 카메라를 맞출 자리 — 플랜의 여행 지역이다.
+    /// 핀도 경로도 없이 그 지역만 보여 준다.
+    var regionCamera: RegionMapCamera?
     @Binding var draw: Bool
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(stops: stops, bottomInset: bottomInset)
+        Coordinator(stops: stops, bottomInset: bottomInset, regionCamera: regionCamera)
     }
 
     func makeUIView(context: Context) -> KMViewContainer {
@@ -93,15 +96,18 @@ struct PlanRouteMap: UIViewRepresentable {
         private var coordinates: [Coordinate]
         private var badges: [(point: MapPoint, image: UIImage?)]
         private let bottomInset: CGFloat
+        /// 정류지가 없을 때만 쓰인다. 플랜이 열려 있는 동안 지역은 바뀌지 않으므로 초기화 때 한 번 받는다.
+        private let regionCamera: RegionMapCamera?
         private var isActive = false
         private var didDrawOverlays = false
         private weak var container: KMViewContainer?
         var controller: KMController?
 
         @MainActor
-        init(stops: [PlanStop], bottomInset: CGFloat) {
+        init(stops: [PlanStop], bottomInset: CGFloat, regionCamera: RegionMapCamera?) {
             self.stops = stops
             self.bottomInset = bottomInset
+            self.regionCamera = regionCamera
             (coordinates, points, badges) = Self.derive(from: stops)
         }
 
@@ -160,10 +166,16 @@ struct PlanRouteMap: UIViewRepresentable {
         }
 
         func addViews() {
+            // 정류지 → 지역 → 경주 순으로 물러선다. 마지막 폴백은 엔진이 켜질 때 잠깐 쓰일 뿐,
+            // 곧 `fitCamera`가 제자리를 잡는다.
+            let fallback = regionCamera.map {
+                MapPoint(longitude: $0.longitude, latitude: $0.latitude)
+            }
             let mapviewInfo = MapviewInfo(
                 viewName: Self.viewName,
-                defaultPosition: points.first ?? MapPoint(longitude: 129.2265, latitude: 35.8348),
-                defaultLevel: 11
+                defaultPosition: points.first ?? fallback
+                    ?? MapPoint(longitude: 129.2265, latitude: 35.8348),
+                defaultLevel: points.isEmpty ? (regionCamera?.zoomLevel ?? 11) : 11
             )
             controller?.addView(mapviewInfo)
         }
@@ -340,10 +352,23 @@ struct PlanRouteMap: UIViewRepresentable {
         // MARK: 카메라
 
         private func fitCamera(on mapView: KakaoMap, completion: @escaping () -> Void) {
-            guard !points.isEmpty else { return completion() }
-            let update = points.count == 1
-                ? CameraUpdate.make(target: points[0], zoomLevel: 14, mapView: mapView)
-                : CameraUpdate.make(area: AreaRect(points: points))
+            let update: CameraUpdate
+            switch (points.count, regionCamera) {
+            case (0, let region?):
+                // 담긴 장소가 아직 없는 플랜 — 어디로 가는 계획인지만 보여 준다.
+                update = CameraUpdate.make(
+                    target: MapPoint(longitude: region.longitude, latitude: region.latitude),
+                    zoomLevel: region.zoomLevel,
+                    mapView: mapView
+                )
+            case (0, nil):
+                // 맞출 자리가 없다. 카메라를 건드리지 않고 넘어간다.
+                return completion()
+            case (1, _):
+                update = CameraUpdate.make(target: points[0], zoomLevel: 14, mapView: mapView)
+            default:
+                update = CameraUpdate.make(area: AreaRect(points: points))
+            }
             mapView.moveCamera(update) { completion() }
         }
 

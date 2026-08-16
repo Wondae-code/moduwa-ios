@@ -99,6 +99,42 @@ enum TravelRegion: String, CaseIterable, Identifiable, Hashable, Sendable, Codab
     }
 }
 
+/// 지도를 어느 자리에 맞출지. 정류지가 없을 때 지역만으로 카메라를 잡는 데 쓴다.
+struct RegionMapCamera: Hashable, Sendable {
+    var latitude: Double
+    var longitude: Double
+    /// 카카오맵 확대 수준 — **클수록 가깝다**(SDK 규약). 단일 도시 10~11, 복수 시군 묶음 8~9.
+    var zoomLevel: Int
+}
+
+extension TravelRegion {
+    /// 이 지역을 화면에 담을 카메라.
+    ///
+    /// 시군청 좌표가 아니라 **묶음 전체가 들어오는 자리**를 잡았다 — 가평·양평이나 통영·거제·남해처럼
+    /// 여러 시군을 묶은 지역은 두 도심 사이를 중심으로 두고 확대를 낮춰야 한쪽만 보이지 않는다.
+    /// 포항·안동은 80km 가까이 떨어져 있어 가장 넓게 잡았다.
+    ///
+    /// ⚠️ **서버에 지역 좌표가 없어서 앱에 표로 둔다** — `/v1/plan-options`는 코드와 문구만 준다
+    /// (`TravelRegion` 주석의 "시군구 코드 매핑은 지역 API 스펙이 정해지면" 참고).
+    /// 지역 API가 생기면 이 표를 지우고 서버 값으로 옮긴다.
+    var mapCamera: RegionMapCamera {
+        switch self {
+        case .gapyeongYangpyeong: RegionMapCamera(latitude: 37.661, longitude: 127.499, zoomLevel: 9)
+        case .gangneungSokcho: RegionMapCamera(latitude: 37.979, longitude: 128.734, zoomLevel: 9)
+        case .gyeongju: RegionMapCamera(latitude: 35.856, longitude: 129.225, zoomLevel: 10)
+        case .busan: RegionMapCamera(latitude: 35.180, longitude: 129.076, zoomLevel: 10)
+        case .yeosu: RegionMapCamera(latitude: 34.760, longitude: 127.662, zoomLevel: 11)
+        case .incheon: RegionMapCamera(latitude: 37.456, longitude: 126.705, zoomLevel: 10)
+        case .jeonju: RegionMapCamera(latitude: 35.824, longitude: 127.148, zoomLevel: 11)
+        case .jeju: RegionMapCamera(latitude: 33.386, longitude: 126.542, zoomLevel: 9)
+        case .chuncheonHongcheon: RegionMapCamera(latitude: 37.789, longitude: 127.810, zoomLevel: 9)
+        case .taean: RegionMapCamera(latitude: 36.746, longitude: 126.298, zoomLevel: 10)
+        case .tongyeongGeojeNamhae: RegionMapCamera(latitude: 34.857, longitude: 128.316, zoomLevel: 9)
+        case .pohangAndong: RegionMapCamera(latitude: 36.294, longitude: 129.036, zoomLevel: 8)
+        }
+    }
+}
+
 // MARK: - 플랜
 
 struct Plan: Identifiable, Hashable, Sendable, Codable {
@@ -166,6 +202,45 @@ extension Plan {
     /// 목록·상세 공통 "7월 26일 - 7월 27일"
     var dateRangeText: String {
         "\(PlanDateText.monthDay(startDate)) - \(PlanDateText.monthDay(endDate))"
+    }
+
+    /// 출발일부터 종료일까지 하루씩 만든 **빈** 날짜들.
+    ///
+    /// 새 플랜은 `days`가 통째로 비어 있다(`PlanDraft` — 장소는 만든 뒤 상세에서 담는다).
+    /// 그 상태에서 "붙일 날이 없다"고 막으면 갓 만든 플랜에는 영영 아무것도 담을 수 없으므로,
+    /// 항목을 담을 때 이 목록을 후보로 쓰고 **실제로 담긴 날만** 서버에 생긴다.
+    ///
+    /// 종료일이 출발일보다 앞서는 값이 들어와도 최소 하루는 돌려준다 — 후보가 0개면
+    /// 호출부가 다시 같은 막다른 길에 선다.
+    func calendarDays(calendar: Calendar = .current) -> [PlanDay] {
+        let start = calendar.startOfDay(for: startDate)
+        let span = calendar.dateComponents([.day], from: start,
+                                           to: calendar.startOfDay(for: endDate)).day ?? 0
+        return (0...max(span, 0)).compactMap { offset in
+            calendar.date(byAdding: .day, value: offset, to: start).map { PlanDay(date: $0) }
+        }
+    }
+
+    /// 항목을 담을 수 있는 날 전체 — 여행 기간의 모든 날에 **이미 있는 날을 겹쳐 놓은** 목록.
+    ///
+    /// 둘 중 하나만 쓰면 안 된다:
+    ///  - `days`만 쓰면, 한 번 담고 난 뒤에는 **담긴 날 하나만** 후보로 남아 그 뒤로는 다른 날을
+    ///    고를 수 없다(2026-08-16에 실제로 이렇게 새 나갔다 — 메모가 전부 같은 날로 들어갔다).
+    ///  - `calendarDays()`만 쓰면 이미 있는 날에도 **새 id**가 붙어 같은 날이 둘로 갈린다.
+    ///
+    /// 여행 기간 밖에 있는 날도 버리지 않는다 — 날짜를 나중에 줄이면 기존 일정이 기간을 벗어나는데,
+    /// 후보에서 빠지면 그 날에 담긴 것들이 화면에서 손댈 수 없는 상태가 된다.
+    func dayCandidates(calendar: Calendar = .current) -> [PlanDay] {
+        let existing = Dictionary(
+            days.map { (calendar.startOfDay(for: $0.date), $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        var result = calendarDays(calendar: calendar).map {
+            existing[calendar.startOfDay(for: $0.date)] ?? $0
+        }
+        let covered = Set(result.map { calendar.startOfDay(for: $0.date) })
+        result += days.filter { !covered.contains(calendar.startOfDay(for: $0.date)) }
+        return result.sorted { $0.date < $1.date }
     }
 }
 

@@ -8,7 +8,6 @@ import SwiftUI
 /// 편집 결과는 **완료를 눌러야** 호출부에 넘어간다 — 순서를 이리저리 바꿔 보다가 되돌리고 싶을 때
 /// 취소할 길이 있어야 한다.
 struct PlanEditView: View {
-    let plan: Plan
     /// 완료 시 편집된 날짜 목록을 넘긴다. 저장 책임은 호출부에 있다.
     ///
     /// **저장이 끝날 때까지 기다린다** — 화면을 먼저 닫고 뒤에서 저장하면, 실패했을 때
@@ -21,10 +20,12 @@ struct PlanEditView: View {
     /// 저장 실패 사유. 서버가 한국어로 알려 주면 그대로 담는다.
     @State private var saveError: String?
 
-    init(plan: Plan, onDone: @escaping ([PlanDay]) async throws -> Void = { _ in }) {
-        self.plan = plan
+    /// - Parameter days: 편집 대상. **여행 기간 전체**를 넘긴다(`Plan.dayCandidates()`) —
+    ///   아직 아무것도 담기지 않은 날에도 항목을 옮길 수 있어야 한다. 빈 채로 남은 날은
+    ///   호출부가 저장 때 걸러 낸다.
+    init(days: [PlanDay], onDone: @escaping ([PlanDay]) async throws -> Void = { _ in }) {
         self.onDone = onDone
-        _days = State(initialValue: plan.days)
+        _days = State(initialValue: days)
     }
 
     var body: some View {
@@ -33,26 +34,29 @@ struct PlanEditView: View {
 
             if let saveError { errorBanner(saveError) }
 
+            // Day 를 **넘나들며** 옮길 수 있어야 한다(2026-08-16 사용자 요청).
+            //  그래서 Section + Section별 ForEach 구조를 버렸다 — SwiftUI 의 `onMove` 는
+            //  자기 ForEach 안에서만 자리를 바꿔서, 섹션이 나뉜 순간 Day 간 이동이 원천적으로 막힌다.
+            //  대신 **날짜 머리글까지 한 줄로 세운 평평한 목록**을 만들고 이동은 하나의 onMove 가 받는다.
+            //  옮긴 뒤에는 "어느 머리글 아래에 있느냐"로 각 항목의 날을 다시 계산한다(`rebuild`).
             List {
-                ForEach($days) { $day in
-                    Section {
-                        // onMove 는 Section 안의 ForEach 에 붙어야 그 날 안에서만 순서가 바뀐다.
-                        //  Day 를 넘나드는 이동은 날짜가 바뀌는 편집이라 별개 동작으로 다뤄야 한다.
-                        ForEach(day.items) { item in
-                            row(for: item, in: day)
-                                .listRowInsets(EdgeInsets(top: 0, leading: 36, bottom: 0, trailing: 24))
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(Color.appBackground)
-                        }
-                        .onMove { source, destination in
-                            withAnimation(.snappy(duration: 0.25)) {
-                                day.items.move(fromOffsets: source, toOffset: destination)
-                            }
-                        }
-                    } header: {
-                        dayHeader(for: $day)
+                ForEach(rows) { row in
+                    switch row {
+                    case .header(let index):
+                        dayHeader(index: index)
+                            .listRowInsets(EdgeInsets(top: 0, leading: 36, bottom: 0, trailing: 24))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.appBackground)
+                            // 머리글이 끌려다니면 날짜 순서가 뒤바뀐다. 날짜는 편집 대상이 아니다.
+                            .moveDisabled(true)
+                    case .item(let dayIndex, let item):
+                        self.row(for: item, in: days[dayIndex])
+                            .listRowInsets(EdgeInsets(top: 0, leading: 36, bottom: 0, trailing: 24))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.appBackground)
                     }
                 }
+                .onMove(perform: move)
             }
             .listStyle(.plain)
             .environment(\.editMode, .constant(.active))
@@ -61,6 +65,57 @@ struct PlanEditView: View {
         }
         .background(Color.appBackground)
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    // MARK: 평평한 목록
+
+    /// 날짜 머리글과 항목을 한 줄로 세운 목록. Day 간 이동을 하나의 `onMove` 로 받기 위한 형태다.
+    private enum EditRow: Identifiable {
+        case header(dayIndex: Int)
+        case item(dayIndex: Int, item: PlanDayItem)
+
+        /// 머리글과 항목의 id 가 겹치지 않게 접두사를 붙인다.
+        var id: String {
+            switch self {
+            case .header(let index): "day-\(index)"
+            case .item(_, let item): "item-\(item.id.uuidString)"
+            }
+        }
+    }
+
+    private var rows: [EditRow] {
+        days.enumerated().flatMap { index, day in
+            [EditRow.header(dayIndex: index)] + day.items.map { .item(dayIndex: index, item: $0) }
+        }
+    }
+
+    private func move(from source: IndexSet, to destination: Int) {
+        var flat = rows
+        flat.move(fromOffsets: source, toOffset: destination)
+        withAnimation(.snappy(duration: 0.25)) { rebuild(from: flat) }
+
+        // 다른 날로 건너간 경우 화면만 보고는 알아채기 어렵다 — 스크린리더에도 알린다.
+        UIAccessibility.post(notification: .announcement, argument: "순서를 옮겼어요")
+    }
+
+    /// 옮겨진 평평한 목록을 다시 날짜별로 나눈다 — **머리글이 곧 경계**다.
+    private func rebuild(from flat: [EditRow]) {
+        var buckets = [[PlanDayItem]](repeating: [], count: days.count)
+        var current = 0
+        var passedFirstHeader = false
+
+        for row in flat {
+            switch row {
+            case .header(let index):
+                current = index
+                passedFirstHeader = true
+            case .item(_, let item):
+                // 첫 머리글보다 위로 끌어올린 항목은 갈 곳이 없다 — 첫 날에 담는다.
+                buckets[passedFirstHeader ? current : 0].append(item)
+            }
+        }
+
+        for index in days.indices { days[index].items = buckets[index] }
     }
 
     // MARK: 헤더
@@ -154,28 +209,32 @@ struct PlanEditView: View {
 
     // MARK: Day 헤더
 
-    private func dayHeader(for day: Binding<PlanDay>) -> some View {
-        let number = (days.firstIndex(where: { $0.id == day.wrappedValue.id }) ?? 0) + 1
+    private func dayHeader(index: Int) -> some View {
+        let day = days[index]
         return HStack(spacing: 0) {
-            Text("DAY \(number) · \(PlanDateText.shortWithWeekday(day.wrappedValue.date))")
+            Text("DAY \(index + 1) · \(PlanDateText.shortWithWeekday(day.date))")
                 .font(.notoSans(16, .bold, relativeTo: .headline))
                 .foregroundStyle(Color.textPrimary)
 
             Spacer(minLength: 8)
 
-            Button {
-                sortByDistance(day)
-            } label: {
-                Text("거리순 정렬")
-                    .font(.notoSans(16, .medium, relativeTo: .headline))
-                    .foregroundStyle(Color.deepGreen)
+            // 정렬할 것이 없는 날에는 띄우지 않는다 — 눌러도 아무 일이 없는 버튼이 된다.
+            if day.stops.count > 2 {
+                Button {
+                    sortByDistance(index)
+                } label: {
+                    Text("거리순 정렬")
+                        .font(.notoSans(16, .medium, relativeTo: .headline))
+                        .foregroundStyle(Color.deepGreen)
+                }
+                .accessibilityHint("첫 장소는 그대로 두고 가까운 곳부터 다시 줄 세웁니다")
             }
-            .accessibilityHint("첫 장소는 그대로 두고 가까운 곳부터 다시 줄 세웁니다")
         }
-        .padding(.horizontal, 36)
+        .padding(.horizontal, 0)
         .padding(.vertical, 10)
         .background(Color.appBackground)
         .textCase(nil)
+        .accessibilityAddTraits(.isHeader)
     }
 
     // MARK: 행
@@ -211,8 +270,8 @@ struct PlanEditView: View {
     /// **왜 이 순서가 나왔는지 납득할 수 있어야** 한다. "가까운 데부터"는 설명 가능하지만
     /// 전역 최적해는 직관과 어긋나는 순서를 내놓기도 한다.
     /// 출발지를 고정하는 이유도 같다 — 첫 장소는 보통 숙소나 도착지라 바뀌면 곤란하다.
-    private func sortByDistance(_ day: Binding<PlanDay>) {
-        let items = day.wrappedValue.items
+    private func sortByDistance(_ dayIndex: Int) {
+        let items = days[dayIndex].items
         // 메모는 정렬 대상이 아니다. 순서를 잃지 않게 뒤로 모아 둔다.
         let memos = items.filter { if case .memo = $0 { true } else { false } }
         var stops = items.compactMap { item -> PlanStop? in
@@ -232,7 +291,7 @@ struct PlanEditView: View {
         }
 
         let sorted = ordered.map { PlanDayItem.stop($0) } + memos
-        withAnimation(.snappy(duration: 0.3)) { day.wrappedValue.items = sorted }
+        withAnimation(.snappy(duration: 0.3)) { days[dayIndex].items = sorted }
         UIAccessibility.post(notification: .announcement, argument: "가까운 순서로 다시 정렬했어요")
     }
 }
@@ -298,13 +357,13 @@ private struct PlanEditMemoRow: View {
 
 #Preview("편집") {
     NavigationStack {
-        PlanEditView(plan: MockData.upcomingGyeongju)
+        PlanEditView(days: MockData.upcomingGyeongju.days)
     }
 }
 
 #Preview("저장 실패") {
     NavigationStack {
-        PlanEditView(plan: MockData.upcomingGyeongju) { _ in
+        PlanEditView(days: MockData.upcomingGyeongju.days) { _ in
             throw PlanServiceError.server(message: "일정을 저장하지 못했어요. (서버 점검 중)")
         }
     }
