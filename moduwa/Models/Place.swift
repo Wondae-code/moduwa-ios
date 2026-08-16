@@ -122,4 +122,10 @@ struct Place: Identifiable, Hashable, Sendable {
     /// 통합 검색 API의 관광 타입 라벨. 홈 피드에는 별도 표기가 없어 `nil`이다.
     var categoryLabel: String? = nil
     let imageURL: URL?
+    /// 좌표(`mapy`=위도, `mapx`=경도). 플랜 일정에 담을 때 지도 핀·구간 거리에 쓴다.
+    ///
+    /// 기본값을 둔 이유는 이 값을 채우지 않는 데이터 소스(목 데이터 등)를 그대로 두기 위해서다.
+    /// 원본에 좌표가 없는 장소도 있어 서버가 `null`을 주기도 한다.
+    var latitude: Double? = nil
+    var longitude: Double? = nil
 }

@@ -56,6 +56,10 @@ struct APISearchService: PlaceSearchService {
         let category: String?
         let region: String?
         let firstimage: String?
+        /// 경도/위도. 원본에 좌표가 없는 장소는 서버가 null 을 준다.
+        /// (2026-08-16 서버 추가 — 그 전 버전과도 붙을 수 있게 옵셔널)
+        let mapx: Double?
+        let mapy: Double?
         let access: AccessDTO
     }
 
@@ -99,7 +103,10 @@ struct APISearchService: PlaceSearchService {
             feature: access.feature,
             category: category,
             categoryLabel: categoryLabel(for: dto, fallback: category),
-            imageURL: URL(string: (dto.firstimage ?? "").replacingOccurrences(of: "http://", with: "https://"))
+            imageURL: URL(string: (dto.firstimage ?? "").replacingOccurrences(of: "http://", with: "https://")),
+            // 목록·상세와 같은 대응 — mapy 가 위도, mapx 가 경도다(`APIFeedService` 참고).
+            latitude: dto.mapy,
+            longitude: dto.mapx
         )
     }
 
