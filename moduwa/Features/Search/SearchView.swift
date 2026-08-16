@@ -8,11 +8,12 @@ struct SearchView: View {
     @State private var query = ""
     @State private var searchRequest: SearchRequest?
     @State private var searchState: SearchState = .idle
-    /// 최근 검색어 — 기기 로컬 저장 (최대 10개, 최신순)
-    @AppStorage("recentSearches") private var recentSearchesData = Data()
+    /// 최근 검색어 — 기기 로컬 저장 (최대 10개, 최신순).
+    /// 플랜의 "장소 추가"와 **같은 목록을 본다**(`RecentSearchStore`).
+    @AppStorage(RecentSearchStore.key) private var recentSearchesData = Data()
 
     private var recentSearches: [String] {
-        (try? JSONDecoder().decode([String].self, from: recentSearchesData)) ?? []
+        RecentSearchStore.decode(recentSearchesData)
     }
 
     var body: some View {
@@ -39,37 +40,18 @@ struct SearchView: View {
             .foregroundStyle(.textPrimary)
             .accessibilityLabel("뒤로")
 
-            HStack(spacing: 8) {
-                Image("search")
-                    .renderingMode(.template)
-                    .foregroundStyle(.textSecondary)
-                TextField("장소, 지역으로 검색", text: $query)
-                    .font(.notoSans(15))
-                    .foregroundStyle(.textPrimary)
-                    .focused($isFieldFocused)
-                    .submitLabel(.search)
-                    .onSubmit { submit(query) }
-                    .onChange(of: query) {
-                        if query != searchRequest?.term {
-                            searchRequest = nil
-                            searchState = .idle
-                        }
-                    }
-                if !query.isEmpty {
-                    Button {
-                        query = ""
-                        isFieldFocused = true
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 16))
-                            .foregroundStyle(.iconGray)
-                    }
-                    .accessibilityLabel("입력 지우기")
+            PlaceSearchField(query: $query, focus: $isFieldFocused) {
+                submit(query)
+            } onClear: {
+                query = ""
+                isFieldFocused = true
+            }
+            .onChange(of: query) {
+                if query != searchRequest?.term {
+                    searchRequest = nil
+                    searchState = .idle
                 }
             }
-            .padding(.horizontal, 16)
-            .frame(height: 40)
-            .background(Capsule().fill(Color.photoPlaceholder))
         }
         .padding(.leading, 28)
         .padding(.trailing, 24)
@@ -97,7 +79,7 @@ struct SearchView: View {
                             .foregroundStyle(.textSecondary)
                     }
 
-                    FlowChips(items: recentSearches) { term in
+                    RecentSearchChips(items: recentSearches) { term in
                         query = term
                         submit(term)
                     } onDelete: { term in
@@ -134,20 +116,7 @@ struct SearchView: View {
         }
     }
 
-    private var loadingState: some View {
-        VStack(spacing: 10) {
-            Spacer()
-            ProgressView()
-                .tint(.deepGreen)
-            Text("검색 결과를 불러오는 중이에요")
-                .font(.notoSans(18, .bold))
-                .foregroundStyle(.textPrimary)
-                .padding(.top, 4)
-            Spacer()
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
-    }
+    private var loadingState: some View { PlaceSearchLoading() }
 
     private func resultsState(_ page: PlaceSearchPage) -> some View {
         ScrollView {
@@ -160,7 +129,14 @@ struct SearchView: View {
                 LazyVStack(spacing: 0) {
                     ForEach(Array(page.items.enumerated()), id: \.element.id) { index, place in
                         NavigationLink(value: place) {
-                            SearchResultRow(place: place)
+                            PlaceSearchRow(place: place) {
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundStyle(.iconGray)
+                                    .frame(width: 20, height: 20)
+                            }
+                            .accessibilityElement(children: .combine)
+                            .accessibilityHint("장소 상세 보기")
                         }
                         .buttonStyle(.plain)
 
@@ -203,28 +179,7 @@ struct SearchView: View {
     }
 
     private func searchMessageState(title: String, subtitle: String) -> some View {
-        VStack(spacing: 10) {
-            Circle()
-                .fill(Color.photoPlaceholder)
-                .frame(width: 96, height: 96)
-                .overlay {
-                    Image("search")
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 36, height: 36)
-                        .foregroundStyle(.iconGray)
-                }
-            Text(title)
-                .font(.notoSans(18, .bold))
-                .foregroundStyle(.textPrimary)
-                .padding(.top, 4)
-            Text(subtitle)
-                .font(.notoSans(14))
-                .foregroundStyle(.textSecondary)
-        }
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .combine)
+        PlaceSearchMessage(title: title, subtitle: subtitle)
     }
 
     // MARK: - 동작
@@ -232,9 +187,7 @@ struct SearchView: View {
     private func submit(_ term: String) {
         let trimmed = term.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
-        var next = recentSearches.filter { $0 != trimmed }
-        next.insert(trimmed, at: 0)
-        saveRecentSearches(Array(next.prefix(10)))
+        saveRecentSearches(RecentSearchStore.adding(trimmed, to: recentSearches))
         searchState = .loading
         searchRequest = SearchRequest(term: trimmed)
         isFieldFocused = false
@@ -262,7 +215,7 @@ struct SearchView: View {
     }
 
     private func saveRecentSearches(_ items: [String]) {
-        recentSearchesData = (try? JSONEncoder().encode(items)) ?? Data()
+        recentSearchesData = RecentSearchStore.encode(items)
     }
 
     private struct SearchRequest: Hashable {
@@ -276,112 +229,6 @@ struct SearchView: View {
         case results(PlaceSearchPage)
         case empty
         case failed
-    }
-}
-
-/// Figma "검색 — 결과"의 56pt 썸네일 목록 행.
-private struct SearchResultRow: View {
-    let place: Place
-
-    var body: some View {
-        HStack(spacing: Spacing.m) {
-            thumbnail
-
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(place.name)
-                        .font(.cardTitle)
-                        .foregroundStyle(.textPrimary)
-                        .lineLimit(1)
-
-                    accessibilityBadge
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                Text("\(place.region) · \(place.categoryLabel ?? place.category.rawValue)")
-                    .font(.meta13)
-                    .foregroundStyle(.textSecondary)
-                    .lineLimit(1)
-            }
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(.iconGray)
-                .frame(width: 20, height: 20)
-        }
-        .padding(.vertical, Spacing.m)
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(place.name), \(place.region), \(place.categoryLabel ?? place.category.rawValue), \(place.feature.label)")
-        .accessibilityHint("장소 상세 보기")
-    }
-
-    private var thumbnail: some View {
-        Color.photoPlaceholder
-            .frame(width: 56, height: 56)
-            .overlay {
-                if let imageURL = place.imageURL {
-                    AsyncImage(url: imageURL) { image in
-                        image.resizable().scaledToFill()
-                    } placeholder: {
-                        Color.photoPlaceholder
-                    }
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .accessibilityHidden(true)
-    }
-
-    private var accessibilityBadge: some View {
-        Circle()
-            .fill(Color.deepGreen)
-            .frame(width: 20, height: 20)
-            .overlay {
-                Image("access_wheelchair")
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: AccessibilityFeature.wheelchairAccessible.iconSize(height: 14).width, height: 14)
-                    .foregroundStyle(.white)
-            }
-            .accessibilityHidden(true)
-    }
-}
-
-/// 최근 검색어 칩 — 삭제 버튼 포함, 줄바꿈 플로우 레이아웃
-private struct FlowChips: View {
-    let items: [String]
-    let onTap: (String) -> Void
-    let onDelete: (String) -> Void
-
-    init(items: [String], onTap: @escaping (String) -> Void, onDelete: @escaping (String) -> Void) {
-        self.items = items
-        self.onTap = onTap
-        self.onDelete = onDelete
-    }
-
-    var body: some View {
-        FlowLayout(horizontalSpacing: 8, verticalSpacing: 8) {
-            ForEach(items, id: \.self) { term in
-                HStack(spacing: 6) {
-                    Button { onTap(term) } label: {
-                        Text(term)
-                            .font(.notoSans(14))
-                            .foregroundStyle(.textSecondary)
-                    }
-                    Button { onDelete(term) } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.iconGray)
-                    }
-                    .accessibilityLabel("\(term) 삭제")
-                }
-                .padding(.leading, 14)
-                .padding(.trailing, 10)
-                .padding(.vertical, 8)
-                .overlay(Capsule().stroke(Color.cardStroke, lineWidth: 1))
-            }
-        }
     }
 }
 
