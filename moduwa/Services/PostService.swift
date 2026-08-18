@@ -57,11 +57,18 @@ struct PostComment: Identifiable, Hashable, Sendable {
 /// 작성자는 `deviceId` 하나로 정해진다. 이 값은 **구현체가 들고 있고** 호출부는 넘기지 않는다 —
 /// 후기·플랜과 같은 규칙이다(화면마다 기기 키를 챙기게 하면 언젠가 한 곳이 다른 값을 쓴다).
 protocol PostService: Sendable {
-    /// 최근 글부터.
+    /// 최근 글부터. 무엇도 좁히지 않으면 전체 목록이다.
+    ///
+    /// 어느 경우든 구현체는 서버에 **보는 사람**(deviceId)을 함께 알린다 — 그러지 않으면
+    /// 하트가 이미 누른 글에서도 빈 상태로 그려진다.
     /// - Parameters:
     ///   - mineOnly: 이 기기가 쓴 글만.
+    ///   - likedOnly: 이 기기가 좋아요한 글만 — **내가 누른 순서**로 온다
+    ///     (글이 쓰인 시각이 아니다). 저장 탭의 "좋아요한 게시물"이 쓴다.
     ///   - contentId: 그 장소를 **붙인** 글만 (장소 후기 화면의 "여행 게시글" 탭).
-    func fetchPosts(mineOnly: Bool, contentId: String?, limit: Int, offset: Int) async throws -> [TravelPost]
+    func fetchPosts(
+        mineOnly: Bool, likedOnly: Bool, contentId: String?, limit: Int, offset: Int
+    ) async throws -> [TravelPost]
 
     /// 게시글 작성.
     /// - Parameter authorNm: 사용자가 **직접 정한** 표시 이름만 넘긴다. 정하지 않았으면 nil —
@@ -98,7 +105,9 @@ extension EnvironmentValues {
 
 /// 프리뷰 전용 — 실제로 저장하지 않는다.
 struct MockPostService: PostService {
-    func fetchPosts(mineOnly: Bool, contentId: String?, limit: Int, offset: Int) async throws -> [TravelPost] { [] }
+    func fetchPosts(
+        mineOnly: Bool, likedOnly: Bool, contentId: String?, limit: Int, offset: Int
+    ) async throws -> [TravelPost] { [] }
 
     @discardableResult
     func createPost(

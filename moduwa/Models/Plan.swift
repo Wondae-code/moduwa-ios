@@ -340,6 +340,13 @@ struct PlanDay: Identifiable, Hashable, Sendable, Codable {
         self.items = items
     }
 
+    /// 같은 날인지. **id 로 비교할 수 없는 자리**에 쓴다 — `Plan.dayCandidates()` 가 만든
+    /// 후보는 새로 지어낸 id 를 갖고 있어, 서버에서 받아 온 같은 날과 id 가 다르다.
+    /// 그때 id 로 맞추면 이미 있는 날을 못 찾아 같은 날이 하나 더 생긴다.
+    func isSameDay(as other: Date, calendar: Calendar = .current) -> Bool {
+        calendar.isDate(date, inSameDayAs: other)
+    }
+
     /// 번호 뱃지는 장소에만 붙는다 — 메모는 번호를 건너뛴다.
     var stops: [PlanStop] {
         items.compactMap { if case .stop(let stop) = $0 { stop } else { nil } }

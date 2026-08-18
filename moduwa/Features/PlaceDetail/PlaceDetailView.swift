@@ -17,6 +17,7 @@ struct PlaceDetailView: View {
     @State private var isMapVisible = false
     /// 후기 작성 시트 (시안 미확보 — ReviewComposeView 참고)
     @State private var isComposingReview = false
+    @State private var isAddingToPlan = false
     /// 헤더 ☰ 의 "준비 중" 안내 popover
     @State private var showsMenuNotice = false
 
@@ -94,6 +95,11 @@ struct PlaceDetailView: View {
                 // 등록이 서버에서 성공한 뒤에만 불린다 — 집계·목록을 처음부터 다시 받는다
                 onSubmit: { _ in Task { await loadReviews(reset: true) } }
             )
+        }
+        .sheet(isPresented: $isAddingToPlan) {
+            // `detail` 이 아니라 `place` 를 넘긴다 — `PlaceDetail` 에는 좌표가 없고,
+            // 일정에 담긴 장소는 지도 핀과 구간 거리에 좌표가 필요하다.
+            PlaceAddToPlanView(place: place)
         }
     }
 
@@ -286,7 +292,7 @@ struct PlaceDetailView: View {
                 Task { await toggleSaved() }
             }
             .disabled(savedStore.isPending(place.id))
-            actionButton(title: "일정추가", icon: "detail_plus") {}
+            actionButton(title: "일정추가", icon: "detail_plus") { isAddingToPlan = true }
             actionButton(title: "후기쓰기", icon: "detail_pencil") { isComposingReview = true }
             actionButton(title: "공유하기", icon: "detail_share") {}
         }

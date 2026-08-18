@@ -85,7 +85,7 @@ final class HomeViewModel {
     /// ⚠️ 실패해도 화면을 실패로 만들지 않는다 — 게시글이 없거나 못 받아도 리뷰는 보여야 한다.
     func loadPosts(using service: any PostService) async {
         posts = (try? await service.fetchPosts(
-            mineOnly: false, contentId: nil, limit: 10, offset: 0)) ?? []
+            mineOnly: false, likedOnly: false, contentId: nil, limit: 10, offset: 0)) ?? []
     }
     private var isLoadingMorePlaces = false
 

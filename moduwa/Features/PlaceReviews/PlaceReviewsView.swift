@@ -423,7 +423,7 @@ struct PlaceReviewsView: View {
         postsLoadFailed = false
         do {
             posts = try await postService.fetchPosts(
-                mineOnly: false, contentId: contentId, limit: 20, offset: 0)
+                mineOnly: false, likedOnly: false, contentId: contentId, limit: 20, offset: 0)
             didLoadPosts = true
         } catch {
             postsLoadFailed = true

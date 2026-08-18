@@ -63,15 +63,20 @@ struct APIPostService: PostService {
     // MARK: - 조회
 
     func fetchPosts(
-        mineOnly: Bool, contentId: String?, limit: Int, offset: Int
+        mineOnly: Bool, likedOnly: Bool, contentId: String?, limit: Int, offset: Int
     ) async throws -> [TravelPost] {
         guard !apiKey.isEmpty else { throw PostServiceError.unavailable }
+        // ⚠️ deviceId 는 **어느 목록에도 늘 싣는다** — 서버가 "이 사람이 누른 글인지"를
+        //  판단하는 근거다. 예전에는 이 값이 목록을 내 글로 좁히기도 해서 전체 목록에
+        //  실을 수 없었고, 그래서 하트가 눌린 상태로 그려지지 않았다(서버 주석 참고).
+        //  목록을 좁히는 것은 mine·liked 다.
         var query: [URLQueryItem] = [
             .init(name: "limit", value: "\(limit)"),
             .init(name: "offset", value: "\(offset)"),
+            .init(name: "deviceId", value: deviceId),
         ]
-        // deviceId 를 실으면 서버가 내 글만 준다 — 전체 목록에는 싣지 않는다.
-        if mineOnly { query.append(.init(name: "deviceId", value: deviceId)) }
+        if mineOnly { query.append(.init(name: "mine", value: "true")) }
+        if likedOnly { query.append(.init(name: "liked", value: "true")) }
         if let contentId, !contentId.isEmpty {
             query.append(.init(name: "contentId", value: contentId))
         }

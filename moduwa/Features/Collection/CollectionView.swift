@@ -2,16 +2,25 @@ import SwiftUI
 
 /// 저장 탭 — Figma "04. 저장 - 모아보기"(642:837) / "좋아요한 게시물"(642:1255)
 ///
-/// 저장한 장소를 **카테고리별로 묶어** 보여 준다. 칩으로 한 종류만 보거나 전체를 볼 수 있다.
+/// 두 탭이 담는 것이 다르다. **저장 모아보기**는 저장한 장소를 카테고리별로 묶고,
+/// **좋아요한 게시물**은 좋아요를 누른 여행 게시글을 **누른 순서**로 쌓는다.
 ///
-/// "좋아요한 게시물"은 아직 담을 것이 없다 — 앱 어디에도 좋아요 버튼이 없고
-/// (`ReviewCard`는 숫자만 그린다) 서버에도 누가 무엇을 좋아했는지 담는 자리가 없다.
-/// 그 탭은 좋아요 기능을 먼저 깐 뒤에 채운다.
+/// 후기(`ReviewCard`)는 이 탭에 오지 않는다 — 후기 좋아요는 서버에 숫자(`like_count`)만
+/// 있고 누가 눌렀는지가 없어 "내가 좋아한 후기"를 물을 수 없다. 게시글은 `post_likes` 에
+/// 사람이 남아 물을 수 있다. 후기도 담으려면 서버에 좋아요 테이블이 먼저 필요하다.
 struct CollectionView: View {
     @Environment(SavedPlacesStore.self) private var store
+    @Environment(\.postService) private var postService
 
     @State private var selectedTab: SavedTab = .places
     @State private var selectedCategory: PlaceCategory?
+
+    /// 좋아요한 게시글. 탭을 처음 열 때 받는다 — 저장 탭을 여는 것만으로 부르면
+    /// 보지도 않는 목록을 받는다.
+    @State private var likedPosts: [TravelPost] = []
+    @State private var isLoadingLiked = false
+    @State private var didLoadLiked = false
+    @State private var likedLoadFailed = false
 
     /// 시안 세그먼트 그대로.
     enum SavedTab: String, CaseIterable, Hashable {
@@ -34,11 +43,7 @@ struct CollectionView: View {
                     categoryChips
                     placeList
                 case .liked:
-                    ComingSoonView(
-                        title: "좋아요한 게시물",
-                        systemImage: "heart",
-                        message: "좋아요한 게시물 모아보기는 준비 중이에요"
-                    )
+                    likedList
                 }
             }
             .background(Color.appBackground)
@@ -48,6 +53,10 @@ struct CollectionView: View {
         }
         // 다른 화면에서 저장을 눌렀을 수도 있다 — 탭을 열 때마다 최신을 받는다.
         .task { await store.load() }
+        // 좋아요 탭으로 넘어올 때마다 다시 받는다 — 다른 화면에서 하트를 눌렀을 수 있다.
+        .task(id: selectedTab) {
+            if selectedTab == .liked { await loadLiked() }
+        }
     }
 
     // MARK: - 헤더
@@ -218,6 +227,87 @@ struct CollectionView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 80)
+    }
+
+    // MARK: - 좋아요한 게시물
+
+    /// 홈 피드와 **같은 카드**(`PostCard`)를 쓴다 — 같은 글이 자리마다 달리 보일 이유가 없다.
+    ///
+    /// ⚠️ 어느 상태든 남는 공간을 채워야 한다. 짧은 쪽이 내용 높이만 차지하면 바깥 `VStack` 이
+    /// 짧아지고, SwiftUI 가 그 스택을 화면 가운데로 정렬하면서 **헤더까지 아래로 내려온다**
+    /// (장소 후기의 "여행 게시글" 탭에서 실측한 것과 같은 함정).
+    @ViewBuilder
+    private var likedList: some View {
+        if isLoadingLiked && !didLoadLiked {
+            message("좋아요한 게시물을 불러오는 중이에요", isLoading: true)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        } else if likedLoadFailed && !didLoadLiked {
+            likedFailedRow
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        } else if likedPosts.isEmpty {
+            VStack(spacing: 10) {
+                Text("좋아요한 게시물이 없어요")
+                    .font(.notoSans(15, .bold))
+                    .foregroundStyle(Color.textPrimary)
+                Text("마음에 드는 여행 게시글에 하트를 눌러 보세요")
+                    .font(.notoSans(13))
+                    .foregroundStyle(Color.textSecondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .padding(.top, 80)
+            .accessibilityElement(children: .combine)
+        } else {
+            ScrollView {
+                LazyVStack(spacing: 16) {
+                    ForEach(likedPosts) { post in
+                        NavigationLink {
+                            PostDetailView(post: post)
+                        } label: {
+                            PostCard(post: post)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 20)
+                .padding(.bottom, 32)
+            }
+            .background(Color.appBackground)
+            .refreshable { await loadLiked() }
+        }
+    }
+
+    private var likedFailedRow: some View {
+        VStack(spacing: 14) {
+            Text("좋아요한 게시물을 불러오지 못했어요")
+                .font(.notoSans(15, .bold))
+                .foregroundStyle(Color.textPrimary)
+            Button("다시 시도") { Task { await loadLiked() } }
+                .font(.notoSans(14, .bold))
+                .foregroundStyle(.deepGreen)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 10)
+                .overlay(Capsule().stroke(.deepGreen, lineWidth: 1))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 80)
+    }
+
+    /// 서버가 **내가 누른 순서**로 준다 — 앱에서 다시 줄 세우지 않는다.
+    private func loadLiked() async {
+        guard !isLoadingLiked else { return }
+        isLoadingLiked = true
+        likedLoadFailed = false
+        do {
+            likedPosts = try await postService.fetchPosts(
+                mineOnly: false, likedOnly: true, contentId: nil, limit: 30, offset: 0)
+            didLoadLiked = true
+        } catch {
+            // 이미 받아 둔 목록이 있으면 지우지 않는다 — 새로고침이 실패했다고
+            // 보고 있던 글이 사라지면 안 된다.
+            likedLoadFailed = true
+        }
+        isLoadingLiked = false
     }
 }
 
