@@ -37,12 +37,16 @@ struct moduwaApp: App {
 
     /// 홈 헤더 뱃지와 알림 화면이 공유하는 알림 상태
     @State private var notificationStore = NotificationStore()
+    /// 장소 상세의 저장 버튼과 저장 탭이 공유하는 상태. 한쪽에서 누른 결과가 다른 쪽에
+    /// 곧바로 보여야 해서 화면마다 따로 받지 않는다.
+    @State private var savedPlacesStore = SavedPlacesStore(service: APIFeedService())
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 // 라이브 API(moduwa-backend). MODUWA_API_KEY 미설정/네트워크 실패 시 번들 데이터로 자동 폴백.
                 .environment(\.feedService, APIFeedService())
+                .environment(savedPlacesStore)
                 .environment(\.placeSearchService, APISearchService())
                 // 플랜은 번들 폴백이 없다 — 내가 만든 데이터라 대체할 원본이 없다.
                 .environment(\.planService, APIPlanService())

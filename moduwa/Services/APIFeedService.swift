@@ -88,6 +88,73 @@ struct APIFeedService: FeedService {
         let route: String?
         let elevator: String?
         let restroom: String?
+        /// 저장 목록에서만 쓴다 — 홈 피드는 어느 카테고리를 요청했는지 알고 부르지만
+        /// 저장 목록은 종류가 섞여 오므로 응답의 타입으로 판단해야 섹션을 나눌 수 있다.
+        var contenttypeid: String? = nil
+        /// 저장 목록에서만 온다. barrier_free 에 없는 값이라 서버가 후기에서 집계해 얹어 준다.
+        var avgRating: Double? = nil
+    }
+
+    /// contentTypeId → 앱 카테고리. `typeId(_:)`의 역이다.
+    /// 모르는 타입은 nil — 관광공사 타입은 앱이 쓰는 4종보다 많다.
+    private static func category(forTypeId id: String?) -> PlaceCategory? {
+        switch id {
+        case "32": .stay
+        case "39": .food
+        case "12": .attraction
+        case "15": .festival
+        default: nil
+        }
+    }
+
+    // MARK: - 저장한 장소
+
+    /// 서버가 무장애 목록과 **같은 모양**(`BF_COLS`)으로 돌려주므로 같은 DTO 로 읽는다.
+    /// 다른 것은 카테고리와 평점뿐이다.
+    ///
+    /// ⚠️ 폴백이 없다. 저장한 장소는 사용자가 만든 데이터라 번들에 대신할 원본이 없다 —
+    /// 실패는 화면이 오류+재시도로 알린다(`APIPlanService` 와 같은 규칙).
+    func fetchSavedPlaces() async throws -> [Place] {
+        let dtos: [BarrierFreeDTO] = try await getItems("/v1/saved-places", [
+            .init(name: "deviceId", value: ReviewAuthorStore.deviceId),
+        ])
+        return dtos.compactMap { dto in
+            guard let id = dto.contentid,
+                  let name = dto.title?.trimmingCharacters(in: .whitespaces), !name.isEmpty
+            else { return nil }
+            let category = Self.category(forTypeId: dto.contenttypeid) ?? .attraction
+            let img = (dto.firstimage ?? "").replacingOccurrences(of: "http://", with: "https://")
+            // 접근성 한 줄을 못 고르면 카드 마지막 줄이 빌 뿐이다 — 홈 피드처럼 장소를 버리지
+            // 않는다. 사용자가 직접 저장한 것이라 앱이 임의로 감출 수 없다.
+            let picked = Self.pickFeature(dto, category)
+            return Place(
+                id: id,
+                name: name,
+                region: Self.shortRegion(dto.addr1),
+                rating: dto.avgRating,
+                accessibilityNote: picked?.note ?? "",
+                feature: picked?.feature ?? .wheelchairAccessible,
+                category: category,
+                imageURL: URL(string: img)
+            )
+        }
+    }
+
+    func setPlaceSaved(contentId: String, _ saved: Bool) async throws {
+        guard !apiKey.isEmpty else { throw FeedServiceError.writeUnsupported }
+        var comps = URLComponents(
+            url: baseURL.appending(path: "/v1/saved-places/\(contentId)"),
+            resolvingAgainstBaseURL: false)!
+        comps.queryItems = [.init(name: "deviceId", value: ReviewAuthorStore.deviceId)]
+        var req = URLRequest(url: comps.url!)
+        req.httpMethod = saved ? "PUT" : "DELETE"
+        req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+
+        let (data, resp) = try await session.data(for: req)
+        guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            let message = (try? JSONDecoder().decode(ErrorResponse.self, from: data))?.message
+            throw message.map { FeedServiceError.server(message: $0) } ?? .writeUnsupported
+        }
     }
 
     func fetchRecommendedPlaces(category: PlaceCategory, page: Int) async throws -> [Place] {

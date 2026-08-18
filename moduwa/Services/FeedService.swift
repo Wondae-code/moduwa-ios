@@ -51,6 +51,13 @@ protocol FeedService: Sendable {
     func fetchRecommendedPlaces(category: PlaceCategory, page: Int) async throws -> [Place]
     /// `page`는 0부터. `FeedPage.reviewSize`보다 적게 반환되면 마지막 페이지다.
     func fetchReviews(sort: ReviewSort, page: Int) async throws -> [TravelReview]
+    /// 저장한 장소 목록 (`GET /v1/saved-places`) — 최근 저장한 순.
+    /// 평점은 후기 집계라 `Place.rating`에 실려 온다(무장애 목록에는 그 값이 없다).
+    func fetchSavedPlaces() async throws -> [Place]
+
+    /// 장소 저장/해제 (`PUT`/`DELETE /v1/saved-places/:contentId`). 둘 다 멱등이다.
+    func setPlaceSaved(contentId: String, _ saved: Bool) async throws
+
     /// 장소 상세 (무장애 속성 포함)
     func fetchPlaceDetail(contentId: String) async throws -> PlaceDetail
 
@@ -140,6 +147,18 @@ extension FeedService {
         reviewId: Int, body: String, authorNm: String?, deviceId: String
     ) async throws {
         throw FeedServiceError.commentsUnavailable
+    }
+}
+
+/// 저장 기능의 기본 동작 — **저장 개념이 없는 데이터 소스**(번들 폴백, 프리뷰 목)를 위한 것이다.
+///
+/// 목록은 빈 배열이 맞다(저장한 것이 없다). 쓰기는 조용히 성공시키지 않고 던진다 —
+/// 오프라인에서 저장 버튼이 눌린 것처럼 보이면 사용자는 저장됐다고 믿고 앱을 닫는다.
+extension FeedService {
+    func fetchSavedPlaces() async throws -> [Place] { [] }
+
+    func setPlaceSaved(contentId: String, _ saved: Bool) async throws {
+        throw FeedServiceError.writeUnsupported
     }
 }
 

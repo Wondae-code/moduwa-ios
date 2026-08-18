@@ -5,6 +5,7 @@ struct PlaceDetailView: View {
     let place: Place
 
     @Environment(\.feedService) private var feedService
+    @Environment(SavedPlacesStore.self) private var savedStore
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -276,7 +277,15 @@ struct PlaceDetailView: View {
         // 버튼을 4등분 균등 폭으로 채워 좌우 여백을 다른 섹션과 같은 24로 고정한다.
         // (intrinsic 폭 + 가운데 정렬이면 여백이 글자 크기/기기에 따라 달라진다)
         HStack(spacing: 0) {
-            actionButton(title: "저장하기", icon: "detail_bookmark") {}
+            // 저장은 앱 전체가 함께 보는 상태다 — 저장 탭이 곧바로 반영한다(`SavedPlacesStore`).
+            actionButton(
+                title: savedStore.isSaved(place.id) ? "저장됨" : "저장하기",
+                icon: "detail_bookmark",
+                isOn: savedStore.isSaved(place.id)
+            ) {
+                Task { await toggleSaved() }
+            }
+            .disabled(savedStore.isPending(place.id))
             actionButton(title: "일정추가", icon: "detail_plus") {}
             actionButton(title: "후기쓰기", icon: "detail_pencil") { isComposingReview = true }
             actionButton(title: "공유하기", icon: "detail_share") {}
@@ -285,7 +294,17 @@ struct PlaceDetailView: View {
         .padding(.vertical, 14)
     }
 
-    private func actionButton(title: String, icon: String, action: @escaping () -> Void) -> some View {
+    /// 저장 상태를 색만으로 알리지 않는다 — 글자가 "저장하기 → 저장됨"으로 바뀐다.
+    private func toggleSaved() async {
+        let nowSaved = await savedStore.toggle(place)
+        UIAccessibility.post(
+            notification: .announcement,
+            argument: nowSaved ? "저장했어요" : "저장을 해제했어요")
+    }
+
+    private func actionButton(
+        title: String, icon: String, isOn: Bool = false, action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             VStack(spacing: 3) {
                 Image(icon)
@@ -294,8 +313,10 @@ struct PlaceDetailView: View {
                     .scaledToFit()
                     .frame(width: 22, height: 22)
                     .foregroundStyle(.deepGreen)
+                    // 켜진 상태를 글자만으로 두지 않는다 — 아이콘도 함께 진해진다.
+                    .opacity(isOn ? 1 : 0.65)
                 Text(title)
-                    .font(.notoSans(13, .semiBold))
+                    .font(.notoSans(13, isOn ? .bold : .semiBold))
                     .foregroundStyle(.textPrimary)
                     .lineLimit(1)
             }
