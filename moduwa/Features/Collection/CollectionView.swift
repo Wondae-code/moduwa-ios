@@ -42,6 +42,8 @@ struct CollectionView: View {
                 }
             }
             .background(Color.appBackground)
+            // 홈과 같은 자리에 같은 버튼. 하단에 고정 바가 없어 겹칠 것이 없다.
+            .overlay(alignment: .bottomTrailing) { WriteFloatingButton() }
             .navigationDestination(for: Place.self) { PlaceDetailView(place: $0) }
         }
         // 다른 화면에서 저장을 눌렀을 수도 있다 — 탭을 열 때마다 최신을 받는다.

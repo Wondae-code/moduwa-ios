@@ -98,6 +98,10 @@ struct ReviewDetailView: View {
                 .padding(.leading, 12)
 
             Spacer()
+
+            // 하단은 댓글 입력 바가 차지하고 있어 플로팅 버튼을 쓸 수 없다 —
+            // 같은 글리프를 헤더에 둬 작성으로 가는 길을 남긴다.
+            WriteHeaderButton()
         }
         .foregroundStyle(.textPrimary)
         .padding(.leading, 28)

@@ -9,6 +9,7 @@ enum HomeRoute: Hashable {
 
 struct HomeView: View {
     @Environment(\.feedService) private var feedService
+    @Environment(\.postService) private var postService
     @Environment(NotificationStore.self) private var notificationStore
     @State private var viewModel = HomeViewModel()
     @State private var isSortPickerPresented = false
@@ -40,6 +41,9 @@ struct HomeView: View {
                 .background(.white)
             }
             .toolbar(.hidden, for: .navigationBar)
+            // 시안 "01. 메인화면"의 Write Button(652:3399) — 우하단 라임 원.
+            //  스크롤과 무관하게 떠 있어야 해서 `overlay` 로 얹는다(ScrollView 안에 두면 함께 밀린다).
+            .overlay(alignment: .bottomTrailing) { WriteFloatingButton() }
             .navigationDestination(for: Place.self) { place in
                 PlaceDetailView(place: place)
             }
@@ -54,6 +58,8 @@ struct HomeView: View {
             }
         }
         .task { await viewModel.loadInitial(using: feedService) }
+        // 게시글은 리뷰와 별도 요청이다 — 한 task 에 이어 붙이면 뒤엣것이 앞의 응답을 기다린다.
+        .task { await viewModel.loadPosts(using: postService) }
     }
 
     // MARK: - 헤더
@@ -193,11 +199,22 @@ struct HomeView: View {
                 sortMenu
             }
 
-            ForEach(viewModel.reviews) { review in
-                NavigationLink(value: review) {
-                    ReviewCard(review: review)
+            // 게시글과 리뷰를 **고른 정렬대로 섞는다**(`HomeViewModel.feedItems`). 두 목록을
+            //  따로 쌓으면 한쪽이 늘 위에 몰려 다른 쪽이 스크롤 아래로 밀리고,
+            //  "여행자 리뷰"라는 한 섹션인데 둘로 갈려 보인다.
+            ForEach(viewModel.feedItems) { item in
+                switch item {
+                case .review(let review):
+                    NavigationLink(value: review) {
+                        ReviewCard(review: review)
+                    }
+                    .buttonStyle(.plain)
+                case .post(let post):
+                    NavigationLink { PostDetailView(post: post) } label: {
+                        PostCard(post: post)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
 
             if viewModel.canLoadMoreReviews {

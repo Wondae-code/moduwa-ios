@@ -50,6 +50,8 @@ struct moduwaApp: App {
                 .environment(\.placeSearchService, APISearchService())
                 // 플랜은 번들 폴백이 없다 — 내가 만든 데이터라 대체할 원본이 없다.
                 .environment(\.planService, APIPlanService())
+                // 게시글도 번들 폴백이 없다 — 사용자가 쓴 글이라 대체할 원본이 없다.
+                .environment(\.postService, APIPostService())
                 .environment(notificationStore)
         }
     }

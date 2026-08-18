@@ -15,10 +15,18 @@ struct PlaceReviewsView: View {
     var placeAddress: String = ""
 
     @Environment(\.feedService) private var feedService
+    @Environment(\.postService) private var postService
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var selectedTab: Tab = .reviews
+
+    /// 이 장소를 **붙인** 게시글(`GET /v1/posts?contentId=`).
+    @State private var posts: [TravelPost] = []
+    @State private var isLoadingPosts = false
+    @State private var postsLoadFailed = false
+    /// 한 번이라도 받아 왔는지. 못 받은 상태와 "글이 없다"를 구분한다.
+    @State private var didLoadPosts = false
 
     @State private var summary: PlaceReviewSummary?
     @State private var reviews: [TravelReview] = []
@@ -57,6 +65,8 @@ struct PlaceReviewsView: View {
         .background(.white)
         .toolbar(.hidden, for: .navigationBar)
         .task { await load(reset: true) }
+        // 게시글은 방문 후기와 별도 요청이다(위 `loadPosts` 주석 참고).
+        .task { await loadPosts() }
         .sheet(isPresented: $isComposingReview, onDismiss: { entryRating = 0 }) {
             ReviewComposeView(
                 placeName: placeName,
@@ -348,12 +358,77 @@ struct PlaceReviewsView: View {
     // MARK: - 탭 B: 여행 게시글 (미구현)
 
     /// 서버에 게시글 개념이 없다 — 자리만 잡아 둔다.
+    /// 이 장소를 붙인 게시글 목록.
+    ///
+    /// 방문 후기와 달리 **더보기가 없다** — 한 장소에 붙는 글은 아직 많지 않고, 페이지네이션을
+    /// 붙이려면 서버가 총 개수를 줘야 한다(지금 `/v1/posts` 는 count 만 준다).
+    /// ⚠️ **남는 공간을 채워야 한다.** 방문 후기 탭은 자체 `ScrollView` 로 늘어나는데 이쪽이
+    /// 내용 높이만 차지하면, 바깥 `VStack` 이 짧아진 전체를 화면 가운데로 정렬하면서
+    /// **헤더까지 아래로 내려온다**(2026-08-16 실측). 어느 상태든 `maxHeight: .infinity` 를 준다.
+    @ViewBuilder
     private var postsTab: some View {
-        ComingSoonView(
-            title: "여행 게시글",
-            systemImage: "text.below.photo",
-            message: "이 장소를 다룬 여행 게시글을 모아 보여줄 예정이에요"
-        )
+        if isLoadingPosts && !didLoadPosts {
+            loadingRow
+                .padding(.horizontal, 24)
+                .padding(.top, 24)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        } else if postsLoadFailed && !didLoadPosts {
+            postsFailedRow
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        } else if posts.isEmpty {
+            ComingSoonView(
+                title: "여행 게시글",
+                systemImage: "text.below.photo",
+                message: "이 장소를 다룬 여행 게시글이 아직 없어요"
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            ScrollView {
+                LazyVStack(spacing: 16) {
+                    ForEach(posts) { post in
+                        NavigationLink { PostDetailView(post: post) } label: {
+                            PostCard(post: post)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 20)
+                .padding(.bottom, 24)
+            }
+        }
+    }
+
+    private var postsFailedRow: some View {
+        VStack(spacing: 12) {
+            Text("게시글을 불러오지 못했어요")
+                .font(.notoSans(15, .bold))
+                .foregroundStyle(Color.textPrimary)
+            Button("다시 시도") { Task { await loadPosts() } }
+                .font(.notoSans(14, .bold))
+                .foregroundStyle(.deepGreen)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 10)
+                .overlay(Capsule().stroke(.deepGreen, lineWidth: 1))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 60)
+    }
+
+    /// 게시글은 방문 후기와 **별도 요청**이다 — 한 task 에 이어 붙이면 뒤엣것이 앞의 응답을 기다린다.
+    /// 실패해도 방문 후기 탭은 그대로 보인다.
+    private func loadPosts() async {
+        guard !isLoadingPosts else { return }
+        isLoadingPosts = true
+        postsLoadFailed = false
+        do {
+            posts = try await postService.fetchPosts(
+                mineOnly: false, contentId: contentId, limit: 20, offset: 0)
+            didLoadPosts = true
+        } catch {
+            postsLoadFailed = true
+        }
+        isLoadingPosts = false
     }
 
     // MARK: - 상태 표시
