@@ -26,9 +26,9 @@ struct PlanDetailView: View {
     @State private var loadFailed = false
     /// 카카오맵 엔진은 레이아웃이 잡힌 뒤에 켜야 한다 — 미리 켜면 렌더링이 멈춘다.
     @State private var mapDrawn = false
-    /// 시트에서 지금 맨 위에 걸린 날. 지도 핀이 이 값을 따라간다.
-    /// 스크롤 도중 잠깐 nil 이 되므로 읽는 쪽에서 첫 날로 폴백한다.
-    @State private var visibleDayID: PlanDay.ID?
+    /// 지금 펼쳐 둔 날 — `dayCandidates`(여행 기간 전체) 안에서의 자리다.
+    /// 시트에는 이 하루만 나오고, 지도 핀과 "담기"의 목적지가 모두 이 값을 따라간다.
+    @State private var selectedDayIndex = 0
     /// 후기를 보러 갈 장소. 별을 누르면 채워지고, 그때 후기 화면으로 밀려 올라간다.
     @State private var reviewTarget: PlanPlace?
 
@@ -61,20 +61,12 @@ struct PlanDetailView: View {
     /// 지도에는 **지금 보고 있는 날**의 핀만 찍는다.
     ///
     /// 여러 날을 한 번에 그리면 번호가 1부터 다시 시작하는 핀이 겹쳐 읽을 수 없다.
-    /// 그렇다고 DAY 1 로 고정하면(예전 동작) DAY 2 를 읽는 동안 지도는 엉뚱한 날을 보여 준다 —
-    /// 시트를 스크롤해 날이 넘어가면 지도도 따라간다(2026-08-16 사용자 요청).
-    private var mappedStops: [PlanStop] {
-        let day = days.first { $0.id == visibleDayID } ?? days.first
-        return day?.stops ?? []
-    }
+    /// 시트가 하루만 보여 주므로 지도도 그 하루를 그린다.
+    private var mappedStops: [PlanStop] { selectedDay?.stops ?? [] }
 
     /// 제목·날짜는 상세가 오기 전에도 목록에서 받은 값으로 그린다 — 스피너만 띄우고 기다리면
     ///  이미 알고 있는 정보까지 감추게 된다.
     private var current: Plan { detail ?? plan }
-
-    /// 일정은 상세를 받아야만 있다. `plan.days`로 폴백하지 않는다 —
-    ///  목록의 빈 배열을 "일정 없음"으로 그리면 로딩 중에 잘못된 사실을 보여 주게 된다.
-    private var days: [PlanDay] { detail?.days ?? [] }
 
     /// 담긴 장소가 하나도 없을 때 지도를 맞출 자리.
     ///
@@ -136,19 +128,34 @@ struct PlanDetailView: View {
                 PlaceReviewsView(contentId: contentID, placeName: place.name)
             }
         }
+        // 타임라인의 장소 카드 → 장소 상세(2026-08-16 사용자 요청).
+        //
+        //  **값 기반 목적지로 두는 이유**: 장소 상세는 연관 장소와 후기를 다시 `NavigationLink(value:)`
+        //  로 밀어 올린다(후기 상세도 거기서 또 장소를 민다). 여기서 화면만 직접 얹으면 그 링크들이
+        //  받아 줄 곳을 못 찾아 눌리지 않는 막다른 길이 된다 — 홈 스택과 같은 두 목적지를 함께 둔다.
+        .navigationDestination(for: Place.self) { PlaceDetailView(place: $0) }
+        .navigationDestination(for: TravelReview.self) { ReviewDetailView(review: $0) }
         // 메모는 편집 화면을 거치지 않고 상세에서 바로 붙인다 — 시안의 버튼이 상세 하단에 있고,
         // 한 줄 적으러 편집 모드까지 들어가게 하면 순서까지 건드릴 수 있는 화면이 열린다.
         .sheet(isPresented: $isEditingTitle) {
             PlanTitleEditView(currentTitle: current.title) { try await renameTitle(to: $0) }
         }
+        // 담기는 화면들은 **날짜를 묻지 않는다**(2026-08-16 사용자 지시) — 지금 보고 있는 날에
+        //  그대로 들어간다. 다른 날에 담고 싶으면 화살표로 그 날로 넘어간 뒤 누르면 된다.
         .sheet(isPresented: $isAddingMemo) {
-            PlanMemoComposeView(days: dayCandidates) { day, text in
-                try await addMemo(to: day, text: text)
+            if let day = selectedDay {
+                PlanMemoComposeView(day: day, dayNumber: selectedDayNumber) { text in
+                    try await addMemo(to: day, text: text)
+                }
             }
         }
         .sheet(isPresented: $isAddingPlace) {
-            PlanPlaceAddView(days: dayCandidates, regionCamera: regionCamera) { day, places in
-                try await addPlaces(to: day, places: places)
+            if let day = selectedDay {
+                PlanPlaceAddView(day: day,
+                                 dayNumber: selectedDayNumber,
+                                 regionCamera: regionCamera) { places in
+                    try await addPlaces(to: day, places: places)
+                }
             }
         }
     }
@@ -190,18 +197,39 @@ struct PlanDetailView: View {
         onPlanSaved(saved)
     }
 
-    /// 무언가를 담을 후보 날짜 — **여행 기간 전체**다.
+    /// 오갈 수 있는 날짜 — **여행 기간 전체**다. 화살표가 넘기는 범위이자 편집 화면에 넘기는 목록.
     ///
     /// 서버에 있는 날만 후보로 두면 안 된다: 새 플랜은 `days`가 비어 있고(`PlanDraft`),
-    /// 한 번 담고 난 뒤에는 담긴 날 하나만 남아 둘째 날부터 영영 고를 수 없다.
+    /// 한 번 담고 난 뒤에는 담긴 날 하나만 남아 둘째 날부터 영영 갈 수 없다.
     /// `Plan.dayCandidates`가 기간 전체와 이미 있는 날을 겹쳐 준다.
     private var dayCandidates: [PlanDay] {
-        // 상세를 받기 전(`detail == nil`)에는 목록에서 온 플랜에 일정이 없다 — 그때는
-        // 하단 액션 자체가 그려지지 않으므로 여기까지 오지 않는다.
+        // 상세를 받기 전(`detail == nil`)에도 목록에서 온 플랜의 기간으로 날짜가 나온다 —
+        // 일정만 비어 있을 뿐이고, 그때는 하단 액션이 그려지지 않아 담기로 이어지지 않는다.
         current.dayCandidates()
     }
 
-    /// 고른 Day의 **맨 뒤**에 메모를 붙인다.
+    /// 지금 보고 있는 날. **여행 기간 전체**에서 고르므로 아직 아무것도 담기지 않은 날도 나온다 —
+    /// 서버에 있는 날만 오갈 수 있게 하면 빈 날에는 영영 아무것도 담을 수 없다.
+    private var selectedDay: PlanDay? {
+        let candidates = dayCandidates
+        guard !candidates.isEmpty else { return nil }
+        return candidates[min(max(selectedDayIndex, 0), candidates.count - 1)]
+    }
+
+    /// 화면에 쓰는 "DAY n" 의 n. 날짜를 줄인 플랜에서 범위 밖 값이 남을 수 있어 밀어 넣는다.
+    private var selectedDayNumber: Int {
+        min(max(selectedDayIndex, 0), max(dayCandidates.count - 1, 0)) + 1
+    }
+
+    /// 하루 앞뒤로 옮긴다. 양 끝에서는 버튼이 이미 꺼져 있어 여기까지 오지 않지만,
+    /// 날짜가 바뀐 뒤에도 안전하도록 범위를 다시 묶는다.
+    private func stepDay(_ delta: Int) {
+        let count = dayCandidates.count
+        guard count > 0 else { return }
+        selectedDayIndex = min(max(selectedDayNumber - 1 + delta, 0), count - 1)
+    }
+
+    /// 보고 있는 Day의 **맨 뒤**에 메모를 붙인다.
     ///
     /// 그날 어디쯤에 끼울지는 묻지 않는다 — 시안에 위치를 고르는 UI가 없고, 붙인 뒤
     /// 편집 화면에서 드래그로 옮길 수 있다(같은 Day 안에서는 자유롭게 움직인다).
@@ -211,7 +239,7 @@ struct PlanDetailView: View {
         try await append(.memo(PlanMemo(text: text)), to: day)
     }
 
-    /// 고른 장소들을 **고른 순서 그대로** 그 날 맨 뒤에 담는다.
+    /// 고른 장소들을 **고른 순서 그대로** 보고 있는 날 맨 뒤에 담는다.
     ///
     /// 여러 곳을 한 번에 담아도 저장은 한 번이다 — `savePlan`이 본문을 통째로 교체하므로
     /// 장소마다 부르면 왕복이 늘 뿐 아니라, 중간에 실패했을 때 몇 개까지 들어갔는지가 흐려진다.
@@ -388,21 +416,17 @@ struct PlanDetailView: View {
                     if detail == nil {
                         // 일정이 아직 없다 — 왜 없는지(받는 중 / 실패)를 구분해 알린다.
                         if loadFailed { errorRow } else { loadingRow }
-                    } else if days.isEmpty {
-                        emptyRow
-                    } else {
-                        // 날 하나가 통째로 하나의 스크롤 대상이어야 `scrollPosition` 이
-                        // "지금 맨 위에 걸린 날"을 짚어 준다 — 그 값으로 지도 핀을 바꾼다.
-                        LazyVStack(alignment: .leading, spacing: 0) {
-                            ForEach(Array(days.enumerated()), id: \.element.id) { index, day in
-                                VStack(alignment: .leading, spacing: 0) {
-                                    dayHeader(number: index + 1, day: day)
-                                    dayTimeline(day)
-                                }
-                                .id(day.id)
-                            }
+                    } else if let day = selectedDay {
+                        // 하루씩만 보여 준다(2026-08-16 사용자 지시). 여러 날이 한 줄기로 이어져
+                        //  있으면 어디부터 어느 날인지 헤더로만 갈리고, 담기도 "어느 날에"를
+                        //  따로 물어야 했다. 지금은 보고 있는 날이 곧 담기는 날이다.
+                        dayHeader(number: selectedDayNumber, day: day)
+
+                        if day.items.isEmpty {
+                            emptyDayRow
+                        } else {
+                            dayTimeline(day)
                         }
-                        .scrollTargetLayout()
                     }
 
                     // 상세를 못 받은 상태에서는 일정을 더할 곳이 없다 — 실패 문구 아래 액션만 남으면
@@ -412,8 +436,6 @@ struct PlanDetailView: View {
                 .padding(.horizontal, 36)
                 .padding(.bottom, 24)
             }
-            // 맨 위에 걸린 날을 짚어 준다. 스크롤 도중 nil 이 오기도 해서 읽는 쪽이 폴백한다.
-            .scrollPosition(id: $visibleDayID, anchor: .top)
         }
         .background(Color.appBackground)
         .clipShape(.rect(topLeadingRadius: 24, topTrailingRadius: 24))
@@ -454,10 +476,21 @@ struct PlanDetailView: View {
 
     // MARK: Day
 
+    /// 날짜 줄 — 좌우 화살표로 하루씩 오간다. 스크롤로 날이 넘어가던 예전과 달리
+    /// **넘긴 날이 곧 담기는 날**이라, 어디에 있는지가 이 줄 하나로 읽혀야 한다.
     private func dayHeader(number: Int, day: PlanDay) -> some View {
         HStack(spacing: 0) {
-            Text("DAY \(number) · \(day.headerText)")
+            dayStepButton("chevron.left", delta: -1, label: "이전 날", isEnabled: number > 1)
+
+            Text(day.title(number: number))
                 .font(.notoSans(16, .bold, relativeTo: .headline))
+                // 날짜에 따라 글자 폭이 달라 오른쪽 화살표가 들썩인다. 가장 긴 표기
+                // ("DAY 10 · 12/26 목")에 맞춰 자리를 잡아 두면 넘길 때 버튼이 제자리에 있다.
+                .frame(minWidth: 132)
+                .layoutPriority(1)
+
+            dayStepButton("chevron.right", delta: 1,
+                          label: "다음 날", isEnabled: number < dayCandidates.count)
 
             Spacer(minLength: 0)
 
@@ -470,6 +503,26 @@ struct PlanDetailView: View {
         .foregroundStyle(Color.textPrimary)
         .padding(.top, 14)
         .padding(.bottom, 18)
+    }
+
+    /// 하루 넘기기. 양 끝에서는 비활성으로 남겨 둔다 — 사라지면 화살표 자리가 흔들리고,
+    /// 여행이 하루뿐인 플랜에서는 두 버튼이 통째로 없어져 줄이 딴 화면처럼 보인다.
+    private func dayStepButton(
+        _ systemName: String,
+        delta: Int,
+        label: String,
+        isEnabled: Bool
+    ) -> some View {
+        Button { stepDay(delta) } label: {
+            Image(systemName: systemName)
+                .font(.system(size: 15, weight: .semibold))
+                .frame(width: 30, height: 30)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(isEnabled ? Color.textPrimary : Color.cardStroke)
+        .disabled(!isEnabled)
+        .accessibilityLabel(label)
     }
 
     // MARK: 로딩 · 오류 · 빈 상태
@@ -521,14 +574,16 @@ struct PlanDetailView: View {
         .padding(.top, 14)
     }
 
-    private var emptyRow: some View {
+    /// 빈 날. 이제 날짜를 하나씩 보여 주므로 "플랜 전체가 비었다"가 아니라
+    /// **이 날이 비었다**를 알린다 — 옆 날에는 일정이 있을 수 있다.
+    private var emptyDayRow: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("아직 일정이 없어요")
+            Text("이 날은 아직 비어 있어요")
                 .font(.notoSans(15, .bold, relativeTo: .headline))
                 .tracking(-0.4)
                 .foregroundStyle(Color.textPrimary)
 
-            Text("가고 싶은 장소와 메모를 날짜별로 담아 보세요")
+            Text("아래에서 가고 싶은 장소와 메모를 담아 보세요")
                 .font(.notoSans(13, .regular, relativeTo: .footnote))
                 .tracking(-0.4)
                 .foregroundStyle(Color.textSecondary)
@@ -550,7 +605,10 @@ struct PlanDetailView: View {
                        let leg = TravelLeg.straightLine(from: previous.place, to: stop.place) {
                         PlanLegRow(leg: leg)
                     }
-                    PlanStopRow(number: day.stopNumber(at: index) ?? 0, stop: stop) {
+                    // 나만의 장소는 열 원본이 없어 `destination` 이 nil 이고, 그 줄은 눌리지 않는다.
+                    PlanStopRow(number: day.stopNumber(at: index) ?? 0,
+                                stop: stop,
+                                destination: Place(planPlace: stop.place)) {
                         reviewTarget = stop.place
                     }
                 case .memo(let memo):
@@ -596,6 +654,9 @@ struct PlanDetailView: View {
 private struct PlanStopRow: View {
     let number: Int
     let stop: PlanStop
+    /// 카드 본문을 누르면 갈 장소 상세. 나만의 장소는 관광공사 원본이 없어 nil 이고,
+    /// 그때는 링크로 감싸지 않는다 — 눌러도 아무 일이 없는 줄이 눌리는 것처럼 보이면 안 된다.
+    var destination: Place?
     /// 별을 눌렀을 때. 이 행은 네비게이션 밖에 있어 이동은 상세 화면이 맡는다.
     var onReviewTap: () -> Void
 
@@ -606,20 +667,17 @@ private struct PlanStopRow: View {
             PlanNumberBadge(number: number, isCustom: place.isCustom)
 
             HStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(place.name)
-                        .font(.notoSans(16, .medium, relativeTo: .headline))
-                        .tracking(-0.064)
-                        .foregroundStyle(Color.textPrimary)
-
-                    Text(place.subtitle)
-                        .font(.notoSans(14, .regular, relativeTo: .subheadline))
-                        .tracking(-0.056)
-                        .foregroundStyle(Color.textSecondary)
+                // 이름 쪽과 별 쪽은 **형제**로 둔다. 카드 전체를 링크로 감싸고 그 안에 별 버튼을
+                //  넣으면 바깥 링크가 탭을 먼저 삼켜 후기로 갈 수 없다. 시안의 세로 구분선이
+                //  마침 그 경계라, 왼쪽은 장소 상세 · 오른쪽은 후기로 자연스럽게 갈린다.
+                if let destination {
+                    NavigationLink(value: destination) { placeInfo }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(place.name), \(place.subtitle)")
+                        .accessibilityHint("장소 상세를 봅니다")
+                } else {
+                    placeInfo
                 }
-                .lineLimit(1)
-
-                Spacer(minLength: 8)
 
                 if place.showsReviewAction {
                     Rectangle()
@@ -646,7 +704,6 @@ private struct PlanStopRow: View {
                     .accessibilityLabel("\(place.name) 후기 보기")
                 }
             }
-            .padding(.leading, 16)
             .frame(height: 57)
             .background(Color.appBackground, in: RoundedRectangle(cornerRadius: 12))
             .overlay {
@@ -654,6 +711,30 @@ private struct PlanStopRow: View {
                     .stroke(Color.cardStroke, lineWidth: 1)
             }
         }
+    }
+
+    /// 이름·부제목 자리. 카드 안쪽 여백과 글자 옆 빈 자리까지 한 덩어리로 묶어 두는 이유는,
+    /// 이게 그대로 장소 상세로 가는 탭 영역이 되기 때문이다 — 글자 위만 눌리면 잘 맞지 않는다.
+    private var placeInfo: some View {
+        HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(place.name)
+                    .font(.notoSans(16, .medium, relativeTo: .headline))
+                    .tracking(-0.064)
+                    .foregroundStyle(Color.textPrimary)
+
+                Text(place.subtitle)
+                    .font(.notoSans(14, .regular, relativeTo: .subheadline))
+                    .tracking(-0.056)
+                    .foregroundStyle(Color.textSecondary)
+            }
+            .lineLimit(1)
+
+            Spacer(minLength: 8)
+        }
+        .padding(.leading, 16)
+        .frame(maxHeight: .infinity)
+        .contentShape(.rect)
     }
 }
 

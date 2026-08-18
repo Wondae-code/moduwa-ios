@@ -8,9 +8,14 @@ import SwiftUI
 ///
 /// **한 번에 여러 곳을 담는다**(2026-08-16 사용자 결정). 하루치 일정을 짤 때는 보통 여러 곳을
 /// 연달아 담게 되는데, 하나씩이면 그때마다 검색을 다시 해야 한다. 저장도 `savePlan` 한 번으로 끝난다.
+///
+/// **어느 날에 담을지는 묻지 않는다**(2026-08-16 사용자 지시) — 상세에서 보고 있던 날에 그대로
+/// 들어간다. 다른 날에 담으려면 상세에서 그 날로 넘어간 뒤 다시 연다.
 struct PlanPlaceAddView: View {
-    /// 담을 수 있는 날들 (`Plan.dayCandidates()`).
-    let days: [PlanDay]
+    /// 장소가 들어갈 날. 서버에 이미 있는 날일 수도, 여행 기간에서 만들어 낸 후보일 수도 있다.
+    let day: PlanDay
+    /// 여행 기간에서 이 날이 몇 번째인지("DAY 2"). 날짜만으로는 알 수 없어 상세가 넘겨 준다.
+    let dayNumber: Int
     /// 나만의 장소를 만들 때 지도를 처음 띄울 자리 — 플랜의 여행 지역.
     /// 지역이 없는 플랜이면 nil 이고, 그때는 "나만의 장소 추가"를 열지 않는다(띄울 자리가 없다).
     var regionCamera: RegionMapCamera?
@@ -18,7 +23,7 @@ struct PlanPlaceAddView: View {
     ///
     /// **저장이 끝날 때까지 기다린다** — 시트를 먼저 닫고 뒤에서 저장하면 실패했을 때
     /// 방금 고른 목록이 어디에도 남지 않는다(`PlanMemoComposeView` 와 같은 규칙).
-    var onAdd: (PlanDay, [PlanPlace]) async throws -> Void
+    var onAdd: ([PlanPlace]) async throws -> Void
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.placeSearchService) private var placeSearchService
@@ -36,7 +41,6 @@ struct PlanPlaceAddView: View {
     /// 만들 수 있어서 값만으로는 어느 줄을 빼는지 가릴 수 없다(`ForEach`도 흔들린다).
     @State private var customPlaces: [PlanStop] = []
     @State private var isAddingCustomPlace = false
-    @State private var selectedDayID: PlanDay.ID?
     @State private var isSaving = false
     @State private var saveError: String?
     @FocusState private var isFieldFocused: Bool
@@ -46,35 +50,26 @@ struct PlanPlaceAddView: View {
 
     private var recentSearches: [String] { RecentSearchStore.decode(recentSearchesData) }
 
-    private var needsDayChoice: Bool { days.count > 1 }
-
-    private var targetDay: PlanDay? {
-        needsDayChoice ? days.first { $0.id == selectedDayID } : days.first
-    }
-
     /// 담을 것의 총 개수 — 검색으로 고른 것 + 직접 만든 것.
     private var totalPicked: Int { picked.count + customPlaces.count }
 
-    private var canSubmit: Bool { totalPicked > 0 && targetDay != nil }
+    private var canSubmit: Bool { totalPicked > 0 }
 
     /// 비활성 상태를 회색이라는 색만으로 전달하지 않기 위한 문장.
     private var missingHint: String? {
-        if totalPicked == 0 { "담을 장소를 골라 주세요" }
-        else if targetDay == nil { "어느 날에 담을지 골라 주세요" }
-        else { nil }
+        totalPicked == 0 ? "담을 장소를 골라 주세요" : nil
     }
 
     var body: some View {
         VStack(spacing: 0) {
             headerBar
+            targetDayRow
 
             if !customPlaces.isEmpty { customSection }
 
-            // 검색 결과가 세로를 가장 많이 쓴다 — 여기만 늘어나고 날짜·CTA 는 자리를 지킨다.
+            // 검색 결과가 세로를 가장 많이 쓴다 — 여기만 늘어나고 CTA 는 자리를 지킨다.
             resultArea
                 .frame(maxHeight: .infinity)
-
-            if needsDayChoice { daySection }
         }
         .background(.white)
         .safeAreaInset(edge: .bottom) { submitBar }
@@ -330,22 +325,18 @@ struct PlanPlaceAddView: View {
         .accessibilityHint(isPicked ? "두 번 탭하면 선택을 해제합니다" : "두 번 탭하면 담을 목록에 넣습니다")
     }
 
-    // MARK: - 날짜
+    // MARK: - 담길 날
 
-    /// 검색 결과가 세로를 다투므로 메모 화면(5줄)보다 짧게 잡는다.
-    private var daySection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("어느 날에 담을까요?")
-                .font(.notoSans(16, .bold, relativeTo: .headline))
-                .tracking(-0.4)
-                .foregroundStyle(Color.textPrimary)
-                .accessibilityAddTraits(.isHeader)
-
-            PlanDaySelectList(days: days, selection: $selectedDayID, visibleRowCount: 3)
-        }
-        .padding(.horizontal, 24)
-        .padding(.top, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
+    /// 어느 날에 담기는지 되짚는 줄. 고르는 자리가 아니라 **알리는 자리**다 —
+    /// 검색 결과가 세로를 다투는 화면이라 한 줄로 얇게 얹는다.
+    private var targetDayRow: some View {
+        Text("\(day.title(number: dayNumber))에 담아요")
+            .font(.notoSans(14, .medium))
+            .foregroundStyle(Color.textSecondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 10)
+            .background(Color.photoPlaceholder)
     }
 
     // MARK: - 하단
@@ -435,14 +426,14 @@ struct PlanPlaceAddView: View {
     // MARK: - 저장
 
     private func save() async {
-        guard let day = targetDay, totalPicked > 0 else { return }
+        guard totalPicked > 0 else { return }
         isSaving = true
         saveError = nil
         // 검색으로 고른 것 먼저, 직접 만든 것 나중 — 각각은 고른 차례를 지킨다.
         // 그 뒤 순서는 편집 화면에서 드래그로 바꾼다.
         let places = picked.map { PlanPlace(searchResult: $0) } + customPlaces.map(\.place)
         do {
-            try await onAdd(day, places)
+            try await onAdd(places)
             UIAccessibility.post(notification: .announcement,
                                  argument: "\(places.count)곳을 일정에 담았어요")
             dismiss()
@@ -459,6 +450,6 @@ struct PlanPlaceAddView: View {
 #Preview("장소 담기") {
     Color.white
         .sheet(isPresented: .constant(true)) {
-            PlanPlaceAddView(days: MockData.upcomingGyeongju.days) { _, _ in }
+            PlanPlaceAddView(day: MockData.upcomingGyeongju.days[0], dayNumber: 1) { _ in }
         }
 }

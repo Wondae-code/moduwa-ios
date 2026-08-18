@@ -7,28 +7,25 @@ import SwiftUI
 /// 후기 작성(`ReviewComposeView`)의 톤을 그대로 따랐다 — 흰 시트, 좌우 24, 회색 입력 박스,
 /// 라임 캡슐 CTA, 실패 사유를 버튼 위에 얹는 배치.
 ///
-/// **어느 Day에 붙일지도 시안이 정하지 않았다.** 버튼은 화면 하단에 하나뿐인데 Day는 여럿이다.
-///  "마지막 날에 붙인다" 같은 규칙을 앱이 몰래 정하면 사용자는 왜 그 날에 들어갔는지 알 수 없고,
-///  지금 편집 화면은 Day 간 이동이 막혀 있어 **잘못 들어가면 옮길 방법도 없다**. 그래서 고르게 한다.
-///  Day가 하나뿐이면 고를 것이 없으므로 섹션을 빼고 그 날로 정한다.
+/// **어느 Day에 붙일지는 이 화면에서 묻지 않는다**(2026-08-16 사용자 지시). 상세가 하루씩만
+///  보여 주게 되면서 "지금 보고 있는 날"이 곧 붙일 날이 됐다 — 화면 안에서 또 고르게 하면
+///  방금 넘겨 온 날짜를 한 번 더 확인시키는 셈이라 되레 어긋난다. 대신 어느 날에 들어가는지를
+///  맨 위에 되짚어 둔다(`targetDayRow`) — 몰래 정한 것처럼 보이지 않게.
 struct PlanMemoComposeView: View {
-    /// 붙일 수 있는 날짜들. 서버에 이미 있는 날일 수도 있고, 아직 일정이 없는 플랜이라
-    /// 여행 기간에서 만들어 낸 후보일 수도 있다(`Plan.calendarDays`) — 여기서는 구분하지 않는다.
-    let days: [PlanDay]
-    /// 고른 Day에 메모를 붙인다. 그 날이 실제로 서버에 있는지는 호출부가 판단한다.
+    /// 메모가 들어갈 날. 서버에 이미 있는 날일 수도 있고, 아직 일정이 없어 여행 기간에서
+    /// 만들어 낸 후보일 수도 있다(`Plan.dayCandidates`) — 여기서는 구분하지 않는다.
+    let day: PlanDay
+    /// 여행 기간에서 이 날이 몇 번째인지("DAY 2"). 날짜만으로는 알 수 없어 상세가 넘겨 준다.
+    let dayNumber: Int
+    /// 이 날에 메모를 붙인다. 그 날이 실제로 서버에 있는지는 호출부가 판단한다.
     ///
     /// **저장이 끝날 때까지 기다린다** — 시트를 먼저 닫고 뒤에서 저장하면 실패했을 때
     /// 방금 쓴 글이 어디에도 남지 않는다(`PlanEditView.onDone`과 같은 규칙).
-    var onAdd: (PlanDay, String) async throws -> Void
+    var onAdd: (String) async throws -> Void
 
     @Environment(\.dismiss) private var dismiss
 
     @State private var text = ""
-    @State private var selectedDayID: PlanDay.ID?
-    /// 고른 날. 하나뿐이면 고르고 말고 할 것이 없다.
-    private var targetDay: PlanDay? {
-        needsDayChoice ? days.first { $0.id == selectedDayID } : days.first
-    }
     @State private var isSaving = false
     /// 저장 실패 사유. 서버가 한국어로 알려 주면 그대로 담는다.
     @State private var saveError: String?
@@ -38,40 +35,30 @@ struct PlanMemoComposeView: View {
     /// (`plan_items.memo_text`는 그냥 text) 이 값은 순전히 화면 쪽 판단이다.
     static let textLimit = 200
 
-    /// Day가 둘 이상일 때만 고르게 한다.
-    private var needsDayChoice: Bool { days.count > 1 }
-
     private var trimmed: String {
         text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private var canSubmit: Bool { !trimmed.isEmpty && targetDay != nil }
+    private var canSubmit: Bool { !trimmed.isEmpty }
 
     /// 비활성 상태를 회색이라는 **색만으로** 전달하지 않기 위한 문장 (`ReviewComposeView`와 같은 규칙).
     private var missingHint: String? {
-        if trimmed.isEmpty { "메모를 입력해 주세요" }
-        else if targetDay == nil { "어느 날에 추가할지 골라 주세요" }
-        else { nil }
+        trimmed.isEmpty ? "메모를 입력해 주세요" : nil
     }
 
     var body: some View {
         VStack(spacing: 0) {
             headerBar
 
-            // 메모가 먼저, 날짜가 나중이다(2026-08-16 사용자 지시). 이 시트에 온 이유는
-            //  "무언가를 적으러" 이지 "날짜를 고르러" 가 아니다 — 적을 칸이 맨 위에 있어야
-            //  열자마자 바로 쓸 수 있고, 날짜는 다 적고 나서 정하면 된다.
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
+                    targetDayRow
+                        .padding(.horizontal, 24)
+                        .padding(.top, 20)
+
                     memoSection
                         .padding(.horizontal, 24)
-                        .padding(.top, 28)
-
-                    if needsDayChoice {
-                        daySection
-                            .padding(.horizontal, 24)
-                            .padding(.top, 28)
-                    }
+                        .padding(.top, 18)
                 }
                 .padding(.bottom, Spacing.xxl)
             }
@@ -80,7 +67,7 @@ struct PlanMemoComposeView: View {
         .background(.white)
         .presentationDragIndicator(.visible)
         .safeAreaInset(edge: .bottom) { submitBar }
-        // 적을 칸이 맨 위로 왔으니 열자마자 거기로 보낸다 — 날짜를 고르든 말든 첫 할 일은 쓰는 것이다.
+        // 고를 것이 없으니 열자마자 할 일은 쓰는 것뿐이다 — 키보드를 바로 올린다.
         .onAppear { isTextFocused = true }
     }
 
@@ -98,15 +85,18 @@ struct PlanMemoComposeView: View {
             .accessibilityHidden(true)
     }
 
-    // MARK: - Day 선택
+    // MARK: - 들어갈 날
 
-    /// 날짜 목록은 장소 추가와 공유한다(`PlanDaySelectList`) — 두 화면이 같은 질문을 한다.
-    private var daySection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionTitle("어느 날에 추가할까요?")
-            PlanDaySelectList(days: days, selection: $selectedDayID)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+    /// 어느 날에 들어가는지 되짚는 줄. 고르는 자리가 아니라 **알리는 자리**다 —
+    /// 날짜는 상세에서 이미 정해져 왔고, 여기서 바꿀 수 있는 것처럼 보이면 안 된다.
+    private var targetDayRow: some View {
+        Text("\(day.title(number: dayNumber))에 추가돼요")
+            .font(.notoSans(14, .medium))
+            .foregroundStyle(Color.textSecondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 14)
+            .frame(minHeight: 40)
+            .background(RoundedRectangle(cornerRadius: Radius.card).fill(Color.photoPlaceholder))
     }
 
     // MARK: - 메모 본문
@@ -214,11 +204,11 @@ struct PlanMemoComposeView: View {
     // MARK: - 저장
 
     private func save() async {
-        guard let day = targetDay, !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty else { return }
         isSaving = true
         saveError = nil
         do {
-            try await onAdd(day, trimmed)
+            try await onAdd(trimmed)
             // 시트가 곧 닫히므로 추가됐다는 사실이 시각적으로는 타임라인 말고 남지 않는다.
             UIAccessibility.post(notification: .announcement, argument: "메모를 추가했어요")
             dismiss()
@@ -234,24 +224,17 @@ struct PlanMemoComposeView: View {
     }
 }
 
-#Preview("Day 여러 개") {
+#Preview("메모 쓰기") {
     Color.white
         .sheet(isPresented: .constant(true)) {
-            PlanMemoComposeView(days: MockData.upcomingGyeongju.days) { _, _ in }
-        }
-}
-
-#Preview("Day 하나") {
-    Color.white
-        .sheet(isPresented: .constant(true)) {
-            PlanMemoComposeView(days: Array(MockData.upcomingGyeongju.days.prefix(1))) { _, _ in }
+            PlanMemoComposeView(day: MockData.upcomingGyeongju.days[0], dayNumber: 1) { _ in }
         }
 }
 
 #Preview("저장 실패") {
     Color.white
         .sheet(isPresented: .constant(true)) {
-            PlanMemoComposeView(days: MockData.upcomingGyeongju.days) { _, _ in
+            PlanMemoComposeView(day: MockData.upcomingGyeongju.days[0], dayNumber: 1) { _ in
                 throw PlanServiceError.server(message: "메모를 추가하지 못했어요. (서버 점검 중)")
             }
         }

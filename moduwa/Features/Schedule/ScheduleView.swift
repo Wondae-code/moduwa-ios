@@ -12,7 +12,9 @@ struct ScheduleView: View {
 
     @State private var state: PlanListState = .loading
     @State private var selectedTab: ScheduleTab = .upcoming
-    @State private var path: [Plan] = []
+    /// 카드의 "수정"이 상세로 보내는 경로. 배열이 아니라 `NavigationPath`인 이유는
+    /// 상세가 장소·후기 상세로도 이어지기 때문이다 — 배열 경로는 한 타입만 받는다.
+    @State private var path = NavigationPath()
     /// 삭제 확인 대상. nil 이면 확인 창이 닫혀 있다.
     @State private var deleteTarget: Plan?
     @State private var deletingID: Plan.ID?
@@ -153,7 +155,7 @@ struct ScheduleView: View {
             .buttonStyle(.plain)
             // 메뉴는 카드의 `accessibilityElement(children: .combine)`에 삼켜져 VoiceOver 로는
             // 닿지 않는다. 로터의 동작으로 같은 길을 낸다.
-            .accessibilityAction(named: "수정") { path = [plan] }
+            .accessibilityAction(named: "수정") { path = NavigationPath([plan]) }
             .accessibilityAction(named: "삭제") { deleteTarget = plan }
 
             menu(for: plan)
@@ -172,7 +174,7 @@ struct ScheduleView: View {
         Menu {
             // 시안의 "수정"이 어디로 가는지 지시가 없다. 상세가 편집을 모두 안고 있으므로
             // (일정 순서·장소·메모·제목) 그리로 보낸다 — 카드를 탭한 것과 같은 목적지다.
-            Button("수정", systemImage: "pencil") { path = [plan] }
+            Button("수정", systemImage: "pencil") { path = NavigationPath([plan]) }
             // 시안에 없는 항목이다. 확정이 한 방향뿐이면 잘못 누른 플랜이 플랜 탭에서
             // 영영 사라지므로 되돌아갈 길을 낸다.
             Button("플랜으로 되돌리기", systemImage: "arrow.uturn.backward") {

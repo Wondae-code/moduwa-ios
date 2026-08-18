@@ -22,3 +22,30 @@ extension PlanPlace {
         )
     }
 }
+
+extension Place {
+    /// 일정에 담긴 장소를 **원본 상세를 열기 위한** 형태로 되돌린다(2026-08-16).
+    ///
+    /// 나만의 장소는 관광공사 원본이 없어 열 자리가 없다 — `contentID`가 없으면 nil 이고,
+    /// 호출부는 그 줄을 누를 수 없게 그린다.
+    ///
+    /// 일정이 들고 있지 않은 값(평점·접근성)은 **여기서 지어내지 않는다**. 장소 상세는 이
+    /// id 로 본문·접근성·후기를 서버에서 다시 받고, 받기 전에는 이름·지역·사진만 그린다
+    /// (`PlaceDetailView`) — 아래 두 자리는 그 화면이 읽지 않는 필드를 형식상 채운 값이다.
+    init?(planPlace place: PlanPlace) {
+        guard let contentID = place.contentID else { return nil }
+        self.init(
+            id: contentID,
+            name: place.name,
+            region: place.region ?? "",
+            rating: nil,
+            accessibilityNote: "",
+            feature: .wheelchairAccessible,
+            category: place.category ?? .attraction,
+            categoryLabel: place.categoryLabel,
+            imageURL: place.imageURL,
+            latitude: place.latitude,
+            longitude: place.longitude
+        )
+    }
+}

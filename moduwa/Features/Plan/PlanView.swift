@@ -6,7 +6,11 @@ struct PlanView: View {
     @State private var state: PlanListState = .loading
     /// 새 플랜을 만든 직후 그 상세로 보내려면 목적지를 코드로 밀어 넣어야 한다 —
     /// 플로우가 닫히는 자리에는 누를 `NavigationLink`가 없다.
-    @State private var path: [Plan] = []
+    ///
+    /// **`[Plan]`이 아니라 `NavigationPath`인 이유**: 상세에서 장소·후기로도 이어진다.
+    /// 배열 경로는 원소 타입 하나만 받아, 다른 타입을 미는 링크는 눌러도 조용히 아무 일도
+    /// 일어나지 않는다(2026-08-16에 장소 상세가 그렇게 막혔다).
+    @State private var path = NavigationPath()
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -38,7 +42,7 @@ struct PlanView: View {
                         plans.insert(summary, at: 0)
                         state = .loaded(plans)
                     }
-                    path = [created]
+                    path = NavigationPath([created])
                 },
                 // 서버가 지운 뒤에만 목록에서 뺀다. 실패하면 카드는 그대로 남고 목록이 다시 시도할 수 있다
                 // — 먼저 지웠다가 되돌리면 사라졌던 카드가 되살아나 무엇이 참인지 알 수 없어진다.

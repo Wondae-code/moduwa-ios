@@ -375,6 +375,10 @@ struct PlanDay: Identifiable, Hashable, Sendable, Codable {
 
     /// 시안 Day 헤더의 "7/26 목"
     var headerText: String { PlanDateText.shortWithWeekday(date) }
+
+    /// "DAY 1 · 7/26 목". 상세의 날짜 헤더와 담기 화면(어느 날에 들어가는지 되짚는 줄)이
+    /// 같은 표기를 쓰도록 여기 한 곳에 둔다. 번호는 여행 기간에서의 자리라 날짜만으로 알 수 없다.
+    func title(number: Int) -> String { "DAY \(number) · \(headerText)" }
 }
 
 /// 하루의 타임라인에 장소와 메모가 섞인다. 메모는 추가하면 맨 아래에 붙고,
