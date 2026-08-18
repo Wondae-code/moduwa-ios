@@ -7,7 +7,8 @@ struct SearchView: View {
     @FocusState private var isFieldFocused: Bool
     @State private var query = ""
     @State private var searchRequest: SearchRequest?
-    @State private var searchState: SearchState = .idle
+    /// 검색 상태·누적 결과·오프셋을 함께 들고 있다. 플랜 담기·게시글 장소 붙이기와 같은 것을 쓴다.
+    @State private var search = PlaceSearchPaginator()
     /// 최근 검색어 — 기기 로컬 저장 (최대 10개, 최신순).
     /// 플랜의 "장소 추가"와 **같은 목록을 본다**(`RecentSearchStore`).
     @AppStorage(RecentSearchStore.key) private var recentSearchesData = Data()
@@ -44,12 +45,14 @@ struct SearchView: View {
                 submit(query)
             } onClear: {
                 query = ""
+                searchRequest = nil
+                search.reset()
                 isFieldFocused = true
             }
             .onChange(of: query) {
                 if query != searchRequest?.term {
                     searchRequest = nil
-                    searchState = .idle
+                    search.reset()
                 }
             }
         }
@@ -102,13 +105,13 @@ struct SearchView: View {
 
     @ViewBuilder
     private var content: some View {
-        switch searchState {
+        switch search.phase {
         case .idle:
             idleContent
         case .loading:
             loadingState
-        case let .results(page):
-            resultsState(page)
+        case .results:
+            resultsState
         case .empty:
             emptyState
         case .failed:
@@ -118,39 +121,21 @@ struct SearchView: View {
 
     private var loadingState: some View { PlaceSearchLoading() }
 
-    private func resultsState(_ page: PlaceSearchPage) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Spacing.s) {
-                Text("검색 결과 \(page.total)")
-                    .font(.meta13)
-                    .foregroundStyle(.textSecondary)
-                    .accessibilityAddTraits(.isHeader)
-
-                LazyVStack(spacing: 0) {
-                    ForEach(Array(page.items.enumerated()), id: \.element.id) { index, place in
-                        NavigationLink(value: place) {
-                            PlaceSearchRow(place: place) {
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundStyle(.iconGray)
-                                    .frame(width: 20, height: 20)
-                            }
-                            .accessibilityElement(children: .combine)
-                            .accessibilityHint("장소 상세 보기")
-                        }
-                        .buttonStyle(.plain)
-
-                        if index < page.items.count - 1 {
-                            Rectangle()
-                                .fill(Color.photoPlaceholder)
-                                .frame(height: 1)
-                        }
-                    }
+    private var resultsState: some View {
+        PlaceSearchResultList(paginator: search) {
+            Task { await search.loadMore(using: placeSearchService) }
+        } row: { place in
+            NavigationLink(value: place) {
+                PlaceSearchRow(place: place) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(.iconGray)
+                        .frame(width: 20, height: 20)
                 }
+                .accessibilityElement(children: .combine)
+                .accessibilityHint("장소 상세 보기")
             }
-            .padding(.horizontal, Spacing.xl)
-            .padding(.top, Spacing.l)
-            .padding(.bottom, Spacing.xl)
+            .buttonStyle(.plain)
         }
     }
 
@@ -188,30 +173,18 @@ struct SearchView: View {
         let trimmed = term.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
         saveRecentSearches(RecentSearchStore.adding(trimmed, to: recentSearches))
-        searchState = .loading
         searchRequest = SearchRequest(term: trimmed)
         isFieldFocused = false
     }
 
     private func retrySearch() {
         guard let term = searchRequest?.term else { return }
-        searchState = .loading
         searchRequest = SearchRequest(term: term)
     }
 
     private func loadSearchResults() async {
         guard let request = searchRequest else { return }
-
-        do {
-            let page = try await placeSearchService.searchPlaces(query: request.term, limit: 20, offset: 0)
-            guard !Task.isCancelled, searchRequest == request else { return }
-            searchState = page.items.isEmpty ? .empty : .results(page)
-        } catch is CancellationError {
-            // 새 검색어가 입력되면 이전 요청은 자동으로 취소된다.
-        } catch {
-            guard !Task.isCancelled, searchRequest == request else { return }
-            searchState = .failed
-        }
+        await search.search(request.term, using: placeSearchService)
     }
 
     private func saveRecentSearches(_ items: [String]) {
@@ -221,14 +194,6 @@ struct SearchView: View {
     private struct SearchRequest: Hashable {
         let term: String
         private let id = UUID()
-    }
-
-    private enum SearchState {
-        case idle
-        case loading
-        case results(PlaceSearchPage)
-        case empty
-        case failed
     }
 }
 

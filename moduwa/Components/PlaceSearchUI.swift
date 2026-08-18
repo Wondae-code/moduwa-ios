@@ -235,3 +235,83 @@ struct RecentSearchChips: View {
         }
     }
 }
+
+// MARK: - 결과 목록
+
+/// 검색 결과 목록 — 머리글("검색 결과 N") + 행 + 구분선 + "더 불러오기".
+///
+/// 세 화면(`SearchView`·`PlanPlaceAddView`·`PostPlacePickerView`)이 이 목록을 **똑같이**
+/// 그리고 있었다. 행 오른쪽 장식과 눌렀을 때의 동작만 달라서, 그 부분만 `row` 로 받는다.
+///
+/// 더 불러오기를 여기 둔 이유: 목록을 그리는 곳과 다음 페이지를 잇는 곳이 갈라지면
+/// 한 화면만 고치고 나머지를 잊는다(실제로 세 화면 모두 첫 20개에 멈춰 있었다).
+struct PlaceSearchResultList<Row: View>: View {
+    let paginator: PlaceSearchPaginator
+    /// 다음 페이지를 요청한다. 서비스는 화면이 `@Environment` 로 들고 있어 넘겨받는다.
+    let onLoadMore: () -> Void
+    @ViewBuilder let row: (Place) -> Row
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Spacing.s) {
+                Text("검색 결과 \(paginator.total)")
+                    .font(.meta13)
+                    .foregroundStyle(.textSecondary)
+                    .accessibilityAddTraits(.isHeader)
+
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(paginator.places.enumerated()), id: \.element.id) { index, place in
+                        row(place)
+
+                        // 마지막 행 뒤에는 선을 긋지 않는다.
+                        if index < paginator.places.count - 1 {
+                            Rectangle()
+                                .fill(Color.photoPlaceholder)
+                                .frame(height: 1)
+                        }
+                    }
+                }
+
+                if paginator.hasMore {
+                    moreFooter
+                }
+            }
+            .padding(.horizontal, Spacing.xl)
+            .padding(.top, Spacing.l)
+            .padding(.bottom, Spacing.xl)
+        }
+    }
+
+    /// 세 상태를 한 자리에서 보여 준다 — 받는 중 / 실패(다시) / 더 있음.
+    /// 실패해도 이미 받은 목록은 지우지 않는다(`loadMoreFailed` 주석 참고).
+    @ViewBuilder
+    private var moreFooter: some View {
+        let remaining = max(0, paginator.total - paginator.places.count)
+
+        if paginator.isLoadingMore {
+            HStack(spacing: 8) {
+                ProgressView().tint(.deepGreen)
+                Text("더 불러오는 중이에요")
+                    .font(.notoSans(14))
+                    .foregroundStyle(.textSecondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 18)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("더 불러오는 중이에요")
+        } else if paginator.loadMoreFailed {
+            VStack(spacing: 8) {
+                Text("더 불러오지 못했어요")
+                    .font(.notoSans(13))
+                    .foregroundStyle(.textSecondary)
+                LoadMoreButton(title: "다시 시도", action: onLoadMore)
+            }
+            .padding(.top, 14)
+        } else {
+            // 남은 수를 적어 둔다 — 몇 번 더 눌러야 하는지 가늠이 된다.
+            LoadMoreButton(title: "검색 결과 더보기 (\(remaining))", action: onLoadMore)
+                .padding(.top, 14)
+                .accessibilityLabel("검색 결과 더보기, \(remaining)곳 남음")
+        }
+    }
+}

@@ -30,7 +30,8 @@ struct PlanPlaceAddView: View {
 
     @State private var query = ""
     @State private var searchRequest: SearchRequest?
-    @State private var searchState: SearchState = .idle
+    /// 검색 화면과 같은 것을 쓴다 — 상태·누적 결과·오프셋을 함께 들고 있다.
+    @State private var search = PlaceSearchPaginator()
     /// 고른 장소를 **순서대로** 들고 있다 — 담기는 순간 이 순서로 일정에 들어가므로
     /// `Set` 으로 두면 사용자가 고른 차례가 사라진다.
     @State private var picked: [Place] = []
@@ -114,13 +115,13 @@ struct PlanPlaceAddView: View {
             } onClear: {
                 query = ""
                 searchRequest = nil
-                searchState = .idle
+                search.reset()
                 isFieldFocused = true
             }
             .onChange(of: query) {
                 if query != searchRequest?.term {
                     searchRequest = nil
-                    searchState = .idle
+                    search.reset()
                 }
             }
         }
@@ -137,7 +138,7 @@ struct PlanPlaceAddView: View {
 
     @ViewBuilder
     private var resultArea: some View {
-        switch searchState {
+        switch search.phase {
         case .idle:
             idleContent
         case .loading:
@@ -156,7 +157,6 @@ struct PlanPlaceAddView: View {
                                    subtitle: "네트워크를 확인한 뒤 다시 시도해 주세요")
                 Button("다시 시도") {
                     guard let term = searchRequest?.term else { return }
-                    searchState = .loading
                     searchRequest = SearchRequest(term: term)
                 }
                 .font(.notoSans(14, .bold))
@@ -166,30 +166,11 @@ struct PlanPlaceAddView: View {
                 .overlay(Capsule().stroke(.deepGreen, lineWidth: 1))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-        case .results(let page):
-            ScrollView {
-                VStack(alignment: .leading, spacing: Spacing.s) {
-                    Text("검색 결과 \(page.total)")
-                        .font(.meta13)
-                        .foregroundStyle(.textSecondary)
-                        .accessibilityAddTraits(.isHeader)
-
-                    LazyVStack(spacing: 0) {
-                        ForEach(Array(page.items.enumerated()), id: \.element.id) { index, place in
-                            resultRow(place)
-
-                            // 검색 화면과 같게 마지막 행 뒤에는 선을 긋지 않는다.
-                            if index < page.items.count - 1 {
-                                Rectangle()
-                                    .fill(Color.photoPlaceholder)
-                                    .frame(height: 1)
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal, Spacing.xl)
-                .padding(.top, Spacing.l)
-                .padding(.bottom, Spacing.xl)
+        case .results:
+            PlaceSearchResultList(paginator: search) {
+                Task { await search.loadMore(using: placeSearchService) }
+            } row: { place in
+                resultRow(place)
             }
         }
     }
@@ -390,7 +371,6 @@ struct PlanPlaceAddView: View {
         let trimmed = term.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
         saveRecentSearches(RecentSearchStore.adding(trimmed, to: recentSearches))
-        searchState = .loading
         searchRequest = SearchRequest(term: trimmed)
         isFieldFocused = false
     }
@@ -401,26 +381,13 @@ struct PlanPlaceAddView: View {
 
     private func loadSearchResults() async {
         guard let request = searchRequest else { return }
-        do {
-            let page = try await placeSearchService.searchPlaces(query: request.term, limit: 20, offset: 0)
-            guard !Task.isCancelled, searchRequest == request else { return }
-            searchState = page.items.isEmpty ? .empty : .results(page)
-        } catch is CancellationError {
-            // 새 검색어가 들어오면 이전 요청은 자동으로 취소된다.
-        } catch {
-            guard !Task.isCancelled, searchRequest == request else { return }
-            searchState = .failed
-        }
+        await search.search(request.term, using: placeSearchService)
     }
 
     /// `SearchView` 와 같은 방식 — 같은 검색어를 다시 눌러도 새 요청이 되도록 id 를 섞는다.
     private struct SearchRequest: Hashable {
         let term: String
         private let id = UUID()
-    }
-
-    private enum SearchState {
-        case idle, loading, results(PlaceSearchPage), empty, failed
     }
 
     // MARK: - 저장
