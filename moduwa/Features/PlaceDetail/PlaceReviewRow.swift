@@ -10,6 +10,8 @@ import SwiftUI
 /// (프로필 → 별점·날짜·태그 → 본문 → 좋아요)으로 재구성하고, 시안의 y 간격을 spacing/padding으로 옮겼다.
 struct PlaceReviewRow: View {
     let review: TravelReview
+    /// 좋아요를 눌렀을 때. **nil 이면 표시 전용**(번들·목 후기, 또는 좋아요를 안 붙이는 화면).
+    var onLike: (() -> Void)? = nil
     /// 사진을 전부 가로 스크롤로 펼친다 (전용 화면). false면 첫 장만 80×80.
     var showsAllPhotos = false
     /// 팔로우·더보기를 실제로 누를 수 있게 하고, 누르면 "준비 중" popover를 띄운다.
@@ -267,21 +269,28 @@ struct PlaceReviewRow: View {
         return formatter
     }()
 
-    // MARK: - 좋아요 (표시 전용)
+    // MARK: - 좋아요
 
+    /// 채움/빈 하트로 상태를 **형태로** 구분한다(색만으로 전달하지 않는다) — 게시글 카드와 같은 방식.
+    /// `onLike` 가 없으면(번들·목) 탭 없이 숫자만 보여 준다.
     private var likeRow: some View {
-        // 좋아요 증가 라우트가 없어 숫자만 보여 준다 (탭 가능한 하트로 두면 눌러도 아무 일이 없다)
-        HStack(spacing: 4) {
-            Image("favorite")
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 14, height: 12)
-                .foregroundStyle(.moduwaGreen)
-            Text("\(review.likeCount)")
-                .font(.meta13)
-                .foregroundStyle(.textSecondary)
+        Button {
+            onLike?()
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: review.likedByMe ? "heart.fill" : "heart")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(review.likedByMe ? .moduwaGreen : .textSecondary)
+                Text("\(review.likeCount)")
+                    .font(.meta13)
+                    .foregroundStyle(.textSecondary)
+            }
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .disabled(onLike == nil)
+        .accessibilityLabel(review.likedByMe ? "좋아요 취소" : "좋아요")
+        .accessibilityValue("\(review.likeCount)개")
     }
 
     // MARK: - 사진

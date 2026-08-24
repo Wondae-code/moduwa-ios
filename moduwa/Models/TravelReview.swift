@@ -39,8 +39,12 @@ struct TravelReview: Identifiable, Hashable, Sendable {
     let author: String
     let location: String
     let body: String
-    let likeCount: Int
+    /// 낙관적 갱신으로 바뀔 수 있어 var 다.
+    var likeCount: Int
     let commentCount: Int
+    /// 보는 사람이 좋아요를 눌렀는지(서버 `likedByMe`). 하트를 채운 상태로 그리는 근거.
+    /// 번들·목 데이터는 항상 false.
+    var likedByMe: Bool = false
     let createdAt: Date
     /// 접근성 정보가 검증된 리뷰 (카드 좌상단 ♿ 뱃지)
     let isAccessibilityVerified: Bool

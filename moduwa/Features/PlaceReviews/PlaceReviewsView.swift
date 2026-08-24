@@ -346,7 +346,10 @@ struct PlaceReviewsView: View {
                             .accessibilityHidden(true)
                     }
                     // 팔로우·더보기는 백엔드에 대응 기능이 없다 — 눌리되 "준비 중"을 알린다
-                    PlaceReviewRow(review: review, showsAllPhotos: true, showsActionNotices: true)
+                    PlaceReviewRow(
+                        review: review,
+                        onLike: { Task { await toggleReviewLike(review) } },
+                        showsAllPhotos: true, showsActionNotices: true)
                 }
             }
             .padding(.horizontal, 24)
@@ -511,6 +514,31 @@ struct PlaceReviewsView: View {
     ///   - refreshSummary: 집계(평점·후기 수·태그)까지 다시 받는다.
     ///     집계는 정렬·필터와 무관하므로 필터를 껐다 켤 때는 다시 받지 않고,
     ///     **후기를 등록한 뒤에는 반드시 받는다** — 안 받으면 방금 쓴 후기가 개수에 빠진다.
+
+    /// 후기 좋아요 토글. 하트는 누른 즉시 반응해야 해서 화면을 먼저 바꾸고 서버에 보낸다.
+    /// 성공하면 서버가 센 값으로 맞추고(그 사이 남이 눌렀을 수 있다), 실패하면 되돌린다.
+    private func toggleReviewLike(_ review: TravelReview) async {
+        // 번들·목 후기는 서버 id 가 없어 좋아요를 붙일 수 없다.
+        guard let serverId = review.serverId else { return }
+        // 좋아요는 로그인 필수(백엔드 038). 비로그인이면 로그인 시트를 띄우고 멈춘다.
+        guard session.requireSignIn(.like) else { return }
+        guard let idx = reviews.firstIndex(where: { $0.id == review.id }) else { return }
+
+        let before = reviews[idx]
+        reviews[idx].likedByMe = !before.likedByMe
+        reviews[idx].likeCount = max(0, before.likeCount + (before.likedByMe ? -1 : 1))
+
+        do {
+            let result = try await feedService.setReviewLiked(reviewId: serverId, !before.likedByMe)
+            if let i = reviews.firstIndex(where: { $0.id == review.id }) {
+                reviews[i].likeCount = result.likeCount
+                reviews[i].likedByMe = result.likedByMe
+            }
+        } catch {
+            if let i = reviews.firstIndex(where: { $0.id == review.id }) { reviews[i] = before }
+        }
+    }
+
     private func load(reset: Bool, refreshSummary: Bool = false) async {
         if reset {
             page = 0

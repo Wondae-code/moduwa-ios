@@ -311,6 +311,30 @@ struct PlaceDetailView: View {
     }
 
     /// 저장 상태를 색만으로 알리지 않는다 — 글자가 "저장하기 → 저장됨"으로 바뀐다.
+    /// 후기 좋아요 토글. 하트는 누른 즉시 반응해야 해서 화면을 먼저 바꾸고 서버에 보낸다.
+    /// 성공하면 서버가 센 값으로 맞추고(그 사이 남이 눌렀을 수 있다), 실패하면 되돌린다.
+    private func toggleReviewLike(_ review: TravelReview) async {
+        // 번들·목 후기는 서버 id 가 없어 좋아요를 붙일 수 없다.
+        guard let serverId = review.serverId else { return }
+        // 좋아요는 로그인 필수(백엔드 038). 비로그인이면 로그인 시트를 띄우고 멈춘다.
+        guard session.requireSignIn(.like) else { return }
+        guard let idx = reviews.firstIndex(where: { $0.id == review.id }) else { return }
+
+        let before = reviews[idx]
+        reviews[idx].likedByMe = !before.likedByMe
+        reviews[idx].likeCount = max(0, before.likeCount + (before.likedByMe ? -1 : 1))
+
+        do {
+            let result = try await feedService.setReviewLiked(reviewId: serverId, !before.likedByMe)
+            if let i = reviews.firstIndex(where: { $0.id == review.id }) {
+                reviews[i].likeCount = result.likeCount
+                reviews[i].likedByMe = result.likedByMe
+            }
+        } catch {
+            if let i = reviews.firstIndex(where: { $0.id == review.id }) { reviews[i] = before }
+        }
+    }
+
     private func toggleSaved() async {
         let nowSaved = await savedStore.toggle(place)
         UIAccessibility.post(
@@ -563,7 +587,9 @@ struct PlaceDetailView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     ForEach(reviews) { review in
                         NavigationLink(value: review) {
-                            PlaceReviewRow(review: review)
+                            PlaceReviewRow(review: review) {
+                                Task { await toggleReviewLike(review) }
+                            }
                         }
                         .buttonStyle(.plain)
                     }

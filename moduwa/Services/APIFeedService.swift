@@ -196,6 +196,20 @@ struct APIFeedService: FeedService {
         }
     }
 
+    private struct ReviewLikeDTO: Decodable { let likeCount: Int; let likedByMe: Bool }
+
+    func setReviewLiked(reviewId: Int, _ liked: Bool) async throws -> (likeCount: Int, likedByMe: Bool) {
+        guard !apiKey.isEmpty else { throw FeedServiceError.writeUnsupported }
+        var req = authorized(baseURL.appending(path: "/v1/reviews/\(reviewId)/like"))
+        req.httpMethod = liked ? "PUT" : "DELETE"
+        let (data, resp) = try await session.data(for: req)
+        guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw failure(status: (resp as? HTTPURLResponse)?.statusCode ?? -1, data: data)
+        }
+        let result = try JSONDecoder().decode(ReviewLikeDTO.self, from: data)
+        return (likeCount: result.likeCount, likedByMe: result.likedByMe)
+    }
+
     func fetchRecommendedPlaces(
         category: PlaceCategory, page: Int, accessFeatures: [AccessibilityFeature]
     ) async throws -> [Place] {
@@ -376,6 +390,8 @@ struct APIFeedService: FeedService {
         let body: String
         let likeCount: Int
         let commentCount: Int
+        /// 로그인 요청에서만 true 가능. 서버가 보는 사람 기준으로 준다(비로그인·구버전 응답은 없음 → false).
+        var likedByMe: Bool? = nil
         let createdAt: String
         let isAccessibilityVerified: Bool
         /// 구 서버 호환을 위해 옵셔널 (필드 없으면 사진 없음으로 처리)
@@ -421,6 +437,7 @@ struct APIFeedService: FeedService {
             body: dto.body,
             likeCount: dto.likeCount,
             commentCount: dto.commentCount,
+            likedByMe: dto.likedByMe ?? false,
             createdAt: (try? Date(dto.createdAt, strategy: .iso8601)) ?? Date(),
             isAccessibilityVerified: dto.isAccessibilityVerified,
             imageURLs: (dto.imageURLs ?? []).compactMap {

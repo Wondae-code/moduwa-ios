@@ -77,6 +77,12 @@ protocol FeedService: Sendable {
     /// 장소 저장/해제 (`PUT`/`DELETE /v1/saved-places/:contentId`). 둘 다 멱등이다.
     func setPlaceSaved(contentId: String, _ saved: Bool) async throws
 
+    /// 후기 좋아요 토글 (`PUT`/`DELETE /v1/reviews/:reviewId/like`). 멱등이다.
+    /// - Parameter reviewId: `TravelReview.serverId`. 없는 후기(번들·목)는 이 API 를 쓸 수 없다.
+    /// - Returns: 서버가 센 좋아요 수와 내가 누른 상태.
+    @discardableResult
+    func setReviewLiked(reviewId: Int, _ liked: Bool) async throws -> (likeCount: Int, likedByMe: Bool)
+
     /// 장소 상세 (무장애 속성 포함)
     func fetchPlaceDetail(contentId: String) async throws -> PlaceDetail
 
@@ -176,6 +182,12 @@ extension FeedService {
     func fetchSavedPlaces(accessFeatures: [AccessibilityFeature]) async throws -> [Place] { [] }
 
     func setPlaceSaved(contentId: String, _ saved: Bool) async throws {
+        throw FeedServiceError.writeUnsupported
+    }
+
+    /// 번들·목 데이터의 후기에는 서버 id 가 없어 좋아요를 붙일 대상이 없다.
+    @discardableResult
+    func setReviewLiked(reviewId: Int, _ liked: Bool) async throws -> (likeCount: Int, likedByMe: Bool) {
         throw FeedServiceError.writeUnsupported
     }
 }
