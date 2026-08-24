@@ -13,6 +13,10 @@ enum PlanServiceError: LocalizedError {
     case forbidden
     /// 이 기기의 첫 저장이라 서버가 표시 이름을 요구함. 호출부가 이름을 정해 다시 시도한다.
     case nicknameRequired
+    /// 401 `login_required` — 플랜은 개인 데이터라 **조회도 로그인 필수**다(백엔드 030).
+    case loginRequired
+    /// 401 `session_expired` — 토큰이 낡았다. 앱은 로그아웃 상태로 돌아간다.
+    case sessionExpired
 
     var errorDescription: String? {
         switch self {
@@ -21,15 +25,20 @@ enum PlanServiceError: LocalizedError {
         case .notFound: "플랜을 찾을 수 없어요. 목록에서 지워졌을 수 있어요."
         case .forbidden: "다른 기기에서 만든 플랜이라 수정할 수 없어요."
         case .nicknameRequired: "플랜에 표시될 이름을 입력해 주세요."
+        case .loginRequired: "로그인하면 플랜을 만들고 볼 수 있어요."
+        case .sessionExpired: "로그인이 만료됐어요. 다시 로그인해 주세요."
         }
     }
 }
 
 /// 플랜 데이터 소스 (`/v1/plans`).
 ///
-/// 플랜의 소유자는 `deviceId` 하나로 정해진다. 이 값은 **구현체가 들고 있고** 호출부는 넘기지 않는다 —
-/// 화면마다 기기 키를 챙기게 하면 언젠가 한 곳이 다른 값을 쓰게 되고, 그러면 같은 기기의 플랜이
-/// 두 주인으로 갈린다. 어느 값을 쓰는지는 `APIPlanService`가 한 곳에서 정한다.
+/// 플랜의 소유자는 **로그인한 계정**이다(백엔드 030). 예전에는 기기 키(`deviceId`)가 소유자였는데,
+/// 그러면 그 값을 아는 사람이 남의 플랜을 보고 지울 수 있었다. 지금은 세션 토큰이 신원이고
+/// 구현체가 요청마다 붙인다 — 호출부는 아무것도 넘기지 않는다.
+///
+/// ⚠️ **비로그인이면 조회조차 401**(`.loginRequired`)이다. 목록 화면은 그 경우 오류가 아니라
+/// "로그인하면 볼 수 있어요"를 그려야 한다.
 protocol PlanService: Sendable {
     /// 내 플랜 목록.
     ///
@@ -71,9 +80,15 @@ protocol PlanService: Sendable {
     @discardableResult
     func setPlanConfirmed(id: UUID, _ confirmed: Bool) async throws -> Plan
 
+    /// AI 추천 코스 (`POST /v1/plans/recommend`). **저장하지 않는다** — 제안만 받아 오고,
+    /// 사용자가 받아들이면 호출부가 `savePlan(_:authorNm:)` 으로 올린다.
+    ///
+    /// 로그인 필수다. 그 지역에 후보가 없으면 `.notFound` 를 던진다(`no_candidates`).
+    func recommendCourse(_ request: CourseRequest) async throws -> RecommendedCourse
+
     /// 새 플랜 플로우 4/6·5/6의 선택지 (`GET /v1/plan-options`).
     ///
-    /// 플랜 조회와 달리 **기기와 무관한 공용 사전**이라 `deviceId`를 싣지 않는다.
+    /// 플랜 조회와 달리 **누구에게나 같은 공용 사전**이라 로그인이 필요하지 않다.
     /// 실패하면 그 두 단계를 그릴 수 없다 — 호출부가 건너뛴다(문구를 앱에서 지어낼 수 없다).
     func fetchPlanOptions() async throws -> PlanOptions
 }

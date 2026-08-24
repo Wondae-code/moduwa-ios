@@ -16,6 +16,7 @@ struct PlaceReviewsView: View {
 
     @Environment(\.feedService) private var feedService
     @Environment(\.postService) private var postService
+    @Environment(SessionStore.self) private var session
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -182,6 +183,12 @@ struct PlaceReviewsView: View {
         .onChange(of: entryRating) { _, newValue in
             // 시트를 닫을 때 0으로 되돌리므로 0은 무시한다 (되돌림이 시트를 다시 열지 않게)
             guard newValue > 0 else { return }
+            // 별을 눌러 들어오는 길도 로그인 필수다. 별점은 되돌려 둔다 —
+            //  로그인하고 돌아왔을 때 누른 적 없는 별이 남아 있으면 안 된다.
+            guard session.requireSignIn(.writeReview) else {
+                entryRating = 0
+                return
+            }
             isComposingReview = true
         }
     }
@@ -553,6 +560,7 @@ struct PlaceReviewsView: View {
             placeAddress: "경북 경주시 불국로 385"
         )
     }
+    .environment(SessionStore(service: MockAuthService()))
 }
 
 #Preview("후기 없는 장소") {
@@ -560,6 +568,7 @@ struct PlaceReviewsView: View {
         PlaceReviewsView(contentId: "126508", placeName: "국립중앙박물관")
             .environment(\.feedService, EmptyPlaceReviewsPreviewService())
     }
+    .environment(SessionStore(service: MockAuthService()))
 }
 
 #Preview("큰 글자 (AX3)") {
@@ -567,6 +576,7 @@ struct PlaceReviewsView: View {
         PlaceReviewsView(contentId: "264337", placeName: "불국사")
     }
     .environment(\.dynamicTypeSize, .accessibility3)
+    .environment(SessionStore(service: MockAuthService()))
 }
 
 /// 프리뷰 전용 — 후기가 0건인 장소 (프로덕션 후기가 8건뿐이라 대부분의 장소가 실제로 이 상태다).
@@ -574,12 +584,12 @@ struct PlaceReviewsView: View {
 private struct EmptyPlaceReviewsPreviewService: FeedService {
     private let base = MockFeedService()
 
-    func fetchHeroRecommendation() async throws -> HeroRecommendation {
-        try await base.fetchHeroRecommendation()
-    }
 
-    func fetchRecommendedPlaces(category: PlaceCategory, page: Int) async throws -> [Place] {
-        try await base.fetchRecommendedPlaces(category: category, page: page)
+    func fetchRecommendedPlaces(
+        category: PlaceCategory, page: Int, accessFeatures: [AccessibilityFeature]
+    ) async throws -> [Place] {
+        try await base.fetchRecommendedPlaces(
+            category: category, page: page, accessFeatures: accessFeatures)
     }
 
     func fetchReviews(sort: ReviewSort, page: Int) async throws -> [TravelReview] {

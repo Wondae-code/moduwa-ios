@@ -6,6 +6,7 @@ struct PlaceDetailView: View {
 
     @Environment(\.feedService) private var feedService
     @Environment(SavedPlacesStore.self) private var savedStore
+    @Environment(SessionStore.self) private var session
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -289,11 +290,20 @@ struct PlaceDetailView: View {
                 icon: "detail_bookmark",
                 isOn: savedStore.isSaved(place.id)
             ) {
+                // 저장·일정·후기는 모두 로그인 필수다(백엔드 030). 들어가는 문에서 묻는다 —
+                //  다 쓰고 나서 401 을 만나면 쓴 것을 잃을까 불안해진다.
+                guard session.requireSignIn(.save) else { return }
                 Task { await toggleSaved() }
             }
             .disabled(savedStore.isPending(place.id))
-            actionButton(title: "일정추가", icon: "detail_plus") { isAddingToPlan = true }
-            actionButton(title: "후기쓰기", icon: "detail_pencil") { isComposingReview = true }
+            actionButton(title: "일정추가", icon: "detail_plus") {
+                guard session.requireSignIn(.plan) else { return }
+                isAddingToPlan = true
+            }
+            actionButton(title: "후기쓰기", icon: "detail_pencil") {
+                guard session.requireSignIn(.writeReview) else { return }
+                isComposingReview = true
+            }
             actionButton(title: "공유하기", icon: "detail_share") {}
         }
         .padding(.horizontal, 24)
@@ -526,6 +536,12 @@ struct PlaceDetailView: View {
         .onChange(of: entryRating) { _, newValue in
             // 시트를 닫을 때 0으로 되돌리므로 0은 무시한다 (되돌림이 시트를 다시 열지 않게)
             guard newValue > 0 else { return }
+            // 별을 눌러 들어오는 길도 로그인 필수다. 별점은 되돌려 둔다 —
+            //  로그인하고 돌아왔을 때 누른 적 없는 별이 남아 있으면 안 된다.
+            guard session.requireSignIn(.writeReview) else {
+                entryRating = 0
+                return
+            }
             isComposingReview = true
         }
     }
@@ -824,6 +840,8 @@ struct PlaceDetailView: View {
             .navigationDestination(for: Place.self) { PlaceDetailView(place: $0) }
             .navigationDestination(for: TravelReview.self) { ReviewDetailView(review: $0) }
     }
+    .environment(SavedPlacesStore(service: MockFeedService()))
+    .environment(SessionStore(service: MockAuthService()))
 }
 
 #Preview("후기 없는 장소") {
@@ -831,6 +849,8 @@ struct PlaceDetailView: View {
         PlaceDetailView(place: MockData.recommendedPlaces[0])
             .environment(\.feedService, EmptyReviewPreviewService())
     }
+    .environment(SavedPlacesStore(service: MockFeedService()))
+    .environment(SessionStore(service: MockAuthService()))
 }
 
 #Preview("큰 글자 (AX3)") {
@@ -838,6 +858,8 @@ struct PlaceDetailView: View {
         PlaceDetailView(place: MockData.recommendedPlaces[0])
     }
     .environment(\.dynamicTypeSize, .accessibility3)
+    .environment(SavedPlacesStore(service: MockFeedService()))
+    .environment(SessionStore(service: MockAuthService()))
 }
 
 /// 프리뷰 전용 — 상세는 목 그대로 두고 후기·추천만 비운다.
@@ -845,12 +867,12 @@ struct PlaceDetailView: View {
 private struct EmptyReviewPreviewService: FeedService {
     private let base = MockFeedService()
 
-    func fetchHeroRecommendation() async throws -> HeroRecommendation {
-        try await base.fetchHeroRecommendation()
-    }
 
-    func fetchRecommendedPlaces(category: PlaceCategory, page: Int) async throws -> [Place] {
-        try await base.fetchRecommendedPlaces(category: category, page: page)
+    func fetchRecommendedPlaces(
+        category: PlaceCategory, page: Int, accessFeatures: [AccessibilityFeature]
+    ) async throws -> [Place] {
+        try await base.fetchRecommendedPlaces(
+            category: category, page: page, accessFeatures: accessFeatures)
     }
 
     func fetchReviews(sort: ReviewSort, page: Int) async throws -> [TravelReview] {

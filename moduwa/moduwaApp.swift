@@ -1,4 +1,5 @@
 import KakaoMapsSDK
+import KakaoSDKCommon
 import SwiftUI
 
 @main
@@ -6,9 +7,12 @@ struct moduwaApp: App {
     init() {
         Self.applyBrandTabBarFont()
 
-        // 카카오맵 SDK — 키가 있을 때만 초기화 (미설정 시 지도 섹션은 플레이스홀더 표시)
+        // 카카오 SDK 두 개는 **각각** 초기화해야 한다 — 지도(KakaoMapsSDK)와 로그인(KakaoOpenSDK)은
+        //  같은 앱 키를 쓰지만 서로 다른 패키지고, 한쪽만 부르면 다른 쪽이 조용히 동작하지 않는다.
+        //  키가 없으면 둘 다 건너뛴다(지도는 플레이스홀더, 로그인 버튼은 숨김).
         if let key = Secrets.kakaoNativeAppKey {
             SDKInitializer.InitSDK(appKey: key)
+            KakaoSDK.initSDK(appKey: key)
         }
     }
 
@@ -37,6 +41,8 @@ struct moduwaApp: App {
 
     /// 홈 헤더 뱃지와 알림 화면이 공유하는 알림 상태
     @State private var notificationStore = NotificationStore()
+    /// 로그인 상태. **앱 전체가 하나를 본다** — 로그인·로그아웃은 한 화면의 사건이 아니다.
+    @State private var sessionStore = SessionStore(service: APIAuthService())
     /// 장소 상세의 저장 버튼과 저장 탭이 공유하는 상태. 한쪽에서 누른 결과가 다른 쪽에
     /// 곧바로 보여야 해서 화면마다 따로 받지 않는다.
     @State private var savedPlacesStore = SavedPlacesStore(service: APIFeedService())
@@ -44,6 +50,9 @@ struct moduwaApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                // 카카오톡에서 로그인을 마치고 돌아온 URL 을 SDK 에 넘긴다.
+                //  이게 없으면 톡에서 승인해도 앱이 멈춰 있다(완료 핸들러가 불리지 않는다).
+                .onOpenURL { KakaoSignInFlow.handle($0) }
                 // 라이브 API(moduwa-backend). MODUWA_API_KEY 미설정/네트워크 실패 시 번들 데이터로 자동 폴백.
                 .environment(\.feedService, APIFeedService())
                 .environment(savedPlacesStore)
@@ -53,6 +62,9 @@ struct moduwaApp: App {
                 // 게시글도 번들 폴백이 없다 — 사용자가 쓴 글이라 대체할 원본이 없다.
                 .environment(\.postService, APIPostService())
                 .environment(notificationStore)
+                // 계정·세션. 쓰기 진입점이 이걸 보고 로그인 창을 띄운다.
+                .environment(sessionStore)
+                .environment(\.authService, APIAuthService())
         }
     }
 }

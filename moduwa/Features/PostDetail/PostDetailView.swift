@@ -11,6 +11,7 @@ struct PostDetailView: View {
     let post: TravelPost
 
     @Environment(\.postService) private var postService
+    @Environment(SessionStore.self) private var session
     @Environment(\.dismiss) private var dismiss
     @AppStorage(ReviewAuthorStore.nicknameKey) private var savedNickname = ""
 
@@ -377,6 +378,9 @@ struct PostDetailView: View {
     /// 화면을 먼저 바꾸고 서버에 보낸다 — 하트는 누른 즉시 반응해야 한다.
     /// 성공하면 **서버가 센 값으로 맞춘다**(그 사이 다른 사람이 눌렀을 수 있다), 실패하면 되돌린다.
     private func toggleLike() async {
+        // 좋아요도 로그인 필수다. 낙관적 갱신을 먼저 하는 화면이라 **게이트가 그 앞에 있어야**
+        //  한다 — 뒤에 두면 하트가 잠깐 켜졌다 꺼진다.
+        guard session.requireSignIn(.like) else { return }
         guard !isLiking else { return }
         isLiking = true
         defer { isLiking = false }
@@ -411,6 +415,8 @@ struct PostDetailView: View {
     private func sendComment() async {
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isSending else { return }
+        // 쓴 댓글은 입력칸에 그대로 남는다 — 로그인하고 돌아와 다시 보내면 된다.
+        guard session.requireSignIn(.comment) else { return }
         isSending = true
         sendError = nil
         defer { isSending = false }
@@ -422,8 +428,12 @@ struct PostDetailView: View {
                 id: post.id, body: trimmed, authorNm: name)
             comments.append(created)
             draft = ""
-            // 이름을 방금 정했으면 다음 댓글부터 자동으로 채워진다.
-            if let name, !name.isEmpty { savedNickname = name }
+            // 이름을 방금 정했으면 다음 댓글부터 자동으로 채워진다. 서버가 계정 닉네임까지
+            //  갱신하므로 계정 화면에도 함께 반영한다.
+            if let name, !name.isEmpty {
+                savedNickname = name
+                session.noteNicknameChanged(name)
+            }
             var updated = current
             updated.commentCount += 1
             detail = updated

@@ -7,6 +7,9 @@ import SwiftUI
 enum PlanListState {
     case loading
     case failed
+    /// 로그인해야 볼 수 있음. **오류와 구분한다** — 사용자가 뭘 잘못한 게 아니고
+    /// "다시 시도"를 눌러도 영원히 같은 결과다(플랜은 개인 데이터라 조회도 로그인 필수다).
+    case signedOut
     /// 빈 배열이면 "아직 플랜이 없음"이다 (오류와 구분된다)
     case loaded([Plan])
 }
@@ -30,6 +33,8 @@ struct PlanListView: View {
     var onSaveParty: (Plan, TravelParty) async throws -> Void = { _, _ in }
     /// "일정에 추가" — 초안을 확정으로 올린다. 확인까지 받은 뒤에 불린다.
     var onConfirmPlan: (Plan) async throws -> Void = { _ in }
+
+    @Environment(SessionStore.self) private var session
 
     @State private var isCreatingPlan = false
     /// 삭제 확인 대상. nil 이면 확인 창이 닫혀 있다.
@@ -57,6 +62,12 @@ struct PlanListView: View {
                         loadingRow
                     case .failed:
                         errorRow
+                    case .signedOut:
+                        SignInPromptView(
+                            title: "로그인하면 플랜을 볼 수 있어요",
+                            message: "만든 플랜은 계정에 저장돼요. 기기를 바꿔도 그대로 따라옵니다.",
+                            prompt: .plan
+                        )
                     case .loaded(let plans) where plans.isEmpty:
                         emptyRow
                     case .loaded(let plans):
@@ -174,12 +185,7 @@ struct PlanListView: View {
             Spacer(minLength: 0)
 
             // 메뉴는 아직 목적지가 없다 — 다른 화면의 준비 중 버튼과 같은 방식으로 알린다.
-            PlanPlaceholderButton(notice: "메뉴는 아직 준비 중이에요") {
-                Image("hamburger")
-                    .renderingMode(.template)
-                    .resizable()
-                    .frame(width: 26, height: 26)
-            }
+            AccountMenuButton()
         }
         .foregroundStyle(Color.textPrimary)
         .padding(.horizontal, 24)
@@ -206,6 +212,9 @@ struct PlanListView: View {
             .allowsHitTesting(false)
 
             Button {
+                // 플랜 저장은 로그인 필수다 — 6단계를 다 답한 뒤 401 을 만나면
+                //  답한 것이 어디로 갔는지 알 수 없어진다. 들어가는 문에서 묻는다.
+                guard session.requireSignIn(.plan) else { return }
                 isCreatingPlan = true
             } label: {
                 Text("+ 새 플랜 계획하기")
@@ -466,18 +475,28 @@ struct PlanPlaceholderButton<Label: View>: View {
     NavigationStack {
         PlanListView(state: .loaded(MockData.plans))
     }
+    .environment(SessionStore(service: MockAuthService()))
 }
 
 #Preview("플랜 없음") {
     NavigationStack {
         PlanListView(state: .loaded([]))
     }
+    .environment(SessionStore(service: MockAuthService()))
+}
+
+#Preview("비로그인") {
+    NavigationStack {
+        PlanListView(state: .signedOut)
+    }
+    .environment(SessionStore(service: MockAuthService()))
 }
 
 #Preview("불러오기 실패") {
     NavigationStack {
         PlanListView(state: .failed)
     }
+    .environment(SessionStore(service: MockAuthService()))
 }
 
 #Preview("큰 글자 (AX3)") {
@@ -485,4 +504,5 @@ struct PlanPlaceholderButton<Label: View>: View {
         PlanListView(state: .loaded([]))
     }
     .environment(\.dynamicTypeSize, .accessibility3)
+    .environment(SessionStore(service: MockAuthService()))
 }

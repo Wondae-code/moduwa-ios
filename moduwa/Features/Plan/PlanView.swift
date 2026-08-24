@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PlanView: View {
     @Environment(\.planService) private var planService
+    @Environment(SessionStore.self) private var session
 
     @State private var state: PlanListState = .loading
     /// 새 플랜을 만든 직후 그 상세로 보내려면 목적지를 코드로 밀어 넣어야 한다 —
@@ -82,6 +83,9 @@ struct PlanView: View {
             )
         }
         .task { await load() }
+        // 로그인·로그아웃이 일어나면 목록을 다시 받는다. 로그아웃한 기기는 **비어야** 하고,
+        //  로그인한 직후에는 곧바로 보여야 한다 — 탭을 나갔다 와야 보이면 안 된다.
+        .onChange(of: session.phase) { Task { await load() } }
     }
 
     private func load() async {
@@ -90,6 +94,8 @@ struct PlanView: View {
             // 플랜 탭은 **초안만** 본다 — 확정된 것은 일정 탭으로 넘어간다
             // ("플랜은 초안이고, 일정에 추가하면 확정된다").
             state = .loaded(try await planService.fetchPlans().filter(\.isDraft))
+        } catch PlanServiceError.loginRequired, PlanServiceError.sessionExpired {
+            state = .signedOut
         } catch {
             state = .failed
         }
@@ -99,14 +105,17 @@ struct PlanView: View {
 #Preview("목 데이터") {
     PlanView()
         .environment(\.planService, MockPlanService())
+        .environment(SessionStore(service: MockAuthService()))
 }
 
 #Preview("플랜 없음") {
     PlanView()
         .environment(\.planService, EmptyPlanService())
+        .environment(SessionStore(service: MockAuthService()))
 }
 
 #Preview("불러오기 실패") {
     PlanView()
         .environment(\.planService, FailingPlanService())
+        .environment(SessionStore(service: MockAuthService()))
 }

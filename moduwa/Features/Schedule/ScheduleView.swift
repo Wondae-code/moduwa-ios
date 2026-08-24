@@ -9,6 +9,7 @@ import SwiftUI
 /// 그래서 조회·삭제는 `PlanService` 를 그대로 쓰고 카드만 다르다(`ScheduleCard`).
 struct ScheduleView: View {
     @Environment(\.planService) private var planService
+    @Environment(SessionStore.self) private var session
 
     @State private var state: PlanListState = .loading
     @State private var selectedTab: ScheduleTab = .upcoming
@@ -46,6 +47,8 @@ struct ScheduleView: View {
             }
         }
         .task { await load() }
+        // 로그인·로그아웃 직후에도 목록이 맞아야 한다(플랜 탭과 같은 규칙).
+        .onChange(of: session.phase) { Task { await load() } }
         // 되돌릴 수 없는 삭제라 한 번 묻는다. `confirmationDialog`이 아니라 `alert`인 이유는
         // 플랜 목록과 같다 — iOS 26 의 확인 시트는 누른 자리에 붙는 말풍선이라 카드가 화면
         // 위쪽이면 "취소"가 잘린다. 경고창은 늘 화면 가운데라 두 선택지가 언제나 함께 보인다.
@@ -86,12 +89,7 @@ struct ScheduleView: View {
             Spacer(minLength: 0)
 
             // 메뉴는 아직 목적지가 없다 — 플랜 탭과 같은 방식으로 알린다.
-            PlanPlaceholderButton(notice: "메뉴는 아직 준비 중이에요") {
-                Image("hamburger")
-                    .renderingMode(.template)
-                    .resizable()
-                    .frame(width: 26, height: 26)
-            }
+            AccountMenuButton()
         }
         .foregroundStyle(Color.textPrimary)
         .padding(.horizontal, 24)
@@ -126,6 +124,12 @@ struct ScheduleView: View {
                     message("일정을 불러오는 중이에요", isLoading: true)
                 case .failed:
                     failedRow
+                case .signedOut:
+                    SignInPromptView(
+                        title: "로그인하면 일정을 볼 수 있어요",
+                        message: "확정한 여행은 계정에 저장돼요. 기기를 바꿔도 그대로 따라옵니다.",
+                        prompt: .plan
+                    )
                 case .loaded:
                     let plans = visiblePlans
                     if plans.isEmpty {
@@ -241,6 +245,8 @@ struct ScheduleView: View {
             // 일정 탭은 **확정된 것만** 본다 — 초안은 플랜 탭에 남는다
             // ("플랜은 초안이고, 일정에 추가하면 확정된다").
             state = .loaded(try await planService.fetchPlans().filter { !$0.isDraft })
+        } catch PlanServiceError.loginRequired, PlanServiceError.sessionExpired {
+            state = .signedOut
         } catch {
             state = .failed
         }
@@ -308,14 +314,17 @@ struct ScheduleView: View {
 #Preview("목 데이터") {
     ScheduleView()
         .environment(\.planService, MockPlanService())
+        .environment(SessionStore(service: MockAuthService()))
 }
 
 #Preview("일정 없음") {
     ScheduleView()
         .environment(\.planService, EmptyPlanService())
+        .environment(SessionStore(service: MockAuthService()))
 }
 
 #Preview("불러오기 실패") {
     ScheduleView()
         .environment(\.planService, FailingPlanService())
+        .environment(SessionStore(service: MockAuthService()))
 }

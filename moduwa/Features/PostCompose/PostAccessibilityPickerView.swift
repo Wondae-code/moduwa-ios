@@ -13,13 +13,6 @@ struct PostAccessibilityPickerView: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    /// 브랜드 가이드 아이콘 5종. `flatPath`·`barrierFreeRoom` 은 서버 속성에서 파생되는
-    /// 표시용 값이라 사람이 직접 고를 축이 아니다.
-    private static let choices: [AccessibilityFeature] = [
-        .wheelchairAccessible, .visuallyImpairedFriendly, .hearingFriendly,
-        .elderlyFriendly, .childFriendly,
-    ]
-
     var body: some View {
         VStack(spacing: 0) {
             headerBar
@@ -38,7 +31,8 @@ struct PostAccessibilityPickerView: View {
                         .fixedSize(horizontal: false, vertical: true)
 
                     VStack(spacing: 0) {
-                        ForEach(Self.choices, id: \.self) { feature in
+                        // 온보딩과 같은 목록·같은 줄을 쓴다(`AccessibilityChoiceRow`).
+                        ForEach(AccessibilityChoiceRow.choices, id: \.self) { feature in
                             row(feature)
                         }
                     }
@@ -70,38 +64,14 @@ struct PostAccessibilityPickerView: View {
             .accessibilityAddTraits(.isHeader)
     }
 
-    /// 선택을 색만으로 전달하지 않는다 — 네모/체크 글리프와 글자 굵기가 함께 바뀐다.
     private func row(_ feature: AccessibilityFeature) -> some View {
-        let isOn = selection.contains(feature)
-        return Button {
-            withoutAnimation {
-                if isOn { selection.removeAll { $0 == feature } } else { selection.append(feature) }
+        AccessibilityChoiceRow(feature: feature, isOn: selection.contains(feature)) {
+            if selection.contains(feature) {
+                selection.removeAll { $0 == feature }
+            } else {
+                selection.append(feature)
             }
-        } label: {
-            HStack(spacing: 12) {
-                Image(feature.iconName)
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: feature.iconSize(height: 20).width, height: 20)
-                    .foregroundStyle(isOn ? Color.deepGreen : Color.iconGray)
-
-                Text(feature.label)
-                    .font(.notoSans(15, isOn ? .bold : .regular))
-                    .foregroundStyle(isOn ? Color.textPrimary : Color.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                Image(systemName: isOn ? "checkmark.square.fill" : "square")
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundStyle(isOn ? Color.deepGreen : Color.iconGray)
-            }
-            .padding(.horizontal, 14)
-            .frame(minHeight: 52)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(feature.label)
-        .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
     }
 
     /// 아무것도 안 고른 채 닫아도 된다 — 무장애 정보는 선택이다.

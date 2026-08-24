@@ -16,9 +16,19 @@ final class SavedPlacesStore {
     private(set) var didLoad = false
     private(set) var isLoading = false
     private(set) var loadFailed = false
+    /// 로그인해야 볼 수 있음. **`loadFailed` 와 구분한다** — 저쪽은 "다시 시도"가 답이지만
+    /// 이쪽은 아무리 눌러도 같은 결과다(저장 목록은 개인 데이터라 조회도 로그인 필수).
+    private(set) var requiresSignIn = false
 
     /// 저장/해제 요청이 날아가는 중인 장소. 버튼이 그동안 눌리지 않게 한다.
     private(set) var pendingIDs: Set<String> = []
+
+    /// 카드 뱃지·문구를 고를 기준. 화면이 세션에서 받아 넣어 준다(홈과 같은 규칙) —
+    /// 저장소가 세션을 직접 알면 프리뷰가 세션 없이 돌지 않는다.
+    ///
+    /// ⚠️ 이 값으로 **목록을 좁히지 않는다.** 저장한 장소는 조건과 무관하게 다 보여야 한다 —
+    /// 조건을 바꿨다고 내가 담아 둔 것이 사라지면 그건 저장이 아니다.
+    private(set) var accessFeatures: [AccessibilityFeature] = []
 
     private let service: any FeedService
 
@@ -34,15 +44,36 @@ final class SavedPlacesStore {
         pendingIDs.contains(contentId)
     }
 
+    /// 로그아웃 — 화면을 비운다.
+    ///
+    /// ⚠️ 서버 데이터를 지우는 것이 아니다. 계정과 저장 목록은 서버에 남고 다시 로그인하면
+    /// 돌아온다. 다만 **로그아웃한 기기는 빈 상태에서 시작해야 한다** — 남아 보이면 로그아웃이
+    /// 안 된 것으로 읽힌다(백엔드 `docs/ACCOUNTS.md` §2-②).
+    @MainActor
+    func clear() {
+        places = []
+        didLoad = false
+        loadFailed = false
+        requiresSignIn = false
+        pendingIDs = []
+    }
+
     /// 목록을 받아 온다. 이미 받아 둔 뒤라도 다시 부르면 갱신한다(당겨서 새로고침 등).
     @MainActor
-    func load() async {
+    func load(accessFeatures: [AccessibilityFeature] = []) async {
+        self.accessFeatures = accessFeatures
         guard !isLoading else { return }
         isLoading = true
         loadFailed = false
+        requiresSignIn = false
         do {
-            places = try await service.fetchSavedPlaces()
+            places = try await service.fetchSavedPlaces(accessFeatures: accessFeatures)
             didLoad = true
+        } catch FeedServiceError.loginRequired, FeedServiceError.sessionExpired {
+            // 로그인 안내로 그린다. 목록은 비운다 — 로그아웃 뒤 남아 보이면 안 된다.
+            places = []
+            didLoad = false
+            requiresSignIn = true
         } catch {
             loadFailed = true
         }

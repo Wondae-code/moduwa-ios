@@ -4,6 +4,9 @@ import SwiftUI
 enum FeedPage {
     static let placeSize = 6
     static let reviewSize = 5
+    /// 홈 "여행자 리뷰" 섹션에 함께 싣는 게시글의 페이지 크기.
+    /// 후기보다 큰 이유: 게시글은 아직 수가 적어 한 번에 넉넉히 받아도 부담이 없다.
+    static let postSize = 10
     /// 장소 상세 후기 목록 페이지 크기 — 시안(352:31)이 한 화면에 한두 건만 보여 주고
     /// "후기 더보기"(352:33)로 이어 받는 구조라 홈 피드보다 작게 잡는다.
     static let placeReviewSize = 3
@@ -30,6 +33,11 @@ enum FeedServiceError: LocalizedError {
     case commentsUnavailable
     /// 이 기기의 첫 작성이라 서버가 표시 이름을 요구함. 호출부가 이름을 정해 다시 시도한다.
     case nicknameRequired
+    /// 401 `login_required` — 아직 로그인하지 않았다. 후기·댓글·저장은 로그인 필수다(백엔드 030).
+    /// 호출부는 로그인 시트를 띄운다.
+    case loginRequired
+    /// 401 `session_expired` — 토큰이 낡았다. 이미 지워졌고 앱은 로그아웃 상태로 돌아간다.
+    case sessionExpired
 
     var errorDescription: String? {
         switch self {
@@ -38,6 +46,8 @@ enum FeedServiceError: LocalizedError {
         case .imageUploadFailed: "사진을 올리지 못했어요. 네트워크 상태를 확인하고 다시 시도해 주세요."
         case .nicknameRequired: "댓글에 표시될 이름을 입력해 주세요."
         case .commentsUnavailable: "이 후기의 댓글은 지금 볼 수 없어요."
+        case .loginRequired: "로그인이 필요해요."
+        case .sessionExpired: "로그인이 만료됐어요. 다시 로그인해 주세요."
         }
     }
 }
@@ -46,14 +56,23 @@ enum FeedServiceError: LocalizedError {
 /// 서버 연동 시 이 프로토콜을 구현한 APIFeedService를 만들고,
 /// moduwaApp에서 `.environment(\.feedService, APIFeedService())` 한 줄로 교체한다.
 protocol FeedService: Sendable {
-    func fetchHeroRecommendation() async throws -> HeroRecommendation
-    /// `page`는 0부터. `FeedPage.placeSize`보다 적게 반환되면 마지막 페이지다.
-    func fetchRecommendedPlaces(category: PlaceCategory, page: Int) async throws -> [Place]
+    /// 홈 "추천 여행지" 그리드. `page`는 0부터, `FeedPage.placeSize`보다 적게 오면 마지막 페이지다.
+    ///
+    /// - Parameter accessFeatures: 로그인한 사람이 고른 무장애 요소. **모두 만족하는 곳만** 온다
+    ///   (AND). 빈 배열이면 무장애 정보가 있는 곳 전체다.
+    ///   ⚠️ 서버가 모르는 축(고령자 친화)은 구현체가 걸러 낸다 — 그 축으로는 좁혀지지 않는다.
+    ///   ⚠️ 청각 지원은 원본 데이터가 전국 107곳뿐이라 목록이 빠르게 바닥난다. 그게 사실이므로
+    ///   다른 곳으로 채우지 않는다.
+    func fetchRecommendedPlaces(
+        category: PlaceCategory, page: Int, accessFeatures: [AccessibilityFeature]
+    ) async throws -> [Place]
     /// `page`는 0부터. `FeedPage.reviewSize`보다 적게 반환되면 마지막 페이지다.
     func fetchReviews(sort: ReviewSort, page: Int) async throws -> [TravelReview]
     /// 저장한 장소 목록 (`GET /v1/saved-places`) — 최근 저장한 순.
     /// 평점은 후기 집계라 `Place.rating`에 실려 온다(무장애 목록에는 그 값이 없다).
-    func fetchSavedPlaces() async throws -> [Place]
+    /// - Parameter accessFeatures: 카드의 뱃지·한 줄 설명을 **고른 축 기준**으로 고르는 데 쓴다.
+    ///   목록을 좁히지는 않는다(저장한 것은 조건과 무관하게 다 보여야 한다) — 홈과 다른 점이다.
+    func fetchSavedPlaces(accessFeatures: [AccessibilityFeature]) async throws -> [Place]
 
     /// 장소 저장/해제 (`PUT`/`DELETE /v1/saved-places/:contentId`). 둘 다 멱등이다.
     func setPlaceSaved(contentId: String, _ saved: Bool) async throws
@@ -97,10 +116,11 @@ protocol FeedService: Sendable {
     ///   ⚠️ 지어낸 기본 이름을 넣지 말 것 — 서버는 받은 이름으로 이 기기의 닉네임을 갱신하므로,
     ///   기기에 저장된 값이 비었다는 이유로 기본 이름을 보내면 **서버에 있던 실제 닉네임을 덮어쓴다**
     ///   (실제로 프로덕션에서 한 사용자의 닉네임이 이렇게 지워진 적이 있다).
-    ///   `nil` 을 보내면 서버가 기존 닉네임을 재사용하고, 정말 첫 작성이면 `.nicknameRequired` 를 던진다.
-    func submitReviewComment(
-        reviewId: Int, body: String, authorNm: String?, deviceId: String
-    ) async throws
+    ///   `nil` 을 보내면 서버가 계정에 있는 닉네임을 그대로 쓴다.
+    ///
+    /// **로그인 필수**다 — 비로그인이면 `.loginRequired` 를 던진다(`deviceId` 는 더 이상
+    /// 신원이 아니라서 예전처럼 기기 키로 대신할 수 없다).
+    func submitReviewComment(reviewId: Int, body: String, authorNm: String?) async throws
 }
 
 /// 장소 상세 하단 3섹션용 API는 라이브 서버에만 있다. 오프라인 폴백(`BundledFeedService`)에는
@@ -143,9 +163,7 @@ extension FeedService {
         throw FeedServiceError.commentsUnavailable
     }
 
-    func submitReviewComment(
-        reviewId: Int, body: String, authorNm: String?, deviceId: String
-    ) async throws {
+    func submitReviewComment(reviewId: Int, body: String, authorNm: String?) async throws {
         throw FeedServiceError.commentsUnavailable
     }
 }
@@ -155,7 +173,7 @@ extension FeedService {
 /// 목록은 빈 배열이 맞다(저장한 것이 없다). 쓰기는 조용히 성공시키지 않고 던진다 —
 /// 오프라인에서 저장 버튼이 눌린 것처럼 보이면 사용자는 저장됐다고 믿고 앱을 닫는다.
 extension FeedService {
-    func fetchSavedPlaces() async throws -> [Place] { [] }
+    func fetchSavedPlaces(accessFeatures: [AccessibilityFeature]) async throws -> [Place] { [] }
 
     func setPlaceSaved(contentId: String, _ saved: Bool) async throws {
         throw FeedServiceError.writeUnsupported

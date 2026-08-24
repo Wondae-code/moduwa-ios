@@ -2,11 +2,10 @@ import Foundation
 
 /// API 연동 전까지 쓰는 목 구현 — 데이터는 MockData에서 가져온다.
 struct MockFeedService: FeedService {
-    func fetchHeroRecommendation() async throws -> HeroRecommendation {
-        MockData.heroRecommendation
-    }
 
-    func fetchRecommendedPlaces(category: PlaceCategory, page: Int) async throws -> [Place] {
+    func fetchRecommendedPlaces(
+        category: PlaceCategory, page: Int, accessFeatures: [AccessibilityFeature]
+    ) async throws -> [Place] {
         // TODO: 실서버에서는 카테고리 필터가 적용된다. 목은 카테고리별 데이터가 없어 동일 목록 반환.
         MockData.recommendedPlaces.page(page, size: FeedPage.placeSize)
     }

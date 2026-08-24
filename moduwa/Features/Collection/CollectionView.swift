@@ -11,6 +11,7 @@ import SwiftUI
 struct CollectionView: View {
     @Environment(SavedPlacesStore.self) private var store
     @Environment(\.postService) private var postService
+    @Environment(SessionStore.self) private var session
 
     @State private var selectedTab: SavedTab = .places
     @State private var selectedCategory: PlaceCategory?
@@ -21,6 +22,8 @@ struct CollectionView: View {
     @State private var isLoadingLiked = false
     @State private var didLoadLiked = false
     @State private var likedLoadFailed = false
+    /// 로그인해야 볼 수 있음. 실패와 구분한다("다시 시도"가 답이 아니다).
+    @State private var likedRequiresSignIn = false
 
     /// 시안 세그먼트 그대로.
     enum SavedTab: String, CaseIterable, Hashable {
@@ -52,10 +55,23 @@ struct CollectionView: View {
             .navigationDestination(for: Place.self) { PlaceDetailView(place: $0) }
         }
         // 다른 화면에서 저장을 눌렀을 수도 있다 — 탭을 열 때마다 최신을 받는다.
-        .task { await store.load() }
+        .task { await store.load(accessFeatures: session.accessFeatures) }
         // 좋아요 탭으로 넘어올 때마다 다시 받는다 — 다른 화면에서 하트를 눌렀을 수 있다.
         .task(id: selectedTab) {
             if selectedTab == .liked { await loadLiked() }
+        }
+        // 로그인·로그아웃 직후에도 두 목록이 맞아야 한다. 로그아웃한 기기는 비어야 하고,
+        //  로그인한 직후에는 곧바로 보여야 한다.
+        // 무장애 요소를 고치면 카드의 뱃지·문구도 그 기준으로 다시 받는다(홈과 같다).
+        //  목록 자체는 그대로다 — 저장한 것은 조건과 무관하게 다 보인다.
+        .onChange(of: session.accessFeatures) { _, features in
+            Task { await store.load(accessFeatures: features) }
+        }
+        .onChange(of: session.phase) {
+            Task {
+                await store.load(accessFeatures: session.accessFeatures)
+                if selectedTab == .liked { await loadLiked() }
+            }
         }
     }
 
@@ -69,12 +85,7 @@ struct CollectionView: View {
 
             Spacer(minLength: 0)
 
-            PlanPlaceholderButton(notice: "메뉴는 아직 준비 중이에요") {
-                Image("hamburger")
-                    .renderingMode(.template)
-                    .resizable()
-                    .frame(width: 26, height: 26)
-            }
+            AccountMenuButton()
         }
         .foregroundStyle(Color.textPrimary)
         .padding(.horizontal, 24)
@@ -136,7 +147,13 @@ struct CollectionView: View {
     private var placeList: some View {
         let sections = visibleSections
         ScrollView {
-            if store.isLoading && !store.didLoad {
+            if store.requiresSignIn {
+                SignInPromptView(
+                    title: "로그인하면 저장한 장소를 볼 수 있어요",
+                    message: "저장은 계정에 남아요. 기기를 바꿔도 그대로 따라옵니다.",
+                    prompt: .save
+                )
+            } else if store.isLoading && !store.didLoad {
                 message("저장한 장소를 불러오는 중이에요", isLoading: true)
             } else if store.loadFailed && !store.didLoad {
                 failedRow
@@ -169,7 +186,7 @@ struct CollectionView: View {
             }
         }
         .background(Color.appBackground)
-        .refreshable { await store.load() }
+        .refreshable { await store.load(accessFeatures: session.accessFeatures) }
     }
 
     private static let columns = [
@@ -218,7 +235,7 @@ struct CollectionView: View {
             Text("저장한 장소를 불러오지 못했어요")
                 .font(.notoSans(15, .bold))
                 .foregroundStyle(Color.textPrimary)
-            Button("다시 시도") { Task { await store.load() } }
+            Button("다시 시도") { Task { await store.load(accessFeatures: session.accessFeatures) } }
                 .font(.notoSans(14, .bold))
                 .foregroundStyle(.deepGreen)
                 .padding(.horizontal, 18)
@@ -238,7 +255,14 @@ struct CollectionView: View {
     /// (장소 후기의 "여행 게시글" 탭에서 실측한 것과 같은 함정).
     @ViewBuilder
     private var likedList: some View {
-        if isLoadingLiked && !didLoadLiked {
+        if likedRequiresSignIn {
+            SignInPromptView(
+                title: "로그인하면 좋아요한 글을 볼 수 있어요",
+                message: "누른 하트는 계정에 남아요. 기기를 바꿔도 그대로 따라옵니다.",
+                prompt: .like
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        } else if isLoadingLiked && !didLoadLiked {
             message("좋아요한 게시물을 불러오는 중이에요", isLoading: true)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         } else if likedLoadFailed && !didLoadLiked {
@@ -298,10 +322,16 @@ struct CollectionView: View {
         guard !isLoadingLiked else { return }
         isLoadingLiked = true
         likedLoadFailed = false
+        likedRequiresSignIn = false
         do {
             likedPosts = try await postService.fetchPosts(
                 mineOnly: false, likedOnly: true, contentId: nil, limit: 30, offset: 0)
             didLoadLiked = true
+        } catch PostServiceError.loginRequired, PostServiceError.sessionExpired {
+            // 로그아웃한 기기는 비어야 한다 — 이전 계정이 좋아요한 글이 남아 보이면 안 된다.
+            likedPosts = []
+            didLoadLiked = false
+            likedRequiresSignIn = true
         } catch {
             // 이미 받아 둔 목록이 있으면 지우지 않는다 — 새로고침이 실패했다고
             // 보고 있던 글이 사라지면 안 된다.
@@ -314,4 +344,5 @@ struct CollectionView: View {
 #Preview {
     CollectionView()
         .environment(SavedPlacesStore(service: MockFeedService()))
+        .environment(SessionStore(service: MockAuthService()))
 }

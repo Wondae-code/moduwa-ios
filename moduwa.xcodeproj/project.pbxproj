@@ -8,6 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		3C4D5E6F708192A3B4C5D6E7 /* KakaoMapsSDK-SPM in Frameworks */ = {isa = PBXBuildFile; productRef = 2B3C4D5E6F708192A3B4C5D6 /* KakaoMapsSDK-SPM */; };
+		46E9953E16EC3DBA9813C61B /* KakaoSDKCommon in Frameworks */ = {isa = PBXBuildFile; productRef = E63429F78E4D931E3480D57C /* KakaoSDKCommon */; };
+		C8AA97BD05030D8564B31B19 /* KakaoSDKAuth in Frameworks */ = {isa = PBXBuildFile; productRef = A911EF33FF4103A454845997 /* KakaoSDKAuth */; };
+		EF0337AF706E3E879C6F6132 /* KakaoSDKUser in Frameworks */ = {isa = PBXBuildFile; productRef = 934FCD79DF4E845D3BAC2FB9 /* KakaoSDKUser */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -41,6 +44,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				3C4D5E6F708192A3B4C5D6E7 /* KakaoMapsSDK-SPM in Frameworks */,
+				46E9953E16EC3DBA9813C61B /* KakaoSDKCommon in Frameworks */,
+				C8AA97BD05030D8564B31B19 /* KakaoSDKAuth in Frameworks */,
+				EF0337AF706E3E879C6F6132 /* KakaoSDKUser in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -84,6 +90,9 @@
 			name = moduwa;
 			packageProductDependencies = (
 				2B3C4D5E6F708192A3B4C5D6 /* KakaoMapsSDK-SPM */,
+				E63429F78E4D931E3480D57C /* KakaoSDKCommon */,
+				A911EF33FF4103A454845997 /* KakaoSDKAuth */,
+				934FCD79DF4E845D3BAC2FB9 /* KakaoSDKUser */,
 			);
 			productName = moduwa;
 			productReference = 21C2F305E33A787895ADB94A /* moduwa.app */;
@@ -109,6 +118,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				1A2B3C4D5E6F708192A3B4C5 /* XCRemoteSwiftPackageReference "KakaoMapsSDK-SPM" */,
+				12C9DDF191AF35EE8AC0CBB7 /* XCRemoteSwiftPackageReference "kakao-ios-sdk" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CC98B6E3CB75DA662730DFF8 /* Products */;
@@ -334,6 +344,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		12C9DDF191AF35EE8AC0CBB7 /* XCRemoteSwiftPackageReference "kakao-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/kakao/kakao-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.24.0;
+			};
+		};
 		1A2B3C4D5E6F708192A3B4C5 /* XCRemoteSwiftPackageReference "KakaoMapsSDK-SPM" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/kakao-mapsSDK/KakaoMapsSDK-SPM";
@@ -349,6 +367,21 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 1A2B3C4D5E6F708192A3B4C5 /* XCRemoteSwiftPackageReference "KakaoMapsSDK-SPM" */;
 			productName = "KakaoMapsSDK-SPM";
+		};
+		934FCD79DF4E845D3BAC2FB9 /* KakaoSDKUser */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 12C9DDF191AF35EE8AC0CBB7 /* XCRemoteSwiftPackageReference "kakao-ios-sdk" */;
+			productName = KakaoSDKUser;
+		};
+		A911EF33FF4103A454845997 /* KakaoSDKAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 12C9DDF191AF35EE8AC0CBB7 /* XCRemoteSwiftPackageReference "kakao-ios-sdk" */;
+			productName = KakaoSDKAuth;
+		};
+		E63429F78E4D931E3480D57C /* KakaoSDKCommon */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 12C9DDF191AF35EE8AC0CBB7 /* XCRemoteSwiftPackageReference "kakao-ios-sdk" */;
+			productName = KakaoSDKCommon;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

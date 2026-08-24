@@ -11,6 +11,7 @@ struct ReviewDetailView: View {
 
     /// 후기 작성 화면과 같은 저장소를 공유한다 — 기기에 한 번 정한 표시 이름을 다시 묻지 않는다.
     @AppStorage(ReviewAuthorStore.nicknameKey) private var savedNickname = ""
+    @Environment(SessionStore.self) private var session
 
     /// 방문한 장소 미니카드 채우기용 — contentId가 있을 때만 로드
     @State private var visitedDetail: PlaceDetail?
@@ -683,15 +684,13 @@ struct ReviewDetailView: View {
 
     private func send(reviewId: Int, text: String, authorNm: String?) async throws {
         try await feedService.submitReviewComment(
-            reviewId: reviewId,
-            body: text,
-            authorNm: authorNm,
-            deviceId: ReviewAuthorStore.deviceId
-        )
+            reviewId: reviewId, body: text, authorNm: authorNm)
     }
 
     private func submitComment() async {
         guard let reviewId = review.serverId, canSend else { return }
+        // 댓글은 로그인 필수다. 쓴 글은 입력칸에 남으므로 로그인하고 돌아와 다시 보내면 된다.
+        guard session.requireSignIn(.comment) else { return }
         let text = draft.trimmed
 
         // 사용자가 **직접 정한** 이름만 보낸다. 아무것도 정하지 않았으면 nil 이다.
@@ -709,7 +708,11 @@ struct ReviewDetailView: View {
         do {
             try await send(reviewId: reviewId, text: text, authorNm: chosen)
             // 성공한 뒤에만 기기에 남긴다 — 실패한 이름을 굳혀 두면 다시 물을 기회가 없다.
-            if let chosen { savedNickname = chosen }
+            //  서버가 받은 이름으로 계정 닉네임을 갱신하므로 계정 화면에도 반영한다.
+            if let chosen {
+                savedNickname = chosen
+                session.noteNicknameChanged(chosen)
+            }
             draft = ""
             isSending = false
             // 목록이 조용히 바뀌면 스크린리더 사용자는 등록됐는지 알 수 없다.
@@ -792,6 +795,7 @@ private var previewReviewWithComments: TravelReview {
         ReviewDetailView(review: previewReviewWithComments)
             .environment(\.feedService, CommentPreviewService())
     }
+    .environment(SessionStore(service: MockAuthService()))
 }
 
 #Preview("큰 글자 (AX3)") {
@@ -800,6 +804,7 @@ private var previewReviewWithComments: TravelReview {
             .environment(\.feedService, CommentPreviewService())
     }
     .environment(\.dynamicTypeSize, .accessibility3)
+    .environment(SessionStore(service: MockAuthService()))
 }
 
 /// 서버 id가 없는 리뷰 — 댓글을 불러올 수 없다고 알리고 입력을 감춘 상태
@@ -808,18 +813,19 @@ private var previewReviewWithComments: TravelReview {
         ReviewDetailView(review: MockData.reviews[1])
             .environment(\.feedService, MockFeedService())
     }
+    .environment(SessionStore(service: MockAuthService()))
 }
 
 /// 프리뷰 전용 — 상세는 목 그대로 두고 댓글만 채운다.
 private struct CommentPreviewService: FeedService {
     private let base = MockFeedService()
 
-    func fetchHeroRecommendation() async throws -> HeroRecommendation {
-        try await base.fetchHeroRecommendation()
-    }
 
-    func fetchRecommendedPlaces(category: PlaceCategory, page: Int) async throws -> [Place] {
-        try await base.fetchRecommendedPlaces(category: category, page: page)
+    func fetchRecommendedPlaces(
+        category: PlaceCategory, page: Int, accessFeatures: [AccessibilityFeature]
+    ) async throws -> [Place] {
+        try await base.fetchRecommendedPlaces(
+            category: category, page: page, accessFeatures: accessFeatures)
     }
 
     func fetchReviews(sort: ReviewSort, page: Int) async throws -> [TravelReview] {
@@ -846,7 +852,5 @@ private struct CommentPreviewService: FeedService {
         return ReviewCommentPage(total: items.count, items: items)
     }
 
-    func submitReviewComment(
-        reviewId: Int, body: String, authorNm: String?, deviceId: String
-    ) async throws {}
+    func submitReviewComment(reviewId: Int, body: String, authorNm: String?) async throws {}
 }

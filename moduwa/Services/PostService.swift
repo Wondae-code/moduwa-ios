@@ -7,12 +7,18 @@ enum PostServiceError: LocalizedError {
     case server(message: String)
     /// 이 기기의 첫 작성이라 서버가 표시 이름을 요구함. 호출부가 이름을 받아 다시 시도한다.
     case nicknameRequired
+    /// 401 `login_required` — 작성·좋아요·"내 글"·"좋아요한 글"은 로그인 필수다(백엔드 030).
+    case loginRequired
+    /// 401 `session_expired` — 토큰이 낡았다. 앱은 로그아웃 상태로 돌아간다.
+    case sessionExpired
 
     var errorDescription: String? {
         switch self {
         case .unavailable: "지금은 게시할 수 없어요. 잠시 후 다시 시도해 주세요."
         case .server(let message): message
         case .nicknameRequired: "게시글에 표시될 이름을 입력해 주세요."
+        case .loginRequired: "로그인이 필요해요."
+        case .sessionExpired: "로그인이 만료됐어요. 다시 로그인해 주세요."
         }
     }
 }
@@ -54,17 +60,19 @@ struct PostComment: Identifiable, Hashable, Sendable {
 
 /// 게시글 데이터 소스 (`/v1/posts`).
 ///
-/// 작성자는 `deviceId` 하나로 정해진다. 이 값은 **구현체가 들고 있고** 호출부는 넘기지 않는다 —
-/// 후기·플랜과 같은 규칙이다(화면마다 기기 키를 챙기게 하면 언젠가 한 곳이 다른 값을 쓴다).
+/// 작성자와 "보는 사람"은 모두 **로그인한 계정**이다(백엔드 030). 세션 토큰은 구현체가
+/// 요청마다 붙이므로 호출부는 아무것도 넘기지 않는다.
+///
+/// 목록 읽기는 **비로그인도 된다**(둘러보기). 그 경우 `likedByMe` 는 전부 false 다.
 protocol PostService: Sendable {
     /// 최근 글부터. 무엇도 좁히지 않으면 전체 목록이다.
     ///
-    /// 어느 경우든 구현체는 서버에 **보는 사람**(deviceId)을 함께 알린다 — 그러지 않으면
+    /// 로그인했으면 구현체가 세션 토큰을 실어 **보는 사람**을 알린다 — 그러지 않으면
     /// 하트가 이미 누른 글에서도 빈 상태로 그려진다.
     /// - Parameters:
-    ///   - mineOnly: 이 기기가 쓴 글만.
-    ///   - likedOnly: 이 기기가 좋아요한 글만 — **내가 누른 순서**로 온다
-    ///     (글이 쓰인 시각이 아니다). 저장 탭의 "좋아요한 게시물"이 쓴다.
+    ///   - mineOnly: 내가 쓴 글만. **로그인 필수**(비로그인이면 `.loginRequired`).
+    ///   - likedOnly: 내가 좋아요한 글만 — **내가 누른 순서**로 온다
+    ///     (글이 쓰인 시각이 아니다). 저장 탭의 "좋아요한 게시물"이 쓴다. **로그인 필수**.
     ///   - contentId: 그 장소를 **붙인** 글만 (장소 후기 화면의 "여행 게시글" 탭).
     func fetchPosts(
         mineOnly: Bool, likedOnly: Bool, contentId: String?, limit: Int, offset: Int

@@ -36,6 +36,7 @@ struct ReviewComposeView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.feedService) private var feedService
     @AppStorage(ReviewAuthorStore.nicknameKey) private var savedNickname = ""
+    @Environment(SessionStore.self) private var session
 
     @State private var rating = 0
     @State private var isSubmitting = false
@@ -623,7 +624,6 @@ struct ReviewComposeView: View {
             rating: rating,
             body: trimmedReview,
             nickname: resolvedNickname,
-            deviceId: ReviewAuthorStore.deviceId,
             // 서버가 모르는 코드는 400이므로 받아 둔 사전 순서대로 걸러 보낸다
             tags: availableTags.map(\.code).filter(selectedTagCodes.contains),
             // ⚠️ 미체크는 false가 아니라 nil이다 — 서버가 미응답으로 저장한다
@@ -639,6 +639,9 @@ struct ReviewComposeView: View {
             try await feedService.submitReview(draft)
             // 성공한 뒤에만 기기에 남긴다 — 실패한 이름을 굳혀 두면 다시 물을 기회가 없다.
             savedNickname = resolvedNickname
+            // 서버는 받은 이름으로 **계정 닉네임을 갱신한다.** 그 사실을 계정 화면에도 반영한다 —
+            //  한 곳만 고치면 "내 계정"에 옛 이름이 남는다.
+            session.noteNicknameChanged(resolvedNickname)
             // 성공했을 때만 호출부에 알린다 — 실패한 후기를 목록에 끼워 넣으면 안 된다.
             onSubmit(draft)
             // 화면이 닫히면 포커스가 이전 화면으로 돌아가 등록 결과를 놓치므로 직접 알린다.

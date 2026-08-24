@@ -11,8 +11,13 @@ import SwiftUI
 /// 게시하기·사진·장소는 동작한다(서버 `71ba407`). "최근코스 불러오기"·"임시저장"·
 /// "무장애 정보 추가"는 아직 목적지가 없다.
 struct PostComposeView: View {
+    /// 게시가 서버에서 성공한 뒤, 닫히기 직전에 불린다. 밀어 넣은 화면이 목록을
+    /// 다시 받는 자리다(`WriteFloatingButton.onPosted` 주석 참고).
+    var onPosted: (() -> Void)? = nil
+
     /// 프로필에 보일 작성자. 후기 작성과 같은 저장소를 쓴다 — 같은 사람이다.
     @AppStorage(ReviewAuthorStore.nicknameKey) private var savedNickname = ""
+    @Environment(SessionStore.self) private var session
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.postService) private var postService
@@ -444,7 +449,11 @@ struct PostComposeView: View {
             // 게시됐으면 초안은 더 이상 이어 쓸 것이 아니다 — 남겨 두면 다음에 열 때
             // 이미 올린 글이 되살아난다.
             PostDraftStore.clear()
+            // 이름을 함께 보냈으면 서버가 계정 닉네임을 갱신했다 — 계정 화면에도 반영한다.
+            if let name, !name.isEmpty { session.noteNicknameChanged(name) }
             UIAccessibility.post(notification: .announcement, argument: "게시했어요")
+            // 닫기 전에 알린다 — 목록을 들고 있는 화면이 이 글을 받아 갈 기회다.
+            onPosted?()
             dismiss()
         } catch PostServiceError.nicknameRequired {
             // 이름을 받아 다시 시도할 수 있게 입력칸을 연다. 사진은 이미 올라갔으므로
