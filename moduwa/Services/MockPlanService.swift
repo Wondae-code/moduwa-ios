@@ -59,6 +59,10 @@ actor MockPlanService: PlanService {
         return plans[index]
     }
 
+    func recommendCourse(_ request: CourseRequest) async throws -> RecommendedCourse {
+        RecommendedCourse(regionLabel: "강릉", stay: nil, days: [], notes: [])
+    }
+
     func fetchPlanOptions() async throws -> PlanOptions { Self.sampleOptions }
 
     /// 프리뷰에서 4/6·5/6이 빈 화면으로 보이지 않게 두는 사본.
@@ -89,6 +93,10 @@ actor MockPlanService: PlanService {
 
 /// 프리뷰 전용 — 플랜이 0건인 기기. 서버가 비어 있는 지금 실제 앱이 보게 되는 상태다.
 struct EmptyPlanService: PlanService {
+    func recommendCourse(_ request: CourseRequest) async throws -> RecommendedCourse {
+        RecommendedCourse(regionLabel: "", stay: nil, days: [], notes: [])
+    }
+
     func fetchPlans() async throws -> [Plan] { [] }
 
     func fetchPlan(id: UUID) async throws -> Plan { throw PlanServiceError.notFound }
@@ -110,6 +118,10 @@ struct EmptyPlanService: PlanService {
 
 /// 프리뷰 전용 — 목록·상세가 모두 실패하는 기기 (오류 화면 확인용).
 struct FailingPlanService: PlanService {
+    func recommendCourse(_ request: CourseRequest) async throws -> RecommendedCourse {
+        throw PlanServiceError.notFound
+    }
+
     func fetchPlans() async throws -> [Plan] { throw PlanServiceError.unavailable }
 
     func fetchPlan(id: UUID) async throws -> Plan { throw PlanServiceError.unavailable }

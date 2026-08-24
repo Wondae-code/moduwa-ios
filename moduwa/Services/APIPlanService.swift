@@ -13,17 +13,13 @@ struct APIPlanService: PlanService {
     )!
     private let apiKey: String
     private let session: URLSession
-    /// 플랜 소유자 키. **후기 작성자와 같은 값**을 쓴다 — 따로 만들면 같은 기기가 후기에선 A,
-    /// 플랜에선 B가 되어 서버가 한 사람으로 묶지 못한다.
-    private let deviceId: String
 
-    init(apiKey: String? = nil, session: URLSession = .shared, deviceId: String? = nil) {
+    init(apiKey: String? = nil, session: URLSession = .shared) {
         self.apiKey = apiKey
             ?? (Bundle.main.object(forInfoDictionaryKey: "MODUWA_API_KEY") as? String)
             ?? Secrets.moduwaAPIKey
             ?? ""
         self.session = session
-        self.deviceId = deviceId ?? ReviewAuthorStore.deviceId
     }
 
     // MARK: - HTTP
@@ -41,6 +37,13 @@ struct APIPlanService: PlanService {
         guard let http = response as? HTTPURLResponse else { throw PlanServiceError.unavailable }
         guard (200..<300).contains(http.statusCode) else {
             let failure = try? JSONDecoder().decode(ErrorResponse.self, from: data)
+            // 플랜은 **개인 데이터**라 조회도 로그인 필수다. 401 의 두 뜻을 갈라 준다 —
+            //  아직 로그인 안 했는지, 토큰이 낡았는지에 따라 화면이 다르게 움직인다.
+            switch ModuwaAPI.authFailure(status: http.statusCode, code: failure?.error) {
+            case .loginRequired: throw PlanServiceError.loginRequired
+            case .expired: throw PlanServiceError.sessionExpired
+            case nil: break
+            }
             // 이 기기의 첫 저장이라 표시 이름을 요구하는 경우만 따로 구분한다 —
             // 호출부가 이름을 정해 한 번 더 시도할 수 있게.
             if failure?.error == "missing_authorNm" { throw PlanServiceError.nicknameRequired }
@@ -57,9 +60,11 @@ struct APIPlanService: PlanService {
         return data
     }
 
+    /// API 키 + **세션 토큰**. 플랜은 전 경로가 로그인 필수라 세션이 빠지면 전부 401 이다.
     private func authorized(_ url: URL) -> URLRequest {
         var request = URLRequest(url: url)
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        ModuwaAPI.attachSession(to: &request)
         return request
     }
 
@@ -73,17 +78,13 @@ struct APIPlanService: PlanService {
 
     func fetchPlans() async throws -> [Plan] {
         guard !apiKey.isEmpty else { throw PlanServiceError.unavailable }
-        let data = try await data(for: authorized(url("/v1/plans", [
-            .init(name: "deviceId", value: deviceId),
-        ])))
+        let data = try await data(for: authorized(url("/v1/plans")))
         return try JSONDecoder().decode(ListResponse.self, from: data).items.map(\.plan)
     }
 
     func fetchPlan(id: UUID) async throws -> Plan {
         guard !apiKey.isEmpty else { throw PlanServiceError.unavailable }
-        let data = try await data(for: authorized(url("/v1/plans/\(id.uuidString)", [
-            .init(name: "deviceId", value: deviceId),
-        ])))
+        let data = try await data(for: authorized(url("/v1/plans/\(id.uuidString)")))
         return try JSONDecoder().decode(PlanDTO.self, from: data).plan
     }
 
@@ -103,19 +104,42 @@ struct APIPlanService: PlanService {
         request.httpMethod = "PUT"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(
-            PlanBody(plan: plan, deviceId: deviceId, authorNm: authorNm)
+            PlanBody(plan: plan, authorNm: authorNm)
         )
         let data = try await data(for: request)
         return try JSONDecoder().decode(PlanDTO.self, from: data).plan
+    }
+
+    // MARK: - 추천 코스
+
+    func recommendCourse(_ request: CourseRequest) async throws -> RecommendedCourse {
+        guard !apiKey.isEmpty else { throw PlanServiceError.unavailable }
+        var http = authorized(url("/v1/plans/recommend"))
+        http.httpMethod = "POST"
+        http.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        var body: [String: Any] = [
+            "region": request.regionSlug,
+            "startDate": PlanWireDate.text(from: request.startDate),
+            "endDate": PlanWireDate.text(from: request.endDate),
+            "dayTripOnly": request.dayTripOnly,
+        ]
+        // 빈 배열은 보내지 않는다 — 서버는 "고르지 않음"과 "빈 목록"을 같게 다루지만,
+        //  보내지 않는 편이 요청만 봐도 무엇을 고른 사람인지 분명하다.
+        if !request.party.isEmpty { body["party"] = request.party }
+        if !request.themes.isEmpty { body["themes"] = request.themes }
+        if let budget = request.budget { body["budget"] = budget }
+        http.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let data = try await data(for: http)
+        return try JSONDecoder().decode(CourseDTO.self, from: data).course
     }
 
     // MARK: - 확정
 
     func setPlanConfirmed(id: UUID, _ confirmed: Bool) async throws -> Plan {
         guard !apiKey.isEmpty else { throw PlanServiceError.unavailable }
-        var request = authorized(url("/v1/plans/\(id.uuidString)/confirm", [
-            .init(name: "deviceId", value: deviceId),
-        ]))
+        var request = authorized(url("/v1/plans/\(id.uuidString)/confirm"))
         request.httpMethod = confirmed ? "POST" : "DELETE"
         let data = try await data(for: request)
         return try JSONDecoder().decode(PlanDTO.self, from: data).plan
@@ -125,9 +149,7 @@ struct APIPlanService: PlanService {
 
     func deletePlan(id: UUID) async throws {
         guard !apiKey.isEmpty else { throw PlanServiceError.unavailable }
-        var request = authorized(url("/v1/plans/\(id.uuidString)", [
-            .init(name: "deviceId", value: deviceId),
-        ]))
+        var request = authorized(url("/v1/plans/\(id.uuidString)"))
         request.httpMethod = "DELETE"
         // 204 라 본문이 없다. `data(for:)`를 그대로 쓰는 이유는 실패 시 서버가 주는 한국어 사유를
         // 여기서도 똑같이 살리기 위해서다 — 빈 Data 를 버리는 비용보다 그 일관성이 크다.
@@ -135,6 +157,78 @@ struct APIPlanService: PlanService {
     }
 
     // MARK: - DTO
+
+    /// 추천 코스 응답. 저장된 플랜(`PlanDTO`)과 **다른 모양**이다 —
+    /// 아직 플랜이 아니라 제안이라 id 도 제목도 없다.
+    private struct CourseDTO: Decodable {
+        let region: String?
+        let stay: StayDTO?
+        let days: [CourseDayDTO]?
+        let notes: [String]?
+
+        struct StayDTO: Decodable {
+            let contentID: String?
+            let name: String?
+            let imageURL: String?
+        }
+
+        struct CourseDayDTO: Decodable {
+            let date: String
+            let items: [CourseItemDTO]?
+            // congestion·busy 도 오지만 v1 화면에 그릴 자리가 없어 읽지 않는다.
+        }
+
+        struct CourseItemDTO: Decodable {
+            let slot: String?
+            let contentID: String?
+            let name: String?
+            let categoryLabel: String?
+            let imageURL: String?
+            let latitude: Double?
+            let longitude: Double?
+        }
+
+        var course: RecommendedCourse {
+            let regionLabel = region ?? ""
+            let stayPlace = stay.flatMap { dto -> PlanPlace? in
+                guard let name = dto.name, !name.isEmpty else { return nil }
+                return PlanPlace(
+                    contentID: dto.contentID, name: name, categoryLabel: "숙소",
+                    region: regionLabel.isEmpty ? nil : regionLabel, category: .stay,
+                    imageURL: URL(imageAddress: dto.imageURL),
+                    latitude: nil, longitude: nil)
+            }
+
+            let planDays: [PlanDay] = (days ?? []).enumerated().map { index, day in
+                var items: [PlanDayItem] = (day.items ?? []).compactMap { item in
+                    guard let name = item.name, !name.isEmpty else { return nil }
+                    return .stop(PlanStop(place: PlanPlace(
+                        contentID: item.contentID,
+                        name: name,
+                        categoryLabel: item.categoryLabel ?? "장소",
+                        region: regionLabel.isEmpty ? nil : regionLabel,
+                        category: nil,
+                        imageURL: URL(imageAddress: item.imageURL),
+                        latitude: item.latitude,
+                        longitude: item.longitude)))
+                }
+                // 숙소는 **묵는 날의 마지막**에 넣는다. 서버는 코스 전체에 하나로 주는데,
+                //  하루 목록에 없으면 사용자는 "숙소는 어디로 갔지"가 된다.
+                //  마지막 날에는 넣지 않는다 — 그날은 자고 나오는 날이다.
+                if let stayPlace, index < (days ?? []).count - 1 {
+                    items.append(.stop(PlanStop(place: stayPlace)))
+                }
+                return PlanDay(date: PlanWireDate.date(from: day.date) ?? .now, items: items)
+            }
+
+            return RecommendedCourse(
+                regionLabel: regionLabel,
+                stay: stayPlace,
+                days: planDays,
+                // 모르는 note 는 버린다 — 서버가 새 사유를 늘려도 앱이 깨지지 않는다.
+                notes: (notes ?? []).compactMap(CourseNote.init(rawValue:)))
+        }
+    }
 
     /// 목록·상세·저장 응답이 모두 같은 모양이다 (목록에만 `days`가 빠진다).
     private struct PlanDTO: Decodable {
@@ -171,13 +265,13 @@ struct APIPlanService: PlanService {
                 // 플랜 전체를 못 읽는 이유가 될 수 없다.
                 region: region.flatMap(TravelRegion.init(rawValue:)),
                 party: party?.party ?? TravelParty(),
-                coverImageURL: coverImageURL.flatMap(URL.init(string:)),
+                coverImageURL: URL(imageAddress: coverImageURL),
                 themes: themes ?? [],
                 budget: budget,
                 dayTripOnly: dayTripOnly ?? false,
                 days: (days ?? []).map(\.day),
                 daySummaries: (daySummaries ?? []).map(\.summary),
-                fallbackImageURL: fallbackImageUrl.flatMap(URL.init(string:)),
+                fallbackImageURL: URL(imageAddress: fallbackImageUrl),
                 // ⚠️ `timestamp(from:)`이 아니다 — 그쪽은 못 읽으면 지금 시각으로 떨어져
                 // 초안이 확정된 것으로 뒤바뀐다.
                 confirmedAt: PlanWireDate.optionalTimestamp(from: confirmedAt),
@@ -328,7 +422,7 @@ struct APIPlanService: PlanService {
                 // 시안의 부제목은 `PlaceCategory` 4종을 벗어난다("쇼핑") — 매핑되지 않으면 nil이고
                 // 표시에는 `categoryLabel`을 쓴다(`PlanPlace` 참고).
                 category: PlaceCategory.allCases.first { $0.apiKey == category },
-                imageURL: imageURL.flatMap(URL.init(string:)),
+                imageURL: URL(imageAddress: imageURL),
                 latitude: latitude,
                 longitude: longitude
             )
@@ -338,7 +432,6 @@ struct APIPlanService: PlanService {
     // MARK: - 저장 본문
 
     private struct PlanBody: Encodable {
-        let deviceId: String
         /// nil이면 키 자체가 빠지고(Optional은 encodeIfPresent로 인코딩된다) 서버가 기존 닉네임을 재사용한다
         let authorNm: String?
         let title: String
@@ -354,8 +447,7 @@ struct APIPlanService: PlanService {
         let dayTripOnly: Bool
         let days: [DayBody]
 
-        init(plan: Plan, deviceId: String, authorNm: String?) {
-            self.deviceId = deviceId
+        init(plan: Plan, authorNm: String?) {
             self.authorNm = authorNm
             title = plan.title
             startDate = PlanWireDate.text(from: plan.startDate)

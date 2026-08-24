@@ -98,12 +98,11 @@ struct PlanRegionStep: View {
 
 // MARK: - 4/6 테마
 
-/// 테마 12개 다중 선택 + "당일치기만 즐길게요" 체크.
+/// 테마 12개 다중 선택.
 /// 칩 문구는 서버(`GET /v1/plan-options`)가 준 `label`이다 — 앱에 목록이 없다.
 struct PlanThemeStep: View {
     let themes: [PlanOption]
     @Binding var selected: [String]
-    @Binding var dayTripOnly: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
@@ -124,35 +123,7 @@ struct PlanThemeStep: View {
                 }
             }
 
-            dayTripToggle
-                .padding(.horizontal, 24)
         }
-    }
-
-    /// 접근성 판단 — 체크 상태를 색만으로 전달하지 않는다:
-    /// 네모/체크 글리프가 형태로, 글자 굵기가 무게로, `.isToggle` + 값이 스크린리더로 전달한다.
-    private var dayTripToggle: some View {
-        Button {
-            withoutAnimation { dayTripOnly.toggle() }
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: dayTripOnly ? "checkmark.square.fill" : "square")
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundStyle(dayTripOnly ? .deepGreen : .iconGray)
-                Text("당일치기만 즐길게요")
-                    .font(.notoSans(15, dayTripOnly ? .bold : .medium, relativeTo: .subheadline))
-                    .tracking(-0.4)
-                    .foregroundStyle(dayTripOnly ? .textPrimary : .textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .multilineTextAlignment(.leading)
-            }
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("당일치기만 즐길게요")
-        .accessibilityAddTraits(.isToggle)
-        .accessibilityValue(dayTripOnly ? "선택함" : "선택하지 않음")
     }
 }
 

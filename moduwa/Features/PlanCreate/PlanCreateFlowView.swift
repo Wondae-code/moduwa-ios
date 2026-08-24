@@ -29,9 +29,14 @@ struct PlanCreateFlowView: View {
     @State private var nicknameInput = ""
     @FocusState private var nicknameFocused: Bool
 
-    /// 6/6 "네!" — 추천 코스는 아직 없다. 커스텀 토스트 대신 기본 popover 를 쓰는 이유는
-    /// VoiceOver 가 내용을 읽어 주기 때문이다(앱의 다른 준비 중 버튼과 같은 방식).
-    @State private var showsCourseNotice = false
+    /// 추천 코스를 받아 오는 중.
+    @State private var isRecommending = false
+    /// 받아 왔지만 **알릴 것이 있어** 아직 담지 않은 코스.
+    ///
+    /// 예산을 골랐는데 다른 가격대 숙소가 왔거나 칸이 비었으면(`notes`) 그대로 담아 버리지
+    /// 않는다 — 사용자는 앱이 자기 선택을 무시했다고 읽는다. 무엇이 달라졌는지 보여 주고
+    /// 한 번 더 누르게 한다. 알릴 것이 없으면 바로 담는다.
+    @State private var pendingCourse: RecommendedCourse?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -73,10 +78,7 @@ struct PlanCreateFlowView: View {
                 if options.themes.isEmpty {
                     optionsNotice
                 } else {
-                    PlanThemeStep(
-                        themes: options.themes,
-                        selected: $draft.themes,
-                        dayTripOnly: $draft.dayTripOnly)
+                    PlanThemeStep(themes: options.themes, selected: $draft.themes)
                 }
             }
         case .budget:
@@ -125,25 +127,27 @@ struct PlanCreateFlowView: View {
 
             if needsNickname { nicknameField }
 
-            Button { showsCourseNotice = true } label: {
-                Text("네!")
-                    .font(.notoSans(16, .bold, relativeTo: .headline))
-                    .tracking(-0.4)
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 55)
-                    .background(Capsule().fill(Color.deepGreen))
+            Button {
+                Task {
+                    if pendingCourse == nil { await recommend() } else { await saveCourse() }
+                }
+            } label: {
+                ZStack {
+                    Text(pendingCourse == nil ? "네!" : "이대로 담을게요")
+                        .font(.notoSans(16, .bold, relativeTo: .headline))
+                        .tracking(-0.4)
+                        .foregroundStyle(.white)
+                        .opacity(isRecommending ? 0 : 1)
+                    if isRecommending { ProgressView().tint(.white) }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 55)
+                .background(Capsule().fill(Color.deepGreen))
             }
             .buttonStyle(.plain)
-            .disabled(isSaving)
-            .popover(isPresented: $showsCourseNotice) {
-                Text("추천 코스 작성은 아직 구현중이에요")
-                    .font(.notoSans(14, .medium, relativeTo: .subheadline))
-                    .foregroundStyle(Color.textPrimary)
-                    .padding(16)
-                    // 없으면 iPhone(compact)에서 popover 가 시트로 바뀐다
-                    .presentationCompactAdaptation(.popover)
-            }
+            .disabled(isSaving || isRecommending)
+            .accessibilityLabel(isRecommending ? "추천 코스 만드는 중" : (pendingCourse == nil ? "네, 추천 코스 보기" : "이대로 담을게요"))
+            .accessibilityHint("고르신 조건으로 하루 일정을 만들어 플랜에 담습니다")
 
             Button { Task { await save() } } label: {
                 ZStack {
@@ -213,7 +217,7 @@ struct PlanCreateFlowView: View {
         case .region: draft.region != nil
         // 출발일만 고른 상태로 넘어가면 당일치기가 된다 — 시안에 그 표기가 없어 둘 다 요구한다.
         case .dates: draft.startDate != nil && draft.endDate != nil
-        case .themes: !draft.themes.isEmpty || draft.dayTripOnly
+        case .themes: !draft.themes.isEmpty
         case .budget: draft.budget != nil
         case .finish: false
         }
@@ -243,9 +247,7 @@ struct PlanCreateFlowView: View {
         case .dates:
             draft.startDate = nil
             draft.endDate = nil
-        case .themes:
-            draft.themes = []
-            draft.dayTripOnly = false
+        case .themes: draft.themes = []
         case .budget: draft.budget = nil
         case .finish: break
         }
@@ -289,9 +291,65 @@ struct PlanCreateFlowView: View {
         }
     }
 
+    // MARK: - 추천 코스
+
+    /// 6/6 "네!" — 고른 조건으로 코스를 받아 온다.
+    ///
+    /// 지역은 서버가 후보를 고르는 전제라 없으면 부를 수 없다. 2/6 은 건너뛸 수 있는
+    /// 단계이므로, 막지 않고 **무엇이 필요한지 알려 주고** "혼자 짜볼래요"를 남긴다.
+    private func recommend() async {
+        guard !isRecommending, !isSaving else { return }
+        guard let region = draft.region else {
+            saveError = "추천 코스를 만들려면 2단계에서 여행지를 골라 주세요."
+            UIAccessibility.post(notification: .announcement, argument: saveError ?? "")
+            return
+        }
+
+        isRecommending = true
+        saveError = nil
+        defer { isRecommending = false }
+
+        let plan = draft.makePlan()
+        do {
+            let course = try await planService.recommendCourse(CourseRequest(
+                regionSlug: region.courseSlug,
+                startDate: plan.startDate,
+                endDate: plan.endDate,
+                party: draft.party.courseCodes,
+                themes: draft.themes,
+                budget: draft.budget,
+                // 당일치기는 따로 묻지 않는다 — **날짜가 이미 답이다.** 하루짜리 여행에
+                //  숙소를 고르는 것은 서버 일을 낭비하는 것이고, 저장된 플랜에 넣어 두면
+                //  나중에 날짜를 늘렸을 때 낡은 값이 남는다. 요청할 때 그 자리에서 계산한다.
+                dayTripOnly: Calendar.current.isDate(
+                    plan.startDate, inSameDayAs: plan.endDate)
+            ))
+
+            if let notice = course.noticeMessage {
+                // 알릴 것이 있으면 한 번 보여 주고 사용자가 확인한 뒤 담는다.
+                pendingCourse = course
+                saveError = notice
+                UIAccessibility.post(notification: .announcement, argument: notice)
+            } else {
+                await save(days: course.days)
+            }
+        } catch {
+            let message = (error as? PlanServiceError)?.errorDescription
+                ?? "추천 코스를 만들지 못했어요. 잠시 후 다시 시도해 주세요."
+            saveError = message
+            UIAccessibility.post(notification: .announcement, argument: message)
+        }
+    }
+
+    /// 안내를 보고 그대로 담기로 한 경우.
+    private func saveCourse() async {
+        guard let course = pendingCourse else { return }
+        await save(days: course.days)
+    }
+
     // MARK: - 저장
 
-    private func save() async {
+    private func save(days: [PlanDay] = []) async {
         guard !isSaving else { return }
         isSaving = true
         saveError = nil
@@ -302,12 +360,17 @@ struct PlanCreateFlowView: View {
         let authorNm = typed.isEmpty ? nil : typed
 
         do {
-            let saved = try await planService.savePlan(draft.makePlan(), authorNm: authorNm)
+            // 추천 코스를 받았으면 그 일정을 담아 저장한다. "혼자 짜볼래요"는 빈 채로 만든다.
+            var plan = draft.makePlan()
+            plan.days = days
+            let saved = try await planService.savePlan(plan, authorNm: authorNm)
             // 성공한 뒤에만 기기에 남긴다 — 실패한 이름을 굳혀 두면 다시 물을 기회가 없다.
             if let authorNm { savedNickname = authorNm }
             onCreated(saved)
             // 화면이 닫히면 포커스가 옮겨가 결과를 놓치므로 직접 알린다.
-            UIAccessibility.post(notification: .announcement, argument: "플랜을 만들었어요")
+            UIAccessibility.post(
+                notification: .announcement,
+                argument: days.isEmpty ? "플랜을 만들었어요" : "추천 코스를 담아 플랜을 만들었어요")
             dismiss()
         } catch PlanServiceError.nicknameRequired {
             isSaving = false

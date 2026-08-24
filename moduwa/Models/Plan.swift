@@ -99,6 +99,51 @@ enum TravelRegion: String, CaseIterable, Identifiable, Hashable, Sendable, Codab
     }
 }
 
+extension TravelRegion {
+    /// 추천 코스가 쓰는 서버 슬러그(`region_slugs`).
+    ///
+    /// ⚠️ 앱의 지역은 "강릉·속초"처럼 **여러 시군을 묶은** 이름인데 서버 슬러그는 시군 하나다.
+    /// v1 은 앞에 적힌 대표 도시로 보낸다 — 강릉·속초를 고르면 강릉에서 고른다.
+    /// 두 시군을 함께 보려면 서버가 여러 시군구 코드를 받아야 한다(v2).
+    var courseSlug: String {
+        switch self {
+        case .gapyeongYangpyeong: "gapyeong"
+        case .gangneungSokcho: "gangneung"
+        case .gyeongju: "gyeongju"
+        case .busan: "busan"
+        case .yeosu: "yeosu"
+        case .incheon: "incheon"
+        case .jeonju: "jeonju"
+        case .jeju: "jeju"
+        case .chuncheonHongcheon: "chuncheon"
+        case .taean: "taean"
+        case .tongyeongGeojeNamhae: "tongyeong"
+        case .pohangAndong: "andong"
+        }
+    }
+}
+
+extension TravelParty {
+    /// 추천 코스가 쓰는 동반자 코드(`kids`·`pet`·`elderly`·`couple`·`friends`·`solo`).
+    ///
+    /// 앱이 더 잘게 묻는다 — "가족과"처럼 서버에 대응이 없는 것은 **보내지 않는다.**
+    /// 억지로 가까운 값에 붙이면(가족 → kids) 아이 없는 가족 여행에 유아 시설이 추천된다.
+    ///
+    /// 나이대도 함께 본다: 60대 이상을 골랐으면 `elderly` 다 — "부모님과"를 고르지 않아도
+    /// 본인이 그 나이대일 수 있다.
+    /// ⚠️ 휠체어(`mobilities`)는 v1 서버가 받지 않는다. 무장애 필터는 별도 축이다.
+    var courseCodes: [String] {
+        var codes: [String] = []
+        if companions.contains(.children) { codes.append("kids") }
+        if companions.contains(.pet) { codes.append("pet") }
+        if companions.contains(.parents) || ageGroups.contains(.sixtiesPlus) { codes.append("elderly") }
+        if companions.contains(.partner) { codes.append("couple") }
+        if companions.contains(.friends) { codes.append("friends") }
+        if companions.contains(.alone) { codes.append("solo") }
+        return codes
+    }
+}
+
 /// 지도를 어느 자리에 맞출지. 정류지가 없을 때 지역만으로 카메라를 잡는 데 쓴다.
 struct RegionMapCamera: Hashable, Sendable {
     var latitude: Double
@@ -254,7 +299,18 @@ extension Plan {
     /// **플랜 탭과 일정 탭이 같은 값을 쓰도록 여기 한 곳에 둔다.** 각자 고르게 뒀더니
     /// 한쪽만 폴백을 붙여 같은 플랜이 탭에 따라 사진이 있기도 없기도 했다(2026-08-16).
     /// 표지를 고르는 화면이 아직 없어 실제로는 늘 뒤쪽이 쓰인다.
-    var cardImageURL: URL? { coverImageURL ?? fallbackImageURL }
+    ///
+    /// 마지막 폴백이 **직접 계산한 첫 장소 사진**인 이유: 서버는 `fallbackImageUrl` 을
+    /// **목록 응답에서만** 만들어 준다. 저장(PUT) 응답에는 없어서, 방금 만든 플랜을 목록에
+    /// 꽂으면 카드가 빈 채로 뜬다 — 추천 코스로 하루를 가득 채워 만들어도 마찬가지였다
+    /// (2026-08-23). 저장 응답에는 `days` 가 실려 오므로 앱이 같은 값을 스스로 고를 수 있다.
+    var cardImageURL: URL? { coverImageURL ?? fallbackImageURL ?? firstStopImageURL }
+
+    /// 담긴 장소 중 사진이 있는 첫 곳. 목록 응답은 `days` 가 비어 있어 nil 이고,
+    /// 그때는 서버가 준 `fallbackImageURL` 이 이미 같은 값을 들고 있다.
+    private var firstStopImageURL: URL? {
+        days.lazy.flatMap(\.stops).compactMap(\.place.imageURL).first
+    }
 
     /// 아직 확정하지 않은 초안인지. 플랜 탭이 이걸로 거른다.
     var isDraft: Bool { confirmedAt == nil }

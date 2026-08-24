@@ -19,7 +19,6 @@ struct PlanDraft {
     var endDate: Date?
     /// 4/6 — 서버가 준 테마 `code` 목록
     var themes: [String] = []
-    var dayTripOnly = false
     /// 5/6 — `low`/`medium`/`high`. nil은 "고르지 않음"이고 저예산과 다르다.
     var budget: String?
 }
@@ -67,7 +66,6 @@ extension PlanDraft {
             party: party,
             themes: themes,
             budget: budget,
-            dayTripOnly: dayTripOnly,
             days: []
         )
     }
