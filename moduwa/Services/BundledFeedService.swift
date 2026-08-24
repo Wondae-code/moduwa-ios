@@ -5,15 +5,7 @@ import Foundation
 /// JSON 구조가 그대로 향후 API 응답 스펙 제안이며, 서버가 생기면 APIFeedService로 교체한다.
 struct BundledFeedService: FeedService {
     private struct HomeFeedDTO: Decodable {
-        let hero: HeroDTO
         let placesByCategory: [String: [PlaceDTO]]
-    }
-
-    private struct HeroDTO: Decodable {
-        let userName: String
-        let headline: String
-        let caption: String
-        let tags: [String]
     }
 
     private struct PlaceDTO: Decodable {
@@ -34,17 +26,10 @@ struct BundledFeedService: FeedService {
         return try JSONDecoder().decode(HomeFeedDTO.self, from: Data(contentsOf: url))
     }
 
-    func fetchHeroRecommendation() async throws -> HeroRecommendation {
-        let hero = try loadFeed().hero
-        return HeroRecommendation(
-            userName: hero.userName,
-            headline: hero.headline,
-            caption: hero.caption,
-            tags: hero.tags
-        )
-    }
 
-    func fetchRecommendedPlaces(category: PlaceCategory, page: Int) async throws -> [Place] {
+    func fetchRecommendedPlaces(
+        category: PlaceCategory, page: Int, accessFeatures: [AccessibilityFeature]
+    ) async throws -> [Place] {
         let dtos = (try loadFeed().placesByCategory[category.apiKey] ?? [])
             .page(page, size: FeedPage.placeSize)
         return dtos.map { dto in

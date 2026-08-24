@@ -11,6 +11,7 @@ struct HomeView: View {
     @Environment(\.feedService) private var feedService
     @Environment(\.postService) private var postService
     @Environment(NotificationStore.self) private var notificationStore
+    @Environment(SessionStore.self) private var session
     @State private var viewModel = HomeViewModel()
     @State private var isSortPickerPresented = false
 
@@ -43,7 +44,13 @@ struct HomeView: View {
             .toolbar(.hidden, for: .navigationBar)
             // 시안 "01. 메인화면"의 Write Button(652:3399) — 우하단 라임 원.
             //  스크롤과 무관하게 떠 있어야 해서 `overlay` 로 얹는다(ScrollView 안에 두면 함께 밀린다).
-            .overlay(alignment: .bottomTrailing) { WriteFloatingButton() }
+            .overlay(alignment: .bottomTrailing) {
+                // 쓰고 돌아오면 목록을 다시 받는다 — 그러지 않으면 방금 쓴 글이 보이지 않는다
+                //  (`.task` 는 돌아올 때 다시 돌지 않는다, `WriteFloatingButton.onPosted` 참고).
+                WriteFloatingButton {
+                    Task { await viewModel.loadPosts(using: postService) }
+                }
+            }
             .navigationDestination(for: Place.self) { place in
                 PlaceDetailView(place: place)
             }
@@ -57,9 +64,18 @@ struct HomeView: View {
                 ReviewDetailView(review: review)
             }
         }
-        .task { await viewModel.loadInitial(using: feedService) }
+        .task {
+            await viewModel.loadInitial(using: feedService, accessFeatures: session.accessFeatures)
+        }
+        // 로그인·로그아웃, 그리고 내 정보에서 무장애 요소를 고쳤을 때 추천을 다시 받는다.
+        .onChange(of: session.accessFeatures) { _, features in
+            Task { await viewModel.applyAccessFeatures(features, using: feedService) }
+        }
         // 게시글은 리뷰와 별도 요청이다 — 한 task 에 이어 붙이면 뒤엣것이 앞의 응답을 기다린다.
         .task { await viewModel.loadPosts(using: postService) }
+        // 로그인·로그아웃이 일어나면 게시글을 다시 받는다 — 하트가 눌린 상태는 **보는 사람**에
+        //  달려 있어서, 로그인만 하고 목록을 그대로 두면 내가 누른 글이 빈 하트로 남는다.
+        .onChange(of: session.phase) { Task { await viewModel.loadPosts(using: postService) } }
     }
 
     // MARK: - 헤더
@@ -98,12 +114,8 @@ struct HomeView: View {
                 }
                 .accessibilityLabel(notificationStore.hasUnread ? "알림, 새 알림 있음" : "알림")
 
-                Button {} label: {
-                    Image("hamburger")
-                        .renderingMode(.template)
-                        .frame(width: 25, height: 25)
-                }
-                .accessibilityLabel("메뉴")
+                // 계정(로그인·로그아웃·이메일 인증)으로 가는 문. 네 탭이 같은 자리를 쓴다.
+                AccountMenuButton()
             }
             .foregroundStyle(.textPrimary)
         }
@@ -119,12 +131,17 @@ struct HomeView: View {
     /// Figma: #CAF354 → 흰색 그라디언트 (히어로 카드 하단 부근에서 흰색 도달)
     private var heroSection: some View {
         VStack(spacing: 0) {
-            if let hero = viewModel.hero {
-                HeroCard(recommendation: hero)
-                    .padding(.horizontal, Spacing.xl)
-                    .padding(.top, Spacing.m)
-                    .padding(.bottom, Spacing.xl)
-            }
+            // 카드 내용이 전부 계정에서 온다 — 받아 올 것이 없으니 조건 없이 그린다.
+            //  (예전에는 번들 JSON 의 hero 를 기다렸고, 그 사이 카드 자리가 비어 있었다.)
+            HeroCard(
+                userName: session.account?.nickname,
+                // 로그인했으면 계정 값, 아니면 기기에 있는 온보딩 값(`SessionStore.accessFeatures`).
+                accessFeatures: session.accessFeatures,
+                onSignIn: { session.prompt = .recommendation }
+            )
+            .padding(.horizontal, Spacing.xl)
+            .padding(.top, Spacing.m)
+            .padding(.bottom, Spacing.xl)
         }
         .frame(maxWidth: .infinity)
         .background(
@@ -217,9 +234,13 @@ struct HomeView: View {
                 }
             }
 
-            if viewModel.canLoadMoreReviews {
+            // 후기와 게시글을 함께 이어 받는다 — 한 섹션에 섞여 있으니 한쪽만 늘면 안 된다.
+            if viewModel.canLoadMoreFeed {
                 LoadMoreButton(title: "리뷰 더보기") {
-                    Task { await viewModel.loadMoreReviews(using: feedService) }
+                    Task {
+                        await viewModel.loadMoreFeed(
+                            feedService: feedService, postService: postService)
+                    }
                 }
             }
         }
@@ -282,4 +303,5 @@ struct HomeView: View {
 #Preview {
     HomeView()
         .environment(NotificationStore())
+        .environment(SessionStore(service: MockAuthService()))
 }

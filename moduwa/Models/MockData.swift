@@ -2,12 +2,6 @@ import Foundation
 
 /// API 연동 전까지 사용하는 목 데이터 — 내용은 Figma 메인화면 시안 그대로
 enum MockData {
-    static let heroRecommendation = HeroRecommendation(
-        userName: "모두와",
-        headline: "휠체어로 이동하기 좋은 코스를 추천드려요",
-        caption: "같은 태그의 여행자들이 추천한 코스예요",
-        tags: ["#경사로", "#휠체어", "#효도여행"]
-    )
 
     static let recommendedPlaces: [Place] = [
         Place(
