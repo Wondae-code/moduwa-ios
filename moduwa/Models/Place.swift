@@ -71,6 +71,23 @@ enum AccessibilityFeature: String, Sendable, Decodable {
         }
     }
 
+    /// 서버 `/v1/barrier-free?access=` 가 아는 그룹 이름(백엔드 015 의 4개 플래그).
+    ///
+    /// `nil` 은 **서버가 그 축을 모른다**는 뜻이다:
+    /// - `elderlyFriendly` — 관광공사 원본에 고령자 친화라는 축이 없다. 휠체어로 근사하면
+    ///   "고령자 친화 = 휠체어"라는 틀린 말이 되므로 필터에 넣지 않는다.
+    /// - `flatPath`·`barrierFreeRoom` — 서버 속성에서 파생되는 **표시용** 값이라 사람이 고르는
+    ///   축이 아니다(`AccessibilityChoiceRow.choices` 에 없다).
+    var serverAccessGroup: String? {
+        switch self {
+        case .wheelchairAccessible: "wheelchair"
+        case .visuallyImpairedFriendly: "visual"
+        case .hearingFriendly: "hearing"
+        case .childFriendly: "infant"
+        case .elderlyFriendly, .flatPath, .barrierFreeRoom: nil
+        }
+    }
+
     /// 뱃지 아이콘 (Figma 접근성 아이콘 5종)
     var iconName: String {
         switch self {

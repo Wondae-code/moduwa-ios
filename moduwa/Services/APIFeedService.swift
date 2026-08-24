@@ -52,15 +52,45 @@ struct APIFeedService: FeedService {
         let message: String?
     }
 
+    /// API 키 + **로그인했으면 세션 토큰**을 붙인 요청.
+    ///
+    /// 두 헤더는 서로 다른 질문에 답한다 — 키는 "이 앱이 호출해도 되는가", 세션은
+    /// "이 요청이 누구인가"다(`ModuwaAPI`). 세션을 빼먹으면 쓰기는 401 이고, 목록은 성공하지만
+    /// 하트가 누른 글에서도 빈 상태로 그려진다.
+    private func authorized(_ url: URL) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        ModuwaAPI.attachSession(to: &request)
+        return request
+    }
+
+    /// 실패 응답을 사용자에게 보여 줄 오류로 바꾼다.
+    ///
+    /// 401 은 두 뜻이라 갈라야 한다 — 아직 로그인하지 않았는지(`login_required`),
+    /// 토큰이 낡았는지(`session_expired`). 후자는 `ModuwaAPI` 가 토큰을 버리고 화면에 알린다.
+    private func failure(status: Int, data: Data) -> FeedServiceError {
+        let body = try? JSONDecoder().decode(ErrorResponse.self, from: data)
+        switch ModuwaAPI.authFailure(status: status, code: body?.error) {
+        case .loginRequired: return .loginRequired
+        case .expired: return .sessionExpired
+        case nil: break
+        }
+        if let message = body?.message, !message.isEmpty { return .server(message: message) }
+        return .writeUnsupported
+    }
+
     private func get<T: Decodable>(_ path: String, _ query: [URLQueryItem] = []) async throws -> T {
         guard !apiKey.isEmpty else { throw APIError.notConfigured }
         var comps = URLComponents(url: baseURL.appending(path: path), resolvingAgainstBaseURL: false)!
         if !query.isEmpty { comps.queryItems = query }
-        var req = URLRequest(url: comps.url!)
-        req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        let (data, resp) = try await session.data(for: req)
+        let (data, resp) = try await session.data(for: authorized(comps.url!))
         guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            throw APIError.badStatus((resp as? HTTPURLResponse)?.statusCode ?? -1)
+            let status = (resp as? HTTPURLResponse)?.statusCode ?? -1
+            // 로그인 문제는 그대로 알려야 한다. 개인 데이터 조회(`/v1/saved-places`)가 401 인데
+            //  일반 실패로 뭉개면 화면이 "불러오지 못했어요"를 띄우고, 사용자는 로그인하면
+            //  된다는 것을 알 수 없다.
+            if status == 401 { throw failure(status: status, data: data) }
+            throw APIError.badStatus(status)
         }
         return try JSONDecoder().decode(T.self, from: data)
     }
@@ -70,11 +100,6 @@ struct APIFeedService: FeedService {
         return list.items
     }
 
-    // MARK: - Hero (서버 소스 없음 → 번들)
-
-    func fetchHeroRecommendation() async throws -> HeroRecommendation {
-        try await fallback.fetchHeroRecommendation()
-    }
 
     // MARK: - Places
 
@@ -83,11 +108,29 @@ struct APIFeedService: FeedService {
         let title: String?
         let addr1: String?
         let firstimage: String?
+        // 이동 그룹
         let wheelchair: String?
         let room: String?
         let route: String?
         let elevator: String?
         let restroom: String?
+        // 시각·청각·영유아 그룹. 서버는 목록 응답에도 28속성을 전부 싣는데 앱이 이동 계열만
+        //  읽고 있었다 — 그래서 무엇을 고르든 카드가 휠체어 뱃지와 휠체어 문구만 보여 줬다.
+        var braileblock: String? = nil
+        var audioguide: String? = nil
+        var guidehuman: String? = nil
+        var brailepromotion: String? = nil
+        var bigprint: String? = nil
+        var guidesystem: String? = nil
+        var blindhandicapetc: String? = nil
+        var signguide: String? = nil
+        var videoguide: String? = nil
+        var hearingroom: String? = nil
+        var hearinghandicapetc: String? = nil
+        var stroller: String? = nil
+        var lactationroom: String? = nil
+        var babysparechair: String? = nil
+        var infantsfamilyetc: String? = nil
         /// 저장 목록에서만 쓴다 — 홈 피드는 어느 카테고리를 요청했는지 알고 부르지만
         /// 저장 목록은 종류가 섞여 오므로 응답의 타입으로 판단해야 섹션을 나눌 수 있다.
         var contenttypeid: String? = nil
@@ -114,10 +157,10 @@ struct APIFeedService: FeedService {
     ///
     /// ⚠️ 폴백이 없다. 저장한 장소는 사용자가 만든 데이터라 번들에 대신할 원본이 없다 —
     /// 실패는 화면이 오류+재시도로 알린다(`APIPlanService` 와 같은 규칙).
-    func fetchSavedPlaces() async throws -> [Place] {
-        let dtos: [BarrierFreeDTO] = try await getItems("/v1/saved-places", [
-            .init(name: "deviceId", value: ReviewAuthorStore.deviceId),
-        ])
+    func fetchSavedPlaces(accessFeatures: [AccessibilityFeature]) async throws -> [Place] {
+        // 소유자는 **세션의 계정**이다. deviceId 를 싣던 자리인데, 그 값은 이제 신원이 아니다
+        //  (아는 사람이 남의 저장 목록을 볼 수 있던 경로였다 — 백엔드 030).
+        let dtos: [BarrierFreeDTO] = try await getItems("/v1/saved-places", [])
         return dtos.compactMap { dto in
             guard let id = dto.contentid,
                   let name = dto.title?.trimmingCharacters(in: .whitespaces), !name.isEmpty
@@ -126,7 +169,9 @@ struct APIFeedService: FeedService {
             let img = (dto.firstimage ?? "").replacingOccurrences(of: "http://", with: "https://")
             // 접근성 한 줄을 못 고르면 카드 마지막 줄이 빌 뿐이다 — 홈 피드처럼 장소를 버리지
             // 않는다. 사용자가 직접 저장한 것이라 앱이 임의로 감출 수 없다.
-            let picked = Self.pickFeature(dto, category)
+            // 홈과 같은 기준으로 뱃지·문구를 고른다 — 같은 장소가 탭마다 다른 뱃지로
+            //  보이면, 어느 쪽이 그 장소에 대한 사실인지 알 수 없다.
+            let picked = Self.pickFeature(dto, category, preferring: accessFeatures)
             return Place(
                 id: id,
                 name: name,
@@ -142,37 +187,42 @@ struct APIFeedService: FeedService {
 
     func setPlaceSaved(contentId: String, _ saved: Bool) async throws {
         guard !apiKey.isEmpty else { throw FeedServiceError.writeUnsupported }
-        var comps = URLComponents(
-            url: baseURL.appending(path: "/v1/saved-places/\(contentId)"),
-            resolvingAgainstBaseURL: false)!
-        comps.queryItems = [.init(name: "deviceId", value: ReviewAuthorStore.deviceId)]
-        var req = URLRequest(url: comps.url!)
+        var req = authorized(baseURL.appending(path: "/v1/saved-places/\(contentId)"))
         req.httpMethod = saved ? "PUT" : "DELETE"
-        req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
         let (data, resp) = try await session.data(for: req)
         guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            let message = (try? JSONDecoder().decode(ErrorResponse.self, from: data))?.message
-            throw message.map { FeedServiceError.server(message: $0) } ?? .writeUnsupported
+            throw failure(status: (resp as? HTTPURLResponse)?.statusCode ?? -1, data: data)
         }
     }
 
-    func fetchRecommendedPlaces(category: PlaceCategory, page: Int) async throws -> [Place] {
+    func fetchRecommendedPlaces(
+        category: PlaceCategory, page: Int, accessFeatures: [AccessibilityFeature]
+    ) async throws -> [Place] {
         do {
             // ⚠️ `hasImage`를 걸지 않는다. 걸면 무장애 장소 5곳 중 1곳(2,045/10,262)이 홈에서
             //  통째로 빠진다 — 그런데 사진 유무로 접근성 정보량이 갈리지 않는다(2026-08-16 측정:
             //  무사진 평균 4.0 / 유사진 4.4, 최대 둘 다 18). 사진이 없다는 건 관광공사가 사진을
             //  안 올렸다는 뜻일 뿐이라, 무장애 여행 앱에서 그걸로 후보를 지울 이유가 없다.
             //  대신 서버의 `access` 정렬이 감점 3으로 뒤로 민다(백엔드 a153987).
-            let dtos: [BarrierFreeDTO] = try await getItems("/v1/barrier-free", [
+            var query: [URLQueryItem] = [
                 .init(name: "type", value: typeId(category)),
                 .init(name: "hasAccess", value: "true"),
                 .init(name: "limit", value: "\(FeedPage.placeSize)"),
                 .init(name: "offset", value: "\(page * FeedPage.placeSize)"),
-            ])
+            ]
+            // 고른 무장애 요소로 좁힌다. 서버가 모르는 축(고령자 친화)은 여기서 빠진다 —
+            //  보내 봐야 서버가 무시하고, 무엇으로 좁혔는지 화면과 어긋나게 된다.
+            let groups = accessFeatures.compactMap(\.serverAccessGroup)
+            if !groups.isEmpty {
+                query.append(.init(name: "access", value: groups.joined(separator: ",")))
+            }
+            let dtos: [BarrierFreeDTO] = try await getItems("/v1/barrier-free", query)
             let places: [Place] = dtos.compactMap { dto in
                 guard let id = dto.contentid, let name = dto.title?.trimmingCharacters(in: .whitespaces), !name.isEmpty,
-                      let picked = Self.pickFeature(dto, category) else { return nil }
+                      // 목록을 좁힌 것과 **같은 기준**으로 뱃지·문구를 고른다.
+                      let picked = Self.pickFeature(dto, category, preferring: accessFeatures)
+                else { return nil }
                 let img = (dto.firstimage ?? "").replacingOccurrences(of: "http://", with: "https://")
                 return Place(
                     id: id,
@@ -187,7 +237,9 @@ struct APIFeedService: FeedService {
             }
             return places
         } catch {
-            return try await fallback.fetchRecommendedPlaces(category: category, page: page)
+            // 번들 폴백에는 무장애 요소별 목록이 없다 — 좁히지 못한 채로라도 보여 준다.
+            return try await fallback.fetchRecommendedPlaces(
+                category: category, page: page, accessFeatures: [])
         }
     }
 
@@ -252,9 +304,8 @@ struct APIFeedService: FeedService {
     func fetchPlaceDetail(contentId: String) async throws -> PlaceDetail {
         do {
             guard !apiKey.isEmpty else { throw APIError.notConfigured }
-            var req = URLRequest(url: baseURL.appending(path: "/v1/barrier-free/\(contentId)"))
-            req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-            let (data, resp) = try await session.data(for: req)
+            let (data, resp) = try await session.data(
+                for: authorized(baseURL.appending(path: "/v1/barrier-free/\(contentId)")))
             guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
                 throw APIError.badStatus((resp as? HTTPURLResponse)?.statusCode ?? -1)
             }
@@ -473,9 +524,8 @@ struct APIFeedService: FeedService {
         }
         body.append("--\(boundary)--\r\n")
 
-        var req = URLRequest(url: baseURL.appending(path: "/v1/reviews/images"))
+        var req = authorized(baseURL.appending(path: "/v1/reviews/images"))
         req.httpMethod = "POST"
-        req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         req.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         req.httpBody = body
 
@@ -494,8 +544,9 @@ struct APIFeedService: FeedService {
         let locationNm: String
         let rating: Int
         let body: String
-        let authorNm: String
-        let deviceId: String
+        /// 계정 닉네임을 갱신한다. 사용자가 직접 정한 이름만 담고, 아니면 nil —
+        /// 서버는 nil 이면 계정에 이미 있는 닉네임을 그대로 쓴다.
+        let authorNm: String?
         let tags: [String]
         /// **nil이면 키 자체가 빠진다**(`JSONEncoder`의 기본 동작) — 서버는 그때 `null`로 저장하고
         /// 별점으로 추측하지 않는다. 미응답을 false로 바꿔 보내면 "다시 오지 않겠다"가 되어 버린다.
@@ -503,11 +554,11 @@ struct APIFeedService: FeedService {
         let imageURLs: [String]
     }
 
+    /// **로그인 필수**다(백엔드 030). 작성자는 세션의 계정이고, 비로그인 요청은 401 이다.
     func submitReview(_ draft: ReviewDraft) async throws {
         guard !apiKey.isEmpty else { throw FeedServiceError.writeUnsupported }
-        var req = URLRequest(url: baseURL.appending(path: "/v1/reviews"))
+        var req = authorized(baseURL.appending(path: "/v1/reviews"))
         req.httpMethod = "POST"
-        req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try JSONEncoder().encode(
             ReviewCreateBody(
@@ -515,8 +566,7 @@ struct APIFeedService: FeedService {
                 locationNm: draft.placeName,
                 rating: draft.rating,
                 body: draft.body,
-                authorNm: draft.nickname,
-                deviceId: draft.deviceId,
+                authorNm: draft.nickname.isEmpty ? nil : draft.nickname,
                 tags: draft.tags,
                 wouldRevisit: draft.wouldRevisit,
                 imageURLs: draft.imageURLs.map(\.absoluteString)
@@ -525,8 +575,7 @@ struct APIFeedService: FeedService {
         let (data, resp) = try await session.data(for: req)
         guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             // 400대는 서버가 무엇이 잘못됐는지 한국어로 알려 준다 — 그대로 사용자에게 보여 준다.
-            let message = (try? JSONDecoder().decode(ErrorResponse.self, from: data))?.message
-            throw message.map { FeedServiceError.server(message: $0) } ?? .writeUnsupported
+            throw failure(status: (resp as? HTTPURLResponse)?.statusCode ?? -1, data: data)
         }
     }
 
@@ -576,29 +625,22 @@ struct APIFeedService: FeedService {
         /// 사용자가 실제로 정한 이름만 담는다. nil 이면 키 자체가 빠지고(Optional 은 encodeIfPresent 로
         /// 인코딩된다) 서버가 이 기기의 기존 닉네임을 그대로 재사용한다.
         let authorNm: String?
-        let deviceId: String
     }
 
-    func submitReviewComment(
-        reviewId: Int, body: String, authorNm: String?, deviceId: String
-    ) async throws {
+    /// **로그인 필수**다. 작성자는 세션의 계정이라 `deviceId` 를 싣지 않는다.
+    func submitReviewComment(reviewId: Int, body: String, authorNm: String?) async throws {
         guard !apiKey.isEmpty else { throw FeedServiceError.writeUnsupported }
-        var req = URLRequest(url: baseURL.appending(path: "/v1/reviews/\(reviewId)/comments"))
+        var req = authorized(baseURL.appending(path: "/v1/reviews/\(reviewId)/comments"))
         req.httpMethod = "POST"
-        req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try JSONEncoder().encode(
-            CommentCreateBody(body: body, authorNm: authorNm, deviceId: deviceId)
+            CommentCreateBody(body: body, authorNm: authorNm)
         )
 
         let (data, resp) = try await session.data(for: req)
         guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             // 빈 본문·1000자 초과 등은 서버가 한국어 사유로 400을 준다 — 그대로 보여 준다.
-            let failure = try? JSONDecoder().decode(ErrorResponse.self, from: data)
-            // 이 기기의 첫 작성이라 서버가 닉네임을 요구하는 경우만 따로 구분한다 —
-            // 호출부가 표시명을 정해 한 번 더 시도할 수 있게.
-            if failure?.error == "missing_authorNm" { throw FeedServiceError.nicknameRequired }
-            throw failure?.message.map { FeedServiceError.server(message: $0) } ?? .writeUnsupported
+            throw failure(status: (resp as? HTTPURLResponse)?.statusCode ?? -1, data: data)
         }
         // 생성된 댓글 본문은 쓰지 않는다. 호출부가 목록을 다시 받아 `total`까지 함께 맞춘다.
     }
@@ -695,23 +737,94 @@ struct APIFeedService: FeedService {
         return t
     }
 
-    /// 뱃지 우선순위: 휠체어 > (숙소)무장애 객실 > 평탄 동선(접근로/엘리베이터/화장실) > 객실
-    private static func pickFeature(_ dto: BarrierFreeDTO, _ category: PlaceCategory) -> (feature: AccessibilityFeature, note: String)? {
-        let wheelchair = cleanNote(dto.wheelchair)
-        let room = cleanNote(dto.room)
-        let route = cleanNote(dto.route)
-        let elevator = cleanNote(dto.elevator)
-        let restroom = cleanNote(dto.restroom)
+    /// 카드에 그릴 뱃지와 한 줄 설명.
+    ///
+    /// **고른 무장애 요소가 있으면 그 축을 먼저 본다.** 시각 지원을 고른 사람에게 "휠체어 대여
+    /// 가능"을 보여 주면, 목록은 시각 기준으로 걸러 놓고 카드는 다른 이야기를 하는 셈이다 —
+    /// 무엇을 보고 고른 목록인지 알 수 없게 된다(2026-08-23 지적).
+    ///
+    /// 고른 축에 쓸 문구가 없으면 기존 우선순위로 떨어진다:
+    /// 휠체어 > (숙소)무장애 객실 > 평탄 동선(접근로/엘리베이터/화장실) > 객실.
+    /// 고령자 친화는 대응 속성이 서버에 없어(`serverAccessGroup` 참고) 여기서도 건너뛴다.
+    private static func pickFeature(
+        _ dto: BarrierFreeDTO, _ category: PlaceCategory,
+        preferring features: [AccessibilityFeature] = []
+    ) -> (feature: AccessibilityFeature, note: String)? {
+        for feature in features {
+            if let picked = note(for: feature, dto) { return (feature, picked) }
+        }
+        return defaultFeature(dto, category)
+    }
 
-        if let wheelchair {
-            let note = wheelchair.contains("휠체어") ? wheelchair : "휠체어 \(wheelchair)"
+    /// 고른 축의 속성 중 **먼저 쓸 만한 것**을 한 줄로. 순서는 카드에서 읽었을 때 쓸모 있는 순이다.
+    ///
+    /// 각 속성에 사람이 읽을 이름을 함께 둔다 — 원문이 "대여가능"이나 "Y" 처럼 주어 없이
+    /// 오는 경우가 많아, 그것만 보여 주면 무엇에 대한 말인지 알 수 없다.
+    private static func note(for feature: AccessibilityFeature, _ dto: BarrierFreeDTO) -> String? {
+        // (원문, 이름, 이름을 앞에 붙일지). 마지막 값이 false 인 것은 "기타" 칸이다 —
+        //  거기에는 이미 완성된 문장이 들어와("시각경보기 있음") 이름을 붙이면 오히려 읽기 나쁘다.
+        let candidates: [(String?, String, Bool)]
+        switch feature {
+        case .wheelchairAccessible, .flatPath, .barrierFreeRoom:
+            candidates = [(dto.wheelchair, "휠체어", true), (dto.route, "접근로", true),
+                          (dto.elevator, "엘리베이터", true), (dto.restroom, "장애인 화장실", true),
+                          (dto.room, "장애인 객실", true)]
+        case .visuallyImpairedFriendly:
+            candidates = [(dto.audioguide, "음성 안내", true), (dto.braileblock, "점자블록", true),
+                          (dto.guidehuman, "안내 요원", true), (dto.brailepromotion, "점자 안내판", true),
+                          (dto.bigprint, "큰 활자 안내물", true), (dto.guidesystem, "유도·안내 설비", true),
+                          (dto.blindhandicapetc, "시각 편의", false)]
+        case .hearingFriendly:
+            candidates = [(dto.signguide, "수어 안내", true), (dto.videoguide, "자막 영상 안내", true),
+                          (dto.hearingroom, "청각장애인 객실", true),
+                          (dto.hearinghandicapetc, "청각 편의", false)]
+        case .childFriendly:
+            candidates = [(dto.stroller, "유모차", true), (dto.lactationroom, "수유실", true),
+                          (dto.babysparechair, "아기 의자", true),
+                          (dto.infantsfamilyetc, "영유아 편의", false)]
+        case .elderlyFriendly:
+            // 서버에 대응 축이 없다. 아무 문구나 붙이면 "고령자 친화라서 고른 곳"으로 읽힌다.
+            return nil
+        }
+        return candidates.lazy.compactMap { describe($0.0, label: $0.1, prefixes: $0.2) }.first
+    }
+
+    /// 원문 한 칸을 카드 한 줄로.
+    ///
+    /// 세 가지 모양이 섞여 온다:
+    /// - 서술("자막 비디오 가이드 있음") → 그대로. 주어가 빠졌으면(`"대여가능"`) 이름을 붙인다.
+    /// - 플래그 `Y`(예: `hearingroom` 은 Y/N 만 들어 있다) → `"청각장애인 객실 있음"` 으로 만든다.
+    /// - 플래그 `N` → ⚠️ **없다는 뜻이라 건너뛴다.** 서버는 값이 채워졌는지(`is not null`)만 보고
+    ///   세므로, 여기서 거르지 않으면 "없음"을 장점처럼 카드에 띄우게 된다.
+    private static func describe(_ raw: String?, label: String, prefixes: Bool = true) -> String? {
+        guard let text = cleanNote(raw) else { return nil }
+        let compact = text.replacingOccurrences(of: " ", with: "")
+        switch compact.uppercased() {
+        case "N", "NO", "없음", "불가", "불가능": return nil
+        case "Y", "YES", "있음", "가능", "O": return "\(label) 있음"
+        default: break
+        }
+        // 이미 그 이름이 들어 있으면 그대로 둔다("유모차 대여 가능함").
+        guard prefixes, !compact.contains(label.replacingOccurrences(of: " ", with: "")) else { return text }
+        // 주어가 빠진 값이 흔하다("대여가능(무료)", "위치 : 관리사무소 옆") — 무엇에 대한
+        //  말인지 앞에 붙여야 카드 한 줄만 읽고도 뜻이 통한다.
+        return "\(label) \(text)"
+    }
+
+    /// 고른 축이 없거나 그 축에 쓸 값이 없을 때. 뱃지 우선순위는 예전과 같다.
+    private static func defaultFeature(
+        _ dto: BarrierFreeDTO, _ category: PlaceCategory
+    ) -> (feature: AccessibilityFeature, note: String)? {
+        if let note = describe(dto.wheelchair, label: "휠체어") {
             return (.wheelchairAccessible, note)
         }
-        if category == .stay, let room { return (.barrierFreeRoom, room) }
-        if let route { return (.flatPath, route) }
-        if let elevator { return (.flatPath, elevator.contains("엘리베이터") ? elevator : "엘리베이터 \(elevator)") }
-        if let restroom { return (.flatPath, restroom) }
-        if let room { return (.barrierFreeRoom, room) }
+        if category == .stay, let note = describe(dto.room, label: "장애인 객실") {
+            return (.barrierFreeRoom, note)
+        }
+        if let note = describe(dto.route, label: "접근로") { return (.flatPath, note) }
+        if let note = describe(dto.elevator, label: "엘리베이터") { return (.flatPath, note) }
+        if let note = describe(dto.restroom, label: "장애인 화장실") { return (.flatPath, note) }
+        if let note = describe(dto.room, label: "장애인 객실") { return (.barrierFreeRoom, note) }
         return nil
     }
 
