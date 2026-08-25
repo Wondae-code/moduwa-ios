@@ -71,6 +71,22 @@ enum AccessibilityFeature: String, Sendable, Decodable {
         }
     }
 
+    /// **내가 어떤 사람인지**를 고르는 자리에서 쓰는 이름 — 온보딩 무장애정보 입력,
+    /// 마이페이지의 "내 무장애정보"(시안 868:317 / 821:103).
+    ///
+    /// `label` 과 나누는 이유: `label` 은 **장소**를 설명하는 말이다("휠체어 접근"은 그 장소의
+    /// 성질이다). 사람을 고르는 화면에 그 말을 쓰면 "나는 휠체어 접근이다"가 되어 어색하고,
+    /// 시안도 그 자리에서만 "지체장애·시각장애·청각장애"로 적는다.
+    var selfLabel: String {
+        switch self {
+        case .wheelchairAccessible, .flatPath, .barrierFreeRoom: "지체장애"
+        case .visuallyImpairedFriendly: "시각장애"
+        case .hearingFriendly: "청각장애"
+        case .elderlyFriendly: "고령자"
+        case .childFriendly: "유아동반"
+        }
+    }
+
     /// 서버 `/v1/barrier-free?access=` 가 아는 그룹 이름(백엔드 015 의 4개 플래그).
     ///
     /// `nil` 은 **서버가 그 축을 모른다**는 뜻이다:

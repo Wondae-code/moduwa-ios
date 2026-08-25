@@ -27,9 +27,11 @@ final class GoogleSignInFlow: NSObject, ASWebAuthenticationPresentationContextPr
 
         var errorDescription: String? {
             switch self {
-            case .notConfigured: "지금은 구글 로그인을 쓸 수 없어요."
+            case .notConfigured: "지금은 Google 로그인을 쓸 수 없어요."
             case .cancelled: nil
-            case .failed(let reason): reason.isEmpty ? "구글 로그인에 실패했어요." : reason
+            // 버튼에 적힌 이름과 같이 "Google" 로 쓴다 — 한 화면에서 "Google"과 "구글"을
+            //  섞으면 같은 것을 두 이름으로 배우게 된다.
+            case .failed(let reason): reason.isEmpty ? "Google 로그인에 실패했어요." : reason
             }
         }
     }
@@ -132,12 +134,12 @@ final class GoogleSignInFlow: NSObject, ASWebAuthenticationPresentationContextPr
         }
         // 사용자가 구글 화면에서 거부한 경우. 취소와 같게 다룬다.
         if value("error") == "access_denied" { throw Failure.cancelled }
-        if let error = value("error") { throw Failure.failed("구글이 거부했어요 (\(error)).") }
+        if let error = value("error") { throw Failure.failed("Google이 거부했어요 (\(error)).") }
         guard value("state") == expectedState else {
             throw Failure.failed("로그인 응답이 요청과 맞지 않아요. 다시 시도해 주세요.")
         }
         guard let code = value("code"), !code.isEmpty else {
-            throw Failure.failed("구글이 인증 코드를 주지 않았어요.")
+            throw Failure.failed("Google이 인증 코드를 주지 않았어요.")
         }
         return code
     }
@@ -172,18 +174,18 @@ final class GoogleSignInFlow: NSObject, ASWebAuthenticationPresentationContextPr
         do {
             (data, _) = try await urlSession.data(for: request)
         } catch {
-            throw Failure.failed("구글에 연결하지 못했어요. 네트워크 상태를 확인해 주세요.")
+            throw Failure.failed("Google에 연결하지 못했어요. 네트워크 상태를 확인해 주세요.")
         }
 
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         guard let response = try? decoder.decode(TokenResponse.self, from: data) else {
-            throw Failure.failed("구글 응답을 읽지 못했어요.")
+            throw Failure.failed("Google 응답을 읽지 못했어요.")
         }
         if let idToken = response.idToken, !idToken.isEmpty { return idToken }
         // 사유는 개발자용 문구라 그대로 보여 주지 않는다. 로그에만 남긴다.
         print("[google] 토큰 교환 실패: \(response.error ?? "?") \(response.errorDescription ?? "")")
-        throw Failure.failed("구글 로그인을 마치지 못했어요. 다시 시도해 주세요.")
+        throw Failure.failed("Google 로그인을 마치지 못했어요. 다시 시도해 주세요.")
     }
 
     // MARK: - 값 만들기

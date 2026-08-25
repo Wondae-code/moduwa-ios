@@ -640,7 +640,7 @@ struct ReviewComposeView: View {
             // 성공한 뒤에만 기기에 남긴다 — 실패한 이름을 굳혀 두면 다시 물을 기회가 없다.
             savedNickname = resolvedNickname
             // 서버는 받은 이름으로 **계정 닉네임을 갱신한다.** 그 사실을 계정 화면에도 반영한다 —
-            //  한 곳만 고치면 "내 계정"에 옛 이름이 남는다.
+            //  한 곳만 고치면 마이페이지에 옛 이름이 남는다.
             session.noteNicknameChanged(resolvedNickname)
             // 성공했을 때만 호출부에 알린다 — 실패한 후기를 목록에 끼워 넣으면 안 된다.
             onSubmit(draft)

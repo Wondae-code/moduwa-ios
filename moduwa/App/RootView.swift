@@ -39,7 +39,15 @@ struct RootView: View {
         .tint(.deepGreen)
         // 저장해 둔 토큰이 아직 쓸 수 있는지 한 번 확인한다. 실패를 로그아웃으로 단정하지
         //  않는다 — 비행기에서 앱을 켰다고 로그아웃시키면 안 된다(`SessionStore.bootstrap`).
-        .task { await session.bootstrap() }
+        //
+        // **온보딩이 끝난 뒤에 확인한다.** 한 뷰가 시트와 전체화면을 동시에 띄울 수는 없어서,
+        //  첫 실행에 저장된 토큰이 만료돼 있으면(`bootstrap` → `prompt = .sessionExpired`)
+        //  로그인 시트가 먼저 자리를 잡고 **온보딩이 아예 뜨지 않는다**(실측). 온보딩 동안은
+        //  계정을 알 필요도 없다 — 고른 값은 기기에 남는다.
+        .task(id: isOnboardingPresented) {
+            guard !isOnboardingPresented else { return }
+            await session.bootstrap()
+        }
         // 로그아웃하면 이 기기의 화면을 비운다. 세션이 화면을 직접 알면 의존이 거꾸로 흐르므로
         //  여기서 한 번 꽂아 둔다.
         .onAppear {
@@ -47,12 +55,22 @@ struct RootView: View {
         }
         // 쓰기 진입점이 비로그인이면 이 시트가 뜬다(`SessionStore.requireSignIn`).
         //  세션이 만료돼 쫓겨난 경우도 같은 자리로 온다.
+        //
+        // `item:` 에는 **저장소의 바인딩을 그대로** 넘긴다. 온보딩 중 시트를 막으려고 여기서
+        //  `Binding(get:set:)` 을 만들어 끼우고 싶어지지만, 그러면 시트 안 `NavigationStack` 의
+        //  경로가 화면 갱신마다 흔들릴 위험을 감수하게 된다 — 막을 일은 위의 `task` 에서
+        //  **부팅 확인을 미루는 것**으로 끝난다.
         .sheet(item: $session.prompt) { prompt in
             AuthFlowView(prompt: prompt)
         }
         // 온보딩은 로그인을 요구하지 않는다 — 고른 값은 기기에 있다가 가입할 때 계정으로 간다.
         .fullScreenCover(isPresented: $isOnboardingPresented) {
-            OnboardingView { isOnboardingPresented = false }
+            OnboardingView { outcome in
+                isOnboardingPresented = false
+                // 마지막 장에서 "여행계획 짜러가기"를 골랐다(시안 868:777). 온보딩이 물어 놓고
+                //  홈에 떨어뜨리면 사용자가 플랜 탭을 다시 찾아야 한다.
+                if outcome == .planTrip { selection = .plan }
+            }
         }
     }
 

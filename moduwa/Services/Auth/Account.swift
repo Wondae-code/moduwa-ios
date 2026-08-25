@@ -27,6 +27,8 @@ struct Account: Identifiable, Hashable, Sendable {
 /// 서버가 `{error, message}` 로 사유 코드와 한국어 문구를 함께 준다. 문구는 그대로 쓰고,
 /// 코드는 화면이 다르게 움직여야 하는 경우에만 케이스로 만든다 —
 /// 예: `emailTaken` 은 로그인 화면으로 보내야 하고, `sessionExpired` 는 토큰을 지워야 한다.
+/// 문구는 **시안의 용어를 따른다** — 온보딩·로그인 시안(868:150)은 6자리 숫자를 한결같이
+/// "인증코드"로 부른다. 앱이 "인증번호"라고 부르면 같은 것을 두 이름으로 배우게 된다.
 enum AuthError: LocalizedError, Equatable {
     /// API 키가 없어 서버를 부를 수 없다(로컬 설정 문제).
     case notConfigured
@@ -69,9 +71,9 @@ enum AuthError: LocalizedError, Equatable {
         case .tooManyAttempts: "시도가 많았어요. 잠시 후 다시 시도해 주세요."
         case .loginRequired: "로그인이 필요해요."
         case .sessionExpired: "로그인이 만료됐어요. 다시 로그인해 주세요."
-        case .invalidCode: "인증번호가 올바르지 않아요."
-        case .codeExpired: "인증번호가 만료됐어요. 다시 받아 주세요."
-        case .codeAttemptsExceeded: "인증번호를 여러 번 틀렸어요. 다시 받아 주세요."
+        case .invalidCode: "인증코드가 일치하지 않습니다."
+        case .codeExpired: "인증코드가 만료됐어요. 다시 받아 주세요."
+        case .codeAttemptsExceeded: "인증코드를 여러 번 틀렸어요. 다시 받아 주세요."
         case .resendTooSoon(let seconds): "\(seconds)초 후에 다시 받을 수 있어요."
         case .server(let message): message
         }

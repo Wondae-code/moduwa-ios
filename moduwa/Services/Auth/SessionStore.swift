@@ -105,10 +105,14 @@ final class SessionStore {
         return result
     }
 
+    /// - Parameter keepSignedIn: 시안 868:773 "로그인 상태 유지". 껐으면 토큰을 키체인에
+    ///   남기지 않아 앱을 다시 켜면 비로그인이다(`SessionTokenStore.save(_:persist:)`).
+    ///   **가입·소셜은 이 선택을 묻지 않는다** — 시안에도 그 자리에 체크박스가 없고,
+    ///   방금 계정을 만든 사람을 다음 실행에서 로그아웃시킬 이유가 없다.
     @discardableResult
-    func signIn(email: String, password: String) async throws -> AuthSession {
+    func signIn(email: String, password: String, keepSignedIn: Bool = true) async throws -> AuthSession {
         let result = try await service.signIn(email: email, password: password)
-        adopt(result)
+        adopt(result, persist: keepSignedIn)
         return result
     }
 
@@ -130,7 +134,7 @@ final class SessionStore {
     /// 사용자가 **글을 쓰면서 표시 이름을 바꿨다.** 서버는 `authorNm` 을 받으면 계정 닉네임을
     /// 갱신하므로, 그 사실을 앱의 두 곳(메모리의 계정, 입력칸 기본값)에 함께 반영한다.
     ///
-    /// 한 곳만 고치면 어긋난다 — 후기에서 이름을 바꿨는데 "내 계정"에는 옛 이름이 남는다.
+    /// 한 곳만 고치면 어긋난다 — 후기에서 이름을 바꿨는데 마이페이지에는 옛 이름이 남는다.
     func noteNicknameChanged(_ nickname: String) {
         let trimmed = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -215,9 +219,9 @@ final class SessionStore {
     /// 로그인·가입 성공을 받아들인다.
     ///
     /// ⚠️ 여기서 `prompt` 를 비우지 않는다 — 비우면 시트가 즉시 닫혀서, 가입 직후에 이어야 하는
-    /// **인증번호 화면으로 갈 자리가 없어진다.** 닫는 시점은 화면이 정한다.
-    private func adopt(_ result: AuthSession) {
-        SessionTokenStore.shared.save(result.token)
+    /// **인증코드 화면으로 갈 자리가 없어진다.** 닫는 시점은 화면이 정한다.
+    private func adopt(_ result: AuthSession, persist: Bool = true) {
+        SessionTokenStore.shared.save(result.token, persist: persist)
         account = result.account
         phase = .signedIn
         mirrorNickname(result.account.nickname)

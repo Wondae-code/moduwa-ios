@@ -43,11 +43,21 @@ final class SessionTokenStore: @unchecked Sendable {
 
     /// 로그인·가입 성공 시 저장한다. 토큰 원문은 **그 응답에서 한 번만** 나오므로
     /// 여기서 놓치면 다시 받을 방법이 없다.
-    func save(_ token: String) {
+    ///
+    /// - Parameter persist: 앱을 껐다 켜도 로그인 상태를 유지할지 (시안 868:773
+    ///   "로그인 상태 유지" 체크박스). `false` 면 키체인에 **쓰지 않고** 이 프로세스 동안만
+    ///   메모리에 든다 — 앱을 다시 켜면 비로그인이다. 껐을 때 예전에 저장해 둔 토큰까지
+    ///   지우는 이유: 남겨 두면 "유지 안 함"으로 로그인했는데 다음 실행에서 옛 세션이
+    ///   되살아난다.
+    func save(_ token: String, persist: Bool = true) {
         lock.lock()
         defer { lock.unlock() }
         cached = .some(token)
-        writeKeychain(token)
+        if persist {
+            writeKeychain(token)
+        } else {
+            deleteKeychain()
+        }
     }
 
     /// 로그아웃. 서버 폐기 요청이 실패해도 기기에서는 지운다 —

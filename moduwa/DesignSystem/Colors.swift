@@ -32,6 +32,12 @@ extension Color {
     static let cardStroke = Color(hex: 0xE6E6E6)
     /// Gray 5% — 사진 플레이스홀더 배경
     static let photoPlaceholder = Color(hex: 0xF2F2F2)
+
+    /// 입력 오류 — 온보딩·로그인 시안(2026-08-24)에서 처음 등장한 색.
+    ///
+    /// 이 앱의 강조색은 초록이라 오류에도 딥그린을 쓰고 있었는데, 새 시안은 **틀린 입력 칸의
+    /// 보더와 그 아래 한 줄을 빨강으로** 그린다 — 초록으로는 "이 칸이 틀렸다"를 전할 수 없다.
+    static let errorRed = Color(hex: 0xBF1414)
 }
 
 // .foregroundStyle(.deepGreen) 같은 축약 문법을 쓰기 위한 포워딩
@@ -45,4 +51,5 @@ extension ShapeStyle where Self == Color {
     static var iconGray: Color { .iconGray }
     static var cardStroke: Color { .cardStroke }
     static var photoPlaceholder: Color { .photoPlaceholder }
+    static var errorRed: Color { .errorRed }
 }

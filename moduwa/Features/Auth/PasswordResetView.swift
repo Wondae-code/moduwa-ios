@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 비밀번호 찾기 — 주소 입력 → 6자리 인증번호 + 새 비밀번호.
+/// 비밀번호 찾기 — 주소 입력 → 6자리 인증코드 + 새 비밀번호.
 ///
 /// ⚠️ **가입 여부를 알려주지 않는다.** 서버가 없는 주소에도 같은 성공 응답을 주므로
 /// 이 화면도 "가입된 주소라면 보냈어요"까지만 말한다. 여기서 갈리면 그것만으로 가입된
@@ -38,7 +38,7 @@ struct PasswordResetView: View {
                 case .email:
                     AuthHeader(
                         title: "비밀번호 찾기",
-                        subtitle: "가입한 이메일 주소를 넣어 주세요. 6자리 인증번호를 보내 드려요."
+                        subtitle: "가입한 이메일 주소를 넣어 주세요. 6자리 인증코드를 보내 드려요."
                     )
                     AuthField(
                         title: "이메일",
@@ -53,7 +53,7 @@ struct PasswordResetView: View {
                 case .code:
                     AuthHeader(
                         title: "새 비밀번호",
-                        subtitle: "가입된 주소라면 인증번호를 보냈어요. 메일의 6자리 숫자와 새 비밀번호를 넣어 주세요."
+                        subtitle: "가입된 주소라면 인증코드를 보냈어요. 메일의 6자리 숫자와 새 비밀번호를 넣어 주세요."
                     )
                     CodeField(code: $code)
                     AuthField(
@@ -83,7 +83,7 @@ struct PasswordResetView: View {
             AuthErrorLine(message: errorMessage)
 
             AuthPrimaryButton(
-                title: step == .email ? "인증번호 받기" : "비밀번호 바꾸기",
+                title: step == .email ? "인증코드 받기" : "비밀번호 바꾸기",
                 isEnabled: canSubmit,
                 isBusy: isBusy
             ) {
@@ -110,7 +110,7 @@ struct PasswordResetView: View {
                 withoutAnimation { step = .code }
                 UIAccessibility.post(
                     notification: .announcement,
-                    argument: "가입된 주소라면 인증번호를 보냈어요. 인증번호와 새 비밀번호를 넣어 주세요.")
+                    argument: "가입된 주소라면 인증코드를 보냈어요. 인증코드와 새 비밀번호를 넣어 주세요.")
 
             case .code:
                 try await session.resetPassword(
