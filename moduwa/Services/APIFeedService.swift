@@ -136,6 +136,9 @@ struct APIFeedService: FeedService {
         var contenttypeid: String? = nil
         /// 저장 목록에서만 온다. barrier_free 에 없는 값이라 서버가 후기에서 집계해 얹어 준다.
         var avgRating: Double? = nil
+        // 2026-08-24 추가. 고령자 판정 결과(평면). boolean 이라 문구는 판정 근거 속성
+        //  (승강기·주차)에서 뽑는다(note(for:.elderlyFriendly) 참고).
+        var parking: String? = nil
     }
 
     /// contentTypeId → 앱 카테고리. `typeId(_:)`의 역이다.
@@ -670,6 +673,7 @@ struct APIFeedService: FeedService {
             let visual: Bool?
             let hearing: Bool?
             let infant: Bool?
+            var elderly: Bool? = nil   // 2026-08-24 추가
         }
 
         let contentId: String
@@ -721,6 +725,7 @@ struct APIFeedService: FeedService {
         if access.visual == true { result.append(.visuallyImpairedFriendly) }
         if access.hearing == true { result.append(.hearingFriendly) }
         if access.infant == true { result.append(.childFriendly) }
+        if access.elderly == true { result.append(.elderlyFriendly) }
         return result
     }
 
@@ -800,8 +805,9 @@ struct APIFeedService: FeedService {
                           (dto.babysparechair, "아기 의자", true),
                           (dto.infantsfamilyetc, "영유아 편의", false)]
         case .elderlyFriendly:
-            // 서버에 대응 축이 없다. 아무 문구나 붙이면 "고령자 친화라서 고른 곳"으로 읽힌다.
-            return nil
+            // 서버는 boolean 으로만 판정을 주므로(휠체어 대여·이동보조·승강기·주차 중 하나),
+            //  판정 근거가 되는 속성의 원문을 문구로 쓴다. 하나도 없으면 축을 켤 수 없다.
+            candidates = [(dto.elevator, "승강기", true), (dto.parking, "주차", true)]
         }
         return candidates.lazy.compactMap { describe($0.0, label: $0.1, prefixes: $0.2) }.first
     }

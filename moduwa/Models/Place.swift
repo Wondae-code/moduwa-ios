@@ -90,17 +90,20 @@ enum AccessibilityFeature: String, Sendable, Decodable {
     /// 서버 `/v1/barrier-free?access=` 가 아는 그룹 이름(백엔드 015 의 4개 플래그).
     ///
     /// `nil` 은 **서버가 그 축을 모른다**는 뜻이다:
-    /// - `elderlyFriendly` — 관광공사 원본에 고령자 친화라는 축이 없다. 휠체어로 근사하면
-    ///   "고령자 친화 = 휠체어"라는 틀린 말이 되므로 필터에 넣지 않는다.
-    /// - `flatPath`·`barrierFreeRoom` — 서버 속성에서 파생되는 **표시용** 값이라 사람이 고르는
-    ///   축이 아니다(`AccessibilityChoiceRow.choices` 에 없다).
+    /// `flatPath`·`barrierFreeRoom` 은 서버 속성에서 파생되는 **표시용** 값이라 사람이 고르는
+    /// 축이 아니다(`AccessibilityChoiceRow.choices` 에 없다).
+    ///
+    /// 고령자는 오래 `nil` 이었다 — 예전 서버가 관광공사 5유형 중 4개만 써서 축이 없었다.
+    /// 2026-08-24 에 `elderly` 가 추가됐다(휠체어 대여·이동보조기기·승강기·주차 중 하나로 판정,
+    /// 전국 6,231곳). 이제 다른 축과 똑같이 좁혀진다.
     var serverAccessGroup: String? {
         switch self {
         case .wheelchairAccessible: "wheelchair"
         case .visuallyImpairedFriendly: "visual"
         case .hearingFriendly: "hearing"
         case .childFriendly: "infant"
-        case .elderlyFriendly, .flatPath, .barrierFreeRoom: nil
+        case .elderlyFriendly: "elderly"
+        case .flatPath, .barrierFreeRoom: nil
         }
     }
 

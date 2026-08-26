@@ -48,6 +48,8 @@ struct APISearchService: PlaceSearchService {
             let visual: Bool
             let hearing: Bool
             let infant: Bool
+            // 2026-08-24 추가. 구버전 응답엔 없으니 옵셔널 — 없으면 false.
+            var elderly: Bool? = nil
         }
 
         let contentid: String
@@ -139,6 +141,7 @@ struct APISearchService: PlaceSearchService {
             access.visual ? .visuallyImpairedFriendly : nil,
             access.hearing ? .hearingFriendly : nil,
             access.infant ? .childFriendly : nil,
+            (access.elderly ?? false) ? .elderlyFriendly : nil,
         ].compactMap { $0 }
 
         guard let primary = features.first else {
