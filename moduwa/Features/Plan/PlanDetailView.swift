@@ -673,7 +673,9 @@ private struct PlanStopRow: View {
                 if let destination {
                     NavigationLink(value: destination) { placeInfo }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("\(place.name), \(place.subtitle)")
+                        .accessibilityLabel(
+                            "\(place.name), \(place.subtitle)"
+                            + (place.isUnsurveyed ? ", 무장애 정보 없음" : ""))
                         .accessibilityHint("장소 상세를 봅니다")
                 } else {
                     placeInfo
@@ -718,17 +720,33 @@ private struct PlanStopRow: View {
     private var placeInfo: some View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(place.name)
-                    .font(.notoSans(16, .medium, relativeTo: .headline))
-                    .tracking(-0.064)
-                    .foregroundStyle(Color.textPrimary)
+                HStack(spacing: 6) {
+                    Text(place.name)
+                        .font(.notoSans(16, .medium, relativeTo: .headline))
+                        .tracking(-0.064)
+                        .foregroundStyle(Color.textPrimary)
+                        .lineLimit(1)
+
+                    // 추천 코스가 소도시 식사·카페 자리를 채우려고 넣은, 무장애 조사를 안 받은 곳.
+                    //  ⚠️ "접근 불가"가 아니라 "모른다"다 — 회색 중립 톤으로, "정보 없음" 문구로.
+                    //  카드 높이(57)가 고정이라 줄을 늘리지 않고 이름 옆에 둔다.
+                    if place.isUnsurveyed {
+                        Text("정보 없음")
+                            .font(.notoSans(11, .medium, relativeTo: .caption))
+                            .foregroundStyle(Color.iconGray)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(Color.photoPlaceholder))
+                            .fixedSize()
+                    }
+                }
 
                 Text(place.subtitle)
                     .font(.notoSans(14, .regular, relativeTo: .subheadline))
                     .tracking(-0.056)
                     .foregroundStyle(Color.textSecondary)
+                    .lineLimit(1)
             }
-            .lineLimit(1)
 
             Spacer(minLength: 8)
         }

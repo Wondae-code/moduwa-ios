@@ -401,6 +401,9 @@ struct APIPlanService: PlanService {
         let imageURL: String?
         let latitude: Double?
         let longitude: Double?
+        /// 서버가 `contentID` 로 도출해 GET 응답에만 싣는다. 저장 요청에서는 nil 이라
+        /// 인코딩에서 키가 빠진다(서버가 어차피 무시하지만 굳이 보내지 않는다).
+        let hasAccessInfo: Bool?
 
         init(_ place: PlanPlace) {
             contentID = place.contentID
@@ -411,6 +414,7 @@ struct APIPlanService: PlanService {
             imageURL = place.imageURL?.absoluteString
             latitude = place.latitude
             longitude = place.longitude
+            hasAccessInfo = nil   // 저장 요청에는 싣지 않는다
         }
 
         var place: PlanPlace {
@@ -424,7 +428,8 @@ struct APIPlanService: PlanService {
                 category: PlaceCategory.allCases.first { $0.apiKey == category },
                 imageURL: URL(imageAddress: imageURL),
                 latitude: latitude,
-                longitude: longitude
+                longitude: longitude,
+                hasAccessInfo: hasAccessInfo
             )
         }
     }

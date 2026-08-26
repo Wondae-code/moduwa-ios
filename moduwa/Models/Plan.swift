@@ -491,9 +491,22 @@ struct PlanPlace: Hashable, Sendable, Codable {
     var latitude: Double?
     var longitude: Double?
 
+    /// 이 장소가 무장애 조사를 받았는지(`GET /v1/plans/:id` 의 `place.hasAccessInfo`).
+    ///
+    /// 서버가 `contentID` 로 매번 도출하므로 저장 요청에는 싣지 않는다(보내도 무시된다).
+    /// 추천 코스가 소도시 식사·카페 자리를 채우려고 미조사 음식점까지 넣기 때문에 생긴 필드다.
+    ///
+    /// ⚠️ **`false` 는 "접근 불가"가 아니라 "모른다"** — 관광공사가 아직 조사하지 않은 곳이다.
+    /// 조사되면 서버가 자동으로 `true` 로 바꿔 준다. `nil` 은 이 필드를 모르는 응답(구버전·목·나만의 장소).
+    var hasAccessInfo: Bool? = nil
+
     /// 목록에 없어 사용자가 직접 추가한 "나만의 장소". 상세 화면의 두 가지 표현이 모두 여기서 갈린다 —
     /// 번호 뱃지가 라임(딥그린 대신)으로 뜨고, 리뷰 버튼이 사라진다.
     var isCustom: Bool { contentID == nil }
+
+    /// 무장애 정보가 없다고 **명시적으로** 밝혀야 하는 경우.
+    /// nil(모르는 응답)이나 나만의 장소는 아니다 — 서버가 false 로 준 조사 미완료만.
+    var isUnsurveyed: Bool { hasAccessInfo == false && !isCustom }
 
     /// 리뷰 버튼 노출 여부. 나만의 장소는 관광공사 원본이 없어 리뷰를 붙일 대상이 없다.
     var showsReviewAction: Bool { !isCustom }
