@@ -51,6 +51,9 @@ enum CourseNote: String, Sendable {
     case noCongestionData = "no_congestion_data"
     /// 후보가 적어 일부 칸이 비었다.
     case thinPool = "thin_pool"
+    /// 무장애 조사를 받지 않은 식당·카페가 섞였다(소도시에서 식사·카페 자리를 채우려고).
+    /// **`false`는 "접근성이 나쁘다"가 아니라 "모른다"** — 문구도 그렇게 쓴다.
+    case includesUnsurveyed = "includes_unsurveyed"
 
     /// 사용자에게 보여 줄 문구. `nil` 이면 알릴 필요가 없는 것이다.
     var message: String? {
@@ -60,6 +63,7 @@ enum CourseNote: String, Sendable {
         // 혼잡도는 화면에 드러나지 않는 값이라(v1) 없다고 알릴 것도 없다.
         case .noCongestionData: nil
         case .thinPool: "이 지역은 아직 등록된 장소가 적어 일부 시간대를 비워 뒀어요. 상세에서 직접 채울 수 있어요."
+        case .includesUnsurveyed: "일부 식당·카페는 아직 무장애 조사를 받지 않았어요. 접근성 정보가 없는 곳이 섞여 있어요."
         }
     }
 }
