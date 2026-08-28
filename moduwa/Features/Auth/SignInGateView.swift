@@ -17,6 +17,8 @@ struct SignInGateView: View {
     /// "이메일로 시작하기" — 이메일 로그인 폼으로.
     var onEmail: () -> Void
     var onSignUp: () -> Void
+    /// 로그인을 그만두고 시트를 닫는다.
+    var onClose: () -> Void
 
     @Environment(SessionStore.self) private var session
 
@@ -74,6 +76,21 @@ struct SignInGateView: View {
         .background(.white)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        // ⚠️ **여기에 버튼이 있어야 뒤 화면이 흔들리지 않는다.** 이 화면은 시트 안
+        //  `NavigationStack` 의 뿌리인데, 바가 완전히 비면 SwiftUI 가 높이를 거의 0으로
+        //  접는다. 그 상태에서 "회원가입"을 밀어 넣으면 뒤로가기 버튼이 생기면서 바가 펴지고,
+        //  들어오는 화면이 **잠깐 위에 있다가 아래로 내려앉는다**(실기기 확인).
+        //  닫기 버튼은 그 높이를 처음부터 잡아 두고, 시트를 내려서만 나갈 수 있던 길도 없앤다.
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(.textPrimary)
+                }
+                .accessibilityLabel("로그인 닫기")
+            }
+        }
     }
 
     private enum Provider { case google, kakao }
@@ -106,7 +123,7 @@ struct SignInGateView: View {
 
 #Preview("로그인 관문") {
     NavigationStack {
-        SignInGateView(onSignedIn: {}, onEmail: {}, onSignUp: {})
+        SignInGateView(onSignedIn: {}, onEmail: {}, onSignUp: {}, onClose: {})
     }
     .environment(SessionStore(service: MockAuthService()))
 }
@@ -114,7 +131,8 @@ struct SignInGateView: View {
 #Preview("쓰기에서 막힌 경우") {
     NavigationStack {
         SignInGateView(
-            reason: AuthPrompt.writePost.message, onSignedIn: {}, onEmail: {}, onSignUp: {})
+            reason: AuthPrompt.writePost.message,
+            onSignedIn: {}, onEmail: {}, onSignUp: {}, onClose: {})
     }
     .environment(SessionStore(service: MockAuthService()))
 }

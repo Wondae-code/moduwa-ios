@@ -33,7 +33,8 @@ struct AuthFlowView: View {
                 reason: notice ?? prompt.message,
                 onSignedIn: { dismiss() },
                 onEmail: { path.append(.signIn) },
-                onSignUp: { path.append(.signUp) }
+                onSignUp: { path.append(.signUp) },
+                onClose: { dismiss() }
             )
             .navigationDestination(for: Route.self) { route in
                 destination(route)
