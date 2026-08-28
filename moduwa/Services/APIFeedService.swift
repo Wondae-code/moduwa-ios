@@ -278,6 +278,8 @@ struct APIFeedService: FeedService {
         let firstimage: String?
         let mapx: Double?
         let mapy: Double?
+        /// 서버가 kakao_place 매칭으로 준 카카오맵 장소 상세 링크(M6). 매칭 안 되면 null.
+        var kakaoPlaceUrl: String? = nil
         // kor_detail enrich (구 서버 호환을 위해 전부 옵셔널)
         let overview: String?
         let homepage: String?
@@ -374,7 +376,9 @@ struct APIFeedService: FeedService {
                 accessibilityGroups: accessibilityGroups,
                 cautionTags: [],
                 latitude: dto.mapy,
-                longitude: dto.mapx
+                longitude: dto.mapx,
+                // 서버가 이미 https 로 정규화해 주지만(A14), 기존 규칙과 일관되게 한 번 더 올려도 무해하다.
+                kakaoPlaceURL: URL(imageAddress: dto.kakaoPlaceUrl)
             )
         } catch {
             return try await fallback.fetchPlaceDetail(contentId: contentId)
