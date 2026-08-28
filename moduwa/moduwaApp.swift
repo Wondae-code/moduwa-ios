@@ -46,6 +46,8 @@ struct moduwaApp: App {
     /// 장소 상세의 저장 버튼과 저장 탭이 공유하는 상태. 한쪽에서 누른 결과가 다른 쪽에
     /// 곧바로 보여야 해서 화면마다 따로 받지 않는다.
     @State private var savedPlacesStore = SavedPlacesStore(service: APIFeedService())
+    /// 게시글 좋아요가 저장 탭에 곧바로 반영되도록 잇는 전역 신호.
+    @State private var postSignal = PostInteractionSignal()
 
     var body: some Scene {
         WindowGroup {
@@ -64,6 +66,7 @@ struct moduwaApp: App {
                 .environment(notificationStore)
                 // 계정·세션. 쓰기 진입점이 이걸 보고 로그인 창을 띄운다.
                 .environment(sessionStore)
+                .environment(postSignal)
                 .environment(\.authService, APIAuthService())
         }
     }

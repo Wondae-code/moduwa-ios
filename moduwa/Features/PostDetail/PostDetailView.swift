@@ -12,6 +12,7 @@ struct PostDetailView: View {
 
     @Environment(\.postService) private var postService
     @Environment(SessionStore.self) private var session
+    @Environment(PostInteractionSignal.self) private var postSignal
     @Environment(\.dismiss) private var dismiss
     @AppStorage(ReviewAuthorStore.nicknameKey) private var savedNickname = ""
 
@@ -397,6 +398,8 @@ struct PostDetailView: View {
             synced.likeCount = result.likeCount
             synced.likedByMe = result.likedByMe
             detail = synced
+            // 저장 탭의 "좋아요한 게시물"이 이 변화를 받아 갈 기회다(A23).
+            postSignal.postLikeChanged()
         } catch {
             detail = before
         }
