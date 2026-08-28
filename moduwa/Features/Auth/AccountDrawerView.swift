@@ -3,6 +3,11 @@ import SwiftUI
 /// 마이페이지 — 홈 헤더의 햄버거에서 오른쪽에서 밀려 나오는 서랍
 /// (시안 821:103 "05. 마이페이지 - 로그인시").
 ///
+/// **`fullScreenCover` 로 띄우지 않는다.** 시트·전체화면은 아래에서 위로 올라오는 전환이
+/// 붙어 있어서, 안에서 패널을 오른쪽에서 밀어 넣어도 창 전체가 아래에서 올라오는 것으로
+/// 읽힌다(실기기 확인). `RootView` 가 이 뷰를 오버레이로 얹고
+/// (`AccountDrawerPresenter`), 어두워지는 배경과 패널이 각각 자기 전환을 갖는다.
+///
 /// 예전 판은 아래에서 올라오는 시트 하나에 계정·로그아웃·무장애 프로필을 모두 담았다.
 /// 새 시안은 **서랍(295pt) + 메뉴 목록**이고, 각 줄이 자기 화면으로 들어간다.
 /// 시안 값: 검은 오버레이 75%, 흰 패널 295, 아바타 100(라임 30%), 닉네임 24 Bold,
@@ -13,57 +18,67 @@ import SwiftUI
 /// 변경과 같은 자리가 맞고, 서랍 첫 화면에 파괴적이지 않은 동작을 하나만 튀게 둘 이유가 없다.
 struct AccountDrawerView: View {
     @Environment(SessionStore.self) private var session
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.accountDrawer) private var drawer
 
-    private enum Route: Hashable {
+    /// 서랍의 각 줄이 여는 화면.
+    private enum Row: Hashable, Identifiable {
         case accessProfile, accountInfo, myPosts, accessibility, settings, guide
         case helpCenter, terms, profileEdit
-        /// 회원정보 수정 안에서 이어지는 두 화면. 경로를 **서랍 하나가** 쥐어야 뒤로 가기가
-        /// 어긋나지 않는다(`AccountInfoView` 는 자기 스택을 만들지 않는다).
-        case verifyEmail, resetPassword
+
+        var id: Self { self }
     }
 
-    @State private var path: [Route] = []
-    /// 패널이 들어와 있는지. `fullScreenCover` 는 아래에서 올라오므로 내용은 투명하게
-    /// 시작하고 여기서 오른쪽에서 밀어 넣는다 — 서랍은 옆에서 나와야 서랍으로 읽힌다.
-    @State private var isOpen = false
+    /// 회원정보 수정 **안에서** 이어지는 화면들. 목적지 안의 스택이 쥔다.
+    private enum SubRoute: Hashable { case verifyEmail, resetPassword }
 
-    private static let panelWidth: CGFloat = 295
+    @State private var row: Row?
+    @State private var subPath: [SubRoute] = []
+
+    static let panelWidth: CGFloat = 295
     private static let rowInset: CGFloat = 24
 
     var body: some View {
-        NavigationStack(path: $path) {
-            drawer
-                .navigationDestination(for: Route.self) { destination($0) }
-        }
+        // ⚠️ 서랍을 `NavigationStack` 으로 감싸지 않는다. 스택은 **자기 배경(시스템 배경색)을
+        //  깔기 때문에** 어두워지는 층 아래가 그 흰 배경이 되어 뒤의 앱이 보이지 않는다
+        //  (실측: 왼쪽이 균일한 회색). iOS 18 의 `containerBackground(for: .navigation)` 으로
+        //  지울 수 있지만 이 앱의 최소 버전은 17 이다.
+        //
+        //  그래서 서랍은 어두운 배경 + 패널뿐이고, 각 줄이 여는 화면은 **전체화면으로 따로**
+        //  띄운다. 서랍은 그 뒤에 남아 있어 닫으면 제자리로 돌아온다.
+        drawerBody
+            .fullScreenCover(item: $row) { row in
+                destination(row)
+            }
     }
 
     // MARK: - 서랍
 
-    private var drawer: some View {
+    private var drawerBody: some View {
         ZStack(alignment: .trailing) {
+            // 배경은 서서히 어두워지고 패널은 오른쪽에서 들어온다.
             Color.black
-                .opacity(isOpen ? 0.75 : 0)
+                .opacity(drawer.isPresented ? 0.75 : 0)
                 .ignoresSafeArea()
-                .onTapGesture { close() }
+                .onTapGesture { drawer.close() }
                 .accessibilityLabel("닫기")
                 .accessibilityAddTraits(.isButton)
-                .accessibilityAction { close() }
+                .accessibilityAction { drawer.close() }
 
+            // **삽입 전환(`.transition`)이 아니라 오프셋으로 민다.** 전환은 뷰가 계층에
+            //  들어오고 나가는 순간에만 붙고, 그 순간을 놓치면(상위에서 애니메이션 없이
+            //  값이 바뀌면) 아무 움직임 없이 툭 나타난다. 오프셋은 값이 변하기만 하면
+            //  언제나 따라 움직인다 — 서랍은 열고 닫는 방향이 보여야 서랍이다.
             panel
                 .frame(width: Self.panelWidth)
                 .background(Color.white.ignoresSafeArea())
-                .offset(x: isOpen ? 0 : Self.panelWidth)
+                .offset(x: drawer.isPresented ? 0 : Self.panelWidth)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // 루트는 서랍 자체다 — 네비게이션 바가 보이면 오버레이 위에 흰 띠가 앉는다.
-        .toolbar(.hidden, for: .navigationBar)
-        .onAppear { withAnimation(.easeOut(duration: 0.25)) { isOpen = true } }
     }
 
     private var panel: some View {
         VStack(spacing: 0) {
-            Button(action: close) {
+            Button { drawer.close() } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 20, weight: .medium))
                     .foregroundStyle(.textPrimary)
@@ -110,7 +125,7 @@ struct AccountDrawerView: View {
                 .padding(.top, 14)
                 .accessibilityAddTraits(.isHeader)
 
-            Button { path.append(.profileEdit) } label: {
+            Button { row = .profileEdit } label: {
                 Text("프로필 편집")
                     .font(.notoSans(14, relativeTo: .subheadline))
                     .foregroundStyle(.textSecondary)
@@ -161,7 +176,7 @@ struct AccountDrawerView: View {
         let feature = session.accessFeatures.first ?? .wheelchairAccessible
         let size = feature.iconSize(height: 22)
         return DrawerRow(title: "내 무장애정보 편집", showsDivider: false) {
-            path.append(.accessProfile)
+            row = .accessProfile
         } leading: {
             Circle()
                 .fill(Color.deepGreen)
@@ -181,20 +196,20 @@ struct AccountDrawerView: View {
     private var menu: some View {
         VStack(spacing: 0) {
             if session.account != nil {
-                DrawerRow(title: "회원정보 수정") { path.append(.accountInfo) }
-                DrawerRow(title: "내 게시글") { path.append(.myPosts) }
+                DrawerRow(title: "회원정보 수정") { row = .accountInfo }
+                DrawerRow(title: "내 게시글") { row = .myPosts }
             }
-            DrawerRow(title: "접근성") { path.append(.accessibility) }
-            DrawerRow(title: "설정") { path.append(.settings) }
-            DrawerRow(title: "이용 가이드", showsDivider: false) { path.append(.guide) }
+            DrawerRow(title: "접근성") { row = .accessibility }
+            DrawerRow(title: "설정") { row = .settings }
+            DrawerRow(title: "이용 가이드", showsDivider: false) { row = .guide }
         }
         .padding(.horizontal, Self.rowInset)
     }
 
     private var footer: some View {
         HStack(spacing: 0) {
-            footerLink("고객센터") { path.append(.helpCenter) }
-            footerLink("서비스 약관") { path.append(.terms) }
+            footerLink("고객센터") { row = .helpCenter }
+            footerLink("서비스 약관") { row = .terms }
         }
         .padding(.bottom, Spacing.s)
     }
@@ -221,28 +236,39 @@ struct AccountDrawerView: View {
 
     // MARK: - 목적지
 
+    /// 줄 하나가 여는 전체화면. 자기 `NavigationStack` 을 갖는다 — 화면 제목과 "회원정보 수정
+    /// → 이메일 인증" 같은 안쪽 이동이 여기서 일어난다. 서랍은 이 화면 뒤에 그대로 남는다.
+    private func destination(_ row: Row) -> some View {
+        NavigationStack(path: $subPath) {
+            rowScreen(row)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button { closeDestination() } label: {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundStyle(.textPrimary)
+                        }
+                        .accessibilityLabel("마이페이지로 돌아가기")
+                    }
+                }
+                .navigationDestination(for: SubRoute.self) { subScreen($0) }
+        }
+    }
+
     @ViewBuilder
-    private func destination(_ route: Route) -> some View {
-        switch route {
+    private func rowScreen(_ row: Row) -> some View {
+        switch row {
         case .accessProfile:
             AccessibilityProfileEditView(current: session.accessFeatures)
 
         case .accountInfo:
-            // 로그아웃이 여기 있다. 서랍을 닫아야 로그아웃 뒤에 남은 화면이 어긋나지 않는다.
+            // 로그아웃이 여기 있다. 이 화면과 서랍을 함께 닫아야 로그아웃 뒤에 남은 화면이
+            //  어긋나지 않는다.
             AccountInfoView(
-                onSignedOut: { close() },
-                onVerifyEmail: { path.append(.verifyEmail) },
-                onChangePassword: { path.append(.resetPassword) }
+                onSignedOut: { closeDestination(); drawer.close() },
+                onVerifyEmail: { subPath.append(.verifyEmail) },
+                onChangePassword: { subPath.append(.resetPassword) }
             )
-
-        case .verifyEmail:
-            EmailVerifyCodeView { path = [.accountInfo] }
-
-        case .resetPassword:
-            PasswordResetView { _ in
-                // 서버가 모든 세션을 끊었다 — 이 기기도 로그아웃 상태다.
-                close()
-            }
 
         // 준비 중 안내는 앱의 기존 틀을 그대로 쓴다 — "{이름}은 준비 중이에요" 한 줄
         //  (`ScheduleView`·`PlaceReviewsView` 와 같은 문장 모양). 여기에만 사연을 덧붙이면
@@ -264,6 +290,26 @@ struct AccountDrawerView: View {
         }
     }
 
+    @ViewBuilder
+    private func subScreen(_ route: SubRoute) -> some View {
+        switch route {
+        case .verifyEmail:
+            EmailVerifyCodeView { subPath.removeAll() }
+        case .resetPassword:
+            PasswordResetView { _ in
+                // 서버가 모든 세션을 끊었다 — 이 기기도 로그아웃 상태다.
+                closeDestination()
+                drawer.close()
+            }
+        }
+    }
+
+    /// 목적지를 닫는다. 안쪽 경로도 비워야 다음에 열 때 이전 화면이 남아 있지 않다.
+    private func closeDestination() {
+        subPath.removeAll()
+        row = nil
+    }
+
     private func comingSoon(_ title: String, _ symbol: String, _ message: String) -> some View {
         ComingSoonView(title: title, systemImage: symbol, message: message)
             .background(.white)
@@ -276,16 +322,7 @@ struct AccountDrawerView: View {
     /// 띄우는 시트 하나에 모여 있다. 서랍을 닫고 그 하나를 깨운다.
     private func startSignIn() {
         session.prompt = .direct
-        close()
-    }
-
-    /// 패널을 먼저 밀어 낸 뒤 시트를 닫는다 — 바로 닫으면 서랍이 아래로 툭 떨어진다.
-    private func close() {
-        withAnimation(.easeIn(duration: 0.2)) { isOpen = false }
-        Task {
-            try? await Task.sleep(for: .milliseconds(200))
-            dismiss()
-        }
+        drawer.close()
     }
 }
 
@@ -328,10 +365,9 @@ extension DrawerRow where Leading == EmptyView {
 }
 
 #Preview("마이페이지 — 로그인시") {
-    Color.gray
-        .fullScreenCover(isPresented: .constant(true)) {
-            AccountDrawerView()
-                .environment(SessionStore(service: MockAuthService()))
-                .presentationBackground(.clear)
-        }
+    ZStack {
+        Color.gray
+        AccountDrawerView()
+            .environment(SessionStore(service: MockAuthService()))
+    }
 }
