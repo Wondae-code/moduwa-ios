@@ -11,6 +11,8 @@ struct PlanDetailView: View {
     let plan: Plan
     /// 저장이 끝나면 갱신된 플랜을 목록에 돌려준다
     var onPlanSaved: (Plan) -> Void = { _ in }
+    /// 편집자가 이 플랜을 나갔다 — 목록에서도 지운다.
+    var onPlanLeft: (UUID) -> Void = { _ in }
 
     @Environment(\.planService) private var planService
     @Environment(\.dismiss) private var dismiss
@@ -31,6 +33,11 @@ struct PlanDetailView: View {
     @State private var selectedDayIndex = 0
     /// 후기를 보러 갈 장소. 별을 누르면 채워지고, 그때 후기 화면으로 밀려 올라간다.
     @State private var reviewTarget: PlanPlace?
+    /// 공유 플랜에서 다른 멤버가 먼저 저장했을 때(409) 띄우는 안내. 화면은 이미 최신본으로
+    /// 갈아 끼운 상태다 — 이 문구는 "내가 방금 한 편집은 반영되지 않았다"를 알린다.
+    @State private var conflictNotice: String?
+    /// 함께하기(초대·멤버) 시트.
+    @State private var isSharing = false
 
     /// 시트가 멈추는 세 자리. 값은 본문 높이에 대한 비율이다.
     ///  시안(509:340)은 본문 662 중 시트 365(≈55%)를 기본으로 두고, "Day별 view"(519:775)는
@@ -115,6 +122,16 @@ struct PlanDetailView: View {
         }
         .background(Color.appBackground)
         .toolbar(.hidden, for: .navigationBar)
+        // 공유 플랜 저장 충돌 안내. 화면은 이미 최신본으로 갈아 끼운 뒤라, 이 알림은
+        //  "방금 편집은 반영되지 않았으니 다시 해 달라"만 전한다.
+        .alert("플랜이 갱신됐어요", isPresented: Binding(
+            get: { conflictNotice != nil },
+            set: { if !$0 { conflictNotice = nil } }
+        )) {
+            Button("확인", role: .cancel) { conflictNotice = nil }
+        } message: {
+            Text(conflictNotice ?? "")
+        }
         .task { await load() }
         .navigationDestination(isPresented: $isEditing) {
             // 편집은 상세를 받은 뒤에만 열린다(`dayHeader` 참고) — 목록의 빈 일정으로 저장하면
@@ -158,6 +175,15 @@ struct PlanDetailView: View {
                 }
             }
         }
+        // 함께하기 — `current`(상세가 왔으면 그 값)로 멤버까지 넘긴다.
+        .sheet(isPresented: $isSharing) {
+            PlanShareView(
+                plan: current,
+                onMembersChanged: { await reload() },
+                // 편집자가 나가면 이 플랜은 더 내 것이 아니다 — 상세를 닫고 목록에서도 지운다.
+                onLeft: { onPlanLeft(plan.id); dismiss() }
+            )
+        }
     }
 
     // MARK: 로드 · 저장
@@ -173,17 +199,45 @@ struct PlanDetailView: View {
         }
     }
 
+    /// 멤버가 바뀐 뒤(강퇴) 상세를 다시 받는다 — `load()` 와 달리 이미 받은 것도 갱신한다.
+    private func reload() async {
+        guard let refreshed = try? await planService.fetchPlan(id: plan.id) else { return }
+        detail = refreshed
+        onPlanSaved(refreshed)
+    }
+
+    /// 저장의 공통 경로 — 성공하면 화면을 갱신하고, **공유 플랜 저장 충돌(409)** 이면
+    /// 서버가 준 최신본으로 갈아 끼운 뒤 안내만 남긴다.
+    ///
+    /// 충돌 때 오류를 다시 던지지 **않는** 이유: 던지면 편집 시트가 사유를 띄우고 낡은 편집을 쥔 채
+    /// 열려 있는데, 그 편집은 이미 최신본에 밀려 반영될 수 없다. 시트는 닫고(성공처럼) 상세를
+    /// 최신본으로 보여 준 뒤 알림으로 "다시 편집해 달라"만 전하는 게 서버 규칙과 맞는다.
+    @discardableResult
+    private func persist(_ target: Plan) async throws -> Plan {
+        do {
+            let saved = try await planService.savePlan(target, authorNm: nil)
+            detail = saved
+            onPlanSaved(saved)
+            return saved
+        } catch PlanServiceError.versionConflict(let latest) {
+            detail = latest
+            onPlanSaved(latest)
+            let notice = PlanServiceError.versionConflict(latest: latest).errorDescription
+            conflictNotice = notice
+            UIAccessibility.post(notification: .announcement, argument: notice ?? "")
+            return latest
+        }
+    }
+
     /// 편집 화면의 "완료". 실패는 그대로 던져 편집 화면이 사유를 띄우고 열린 채로 남게 한다 —
-    /// 여기서 삼키면 사용자는 저장된 줄 알고 나가 버린다.
+    /// 여기서 삼키면 사용자는 저장된 줄 알고 나가 버린다. (409 만은 `persist` 가 삼키고 안내한다.)
     private func save(_ days: [PlanDay]) async throws {
         // 상세를 못 받은 상태의 플랜으로 저장하면 서버의 일정이 지워진다.
         guard var target = detail else { throw PlanServiceError.unavailable }
         // 편집 화면은 여행 기간의 **모든** 날을 보여 준다(빈 날도 옮길 자리가 되어야 하므로).
         // 그대로 저장하면 아무것도 안 담긴 날이 서버에 생겨 타임라인에 줄줄이 남는다.
         target.days = days.filter { !$0.items.isEmpty }
-        let saved = try await planService.savePlan(target, authorNm: nil)
-        detail = saved
-        onPlanSaved(saved)
+        try await persist(target)
     }
 
     /// 제목만 바꾼다. **`detail` 로만 저장한다** — 목록에서 온 플랜(`days` 가 빈 배열)으로 부르면
@@ -192,9 +246,7 @@ struct PlanDetailView: View {
     private func renameTitle(to newTitle: String) async throws {
         guard var target = detail else { throw PlanServiceError.unavailable }
         target.title = newTitle
-        let saved = try await planService.savePlan(target, authorNm: nil)
-        detail = saved
-        onPlanSaved(saved)
+        try await persist(target)
     }
 
     /// 오갈 수 있는 날짜 — **여행 기간 전체**다. 화살표가 넘기는 범위이자 편집 화면에 넘기는 목록.
@@ -266,9 +318,7 @@ struct PlanDetailView: View {
             target.days.sort { $0.date < $1.date }
         }
 
-        let saved = try await planService.savePlan(target, authorNm: nil)
-        detail = saved
-        onPlanSaved(saved)
+        try await persist(target)
     }
 
     // MARK: 헤더
@@ -288,6 +338,16 @@ struct PlanDetailView: View {
             Spacer(minLength: 0)
 
             HStack(spacing: 12) {
+                // 함께하기 — 서버가 역할을 준(공동 편집을 지원하는) 플랜에만 그린다. 소유자는
+                //  초대·멤버 관리, 편집자는 멤버 보기·나가기. 구버전 서버(myRole 없음)에는 숨긴다.
+                if current.myRole != nil {
+                    Button { isSharing = true } label: {
+                        Image(systemName: "person.2.fill")
+                            .font(.system(size: 17, weight: .semibold))
+                    }
+                    .accessibilityLabel(
+                        current.isShared ? "함께하기, 멤버 \(current.members.count)명" : "함께하기")
+                }
                 // 돋보기는 **장소 추가와 같은 동작**이다(피그마 코멘트, 2026-08-16). 담을 장소를
                 //  찾는 일이라 하단 "장소 추가" 버튼과 목적지가 같다 — 헤더에서도 닿게 해 둔 것.
                 headerIcon("plan_search", size: 25) { isAddingPlace = true }

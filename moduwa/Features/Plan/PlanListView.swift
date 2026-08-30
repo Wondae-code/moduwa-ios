@@ -33,6 +33,10 @@ struct PlanListView: View {
     var onSaveParty: (Plan, TravelParty) async throws -> Void = { _, _ in }
     /// "일정에 추가" — 초안을 확정으로 올린다. 확인까지 받은 뒤에 불린다.
     var onConfirmPlan: (Plan) async throws -> Void = { _ in }
+    /// 편집자가 상세에서 플랜을 나갔다 — 목록에서 뺀다.
+    var onPlanLeft: (UUID) -> Void = { _ in }
+    /// 헤더의 "코드로 참여" — 초대 코드 입력 시트를 연다(호출부가 띄운다).
+    var onJoinByCode: () -> Void = {}
 
     @Environment(SessionStore.self) private var session
 
@@ -92,7 +96,7 @@ struct PlanListView: View {
         .background(Color.appBackground)
         .overlay(alignment: .bottom) { createPlanOverlay }
         .navigationDestination(for: Plan.self) {
-            PlanDetailView(plan: $0, onPlanSaved: onPlanSaved)
+            PlanDetailView(plan: $0, onPlanSaved: onPlanSaved, onPlanLeft: onPlanLeft)
         }
         // 6단계 플로우는 제 진행 바와 뒤로 버튼을 들고 있다 — 시트로 열면 그 위에 시스템 손잡이가
         // 겹치고 스와이프로 중간에 닫혀, 어디까지 답했는지 모르는 채 사라진다.
@@ -184,8 +188,17 @@ struct PlanListView: View {
 
             Spacer(minLength: 0)
 
-            // 메뉴는 아직 목적지가 없다 — 다른 화면의 준비 중 버튼과 같은 방식으로 알린다.
-            AccountMenuButton()
+            HStack(spacing: 16) {
+                // 초대 코드 수동 입력 — 링크가 앱을 못 열 때(카톡 인앱 웹뷰 등)의 폴백.
+                Button(action: onJoinByCode) {
+                    Image(systemName: "ticket")
+                        .font(.system(size: 18, weight: .semibold))
+                }
+                .accessibilityLabel("초대 코드로 참여")
+
+                // 메뉴 — 마이페이지 서랍을 연다.
+                AccountMenuButton()
+            }
         }
         .foregroundStyle(Color.textPrimary)
         .padding(.horizontal, 24)
@@ -325,12 +338,35 @@ private struct PlanCard: View {
             // 메뉴는 링크의 **형제**다. 카드 안에 넣으면 ⋮ 를 누른 손가락이 상세로도 들어간다.
             menu
         }
+        // 남이 나를 초대한 플랜에는 "함께" 배지를 단다(서버 myRole=editor). 소유자 플랜은
+        //  목록에서 공유 여부를 알 수 없어 달지 않는다(`Plan.isSharedWithMe`).
+        .overlay(alignment: .topLeading) {
+            if plan.isSharedWithMe { sharedBadge }
+        }
         // 지우는 동안 다시 누르지 못하게 한다 — 두 번째 요청은 404 로 돌아와 "실패"로 보인다.
         .disabled(isDeleting)
         .opacity(isDeleting ? 0.4 : 1)
         .overlay {
             if isDeleting { ProgressView().tint(.deepGreen) }
         }
+    }
+
+    /// "함께" 배지 — 초대받아 함께 편집하는 플랜임을 카드 좌상단에 알린다.
+    /// 딥그린 채움 + 흰 글씨라 사진 카드·회색 카드 어디서도 읽힌다.
+    private var sharedBadge: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "person.2.fill")
+                .font(.system(size: 10, weight: .semibold))
+            Text("함께")
+                .font(.notoSans(12, .bold))
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(Capsule().fill(Color.deepGreen))
+        .padding(.leading, 12)
+        .padding(.top, 12)
+        .accessibilityLabel("함께하는 플랜")
     }
 
     /// 시안 553:131 — "팀 수정" / "일정에 추가" / 삭제.

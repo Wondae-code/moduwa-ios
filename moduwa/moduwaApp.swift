@@ -48,6 +48,8 @@ struct moduwaApp: App {
     @State private var savedPlacesStore = SavedPlacesStore(service: APIFeedService())
     /// 게시글 좋아요가 저장 탭에 곧바로 반영되도록 잇는 전역 신호.
     @State private var postSignal = PostInteractionSignal()
+    /// 초대 링크·코드 수락을 잇는 우편함. 링크는 RootView 가 받고 수락은 플랜 탭이 한다.
+    @State private var inviteCoordinator = InviteCoordinator()
 
     var body: some Scene {
         WindowGroup {
@@ -67,6 +69,7 @@ struct moduwaApp: App {
                 // 계정·세션. 쓰기 진입점이 이걸 보고 로그인 창을 띄운다.
                 .environment(sessionStore)
                 .environment(postSignal)
+                .environment(\.inviteCoordinator, inviteCoordinator)
                 .environment(\.authService, APIAuthService())
         }
     }

@@ -32,6 +32,11 @@ struct APIPlanService: PlanService {
         let message: String?
     }
 
+    /// 409 version_conflict 응답. `latest` 에 최신 플랜 본문 전체가 상세와 같은 모양으로 온다.
+    private struct VersionConflictBody: Decodable {
+        let latest: PlanDTO
+    }
+
     private func data(for request: URLRequest) async throws -> Data {
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw PlanServiceError.unavailable }
@@ -47,6 +52,25 @@ struct APIPlanService: PlanService {
             // 이 기기의 첫 저장이라 표시 이름을 요구하는 경우만 따로 구분한다 —
             // 호출부가 이름을 정해 한 번 더 시도할 수 있게.
             if failure?.error == "missing_authorNm" { throw PlanServiceError.nicknameRequired }
+            // 공유 플랜 저장 충돌(409). 응답의 `latest` 에 최신 본문 전체가 실려 온다 —
+            //  다시 GET 하지 않고 그 값으로 화면을 갈아끼운다(서버 "플랜 공동 편집" 규칙).
+            //  member_limit 같은 다른 409 는 아래 서버 메시지 폴백이 받는다.
+            if http.statusCode == 409, failure?.error == "version_conflict",
+               let latest = try? JSONDecoder().decode(VersionConflictBody.self, from: data).latest.plan {
+                throw PlanServiceError.versionConflict(latest: latest)
+            }
+            // 편집자가 소유자 전용 기능을 시도한 경우. 403 이지만 forbidden(다른 기기 플랜)과
+            //  뜻이 달라 따로 가른다 — "만든 사람만 할 수 있어요"로 안내해야 한다.
+            if failure?.error == "owner_only" { throw PlanServiceError.ownerOnly }
+            // 초대·멤버 관련 사유. 서버 메시지 폴백보다 먼저 가른다 — 화면이 사유에 따라
+            //  다르게 움직인다(만료면 재발급 안내, 정원이면 더 못 받는다는 안내).
+            switch failure?.error {
+            case "invalid_code": throw PlanServiceError.invalidCode
+            case "invite_expired": throw PlanServiceError.inviteExpired
+            case "member_limit": throw PlanServiceError.memberLimit
+            case "owner_cannot_leave": throw PlanServiceError.ownerCannotLeave
+            default: break
+            }
             // 서버가 무엇이 잘못됐는지 한국어로 알려 주면 그대로 쓴다. 상태 코드별 문구는 그게 없을 때의 폴백이다.
             if let message = failure?.message, !message.isEmpty {
                 throw PlanServiceError.server(message: message)
@@ -133,6 +157,70 @@ struct APIPlanService: PlanService {
 
         let data = try await data(for: http)
         return try JSONDecoder().decode(CourseDTO.self, from: data).course
+    }
+
+    // MARK: - 공동 편집 (초대 · 멤버)
+
+    func createInvite(planId: UUID) async throws -> PlanInvite {
+        guard !apiKey.isEmpty else { throw PlanServiceError.unavailable }
+        var request = authorized(url("/v1/plans/\(planId.uuidString)/invites"))
+        request.httpMethod = "POST"
+        let data = try await data(for: request)
+        let dto = try JSONDecoder().decode(InviteDTO.self, from: data)
+        // 링크를 못 만들면 공유할 것이 없다 — 조용히 폴백하지 않고 실패로 알린다.
+        guard let inviteURL = URL(string: dto.inviteUrl) else { throw PlanServiceError.unavailable }
+        return PlanInvite(
+            code: dto.code,
+            inviteURL: inviteURL,
+            expiresAt: PlanWireDate.optionalTimestamp(from: dto.expiresAt) ?? Date(),
+            expiresInMinutes: dto.expiresInMinutes ?? 30
+        )
+    }
+
+    func revokeInvite(planId: UUID) async throws {
+        guard !apiKey.isEmpty else { throw PlanServiceError.unavailable }
+        var request = authorized(url("/v1/plans/\(planId.uuidString)/invites"))
+        request.httpMethod = "DELETE"
+        _ = try await data(for: request)
+    }
+
+    func acceptInvite(code: String) async throws -> InviteAcceptance {
+        guard !apiKey.isEmpty else { throw PlanServiceError.unavailable }
+        var request = authorized(url("/v1/plan-invites/accept"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // 하이픈·소문자는 서버가 받아 주지만 앞뒤 공백은 붙여넣기에서 흔히 섞이므로 여기서 턴다.
+        let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["code": trimmed])
+        let data = try await data(for: request)
+        let dto = try JSONDecoder().decode(AcceptanceDTO.self, from: data)
+        return InviteAcceptance(
+            planId: dto.planId,
+            title: dto.title ?? "여행 플랜",
+            myRole: dto.myRole.flatMap(PlanRole.init(rawValue:)) ?? .editor,
+            alreadyMember: dto.alreadyMember ?? false
+        )
+    }
+
+    func removeMember(planId: UUID, memberUUID: String) async throws {
+        guard !apiKey.isEmpty else { throw PlanServiceError.unavailable }
+        var request = authorized(url("/v1/plans/\(planId.uuidString)/members/\(memberUUID)"))
+        request.httpMethod = "DELETE"
+        _ = try await data(for: request)
+    }
+
+    private struct InviteDTO: Decodable {
+        let code: String
+        let inviteUrl: String
+        let expiresAt: String?
+        let expiresInMinutes: Int?
+    }
+
+    private struct AcceptanceDTO: Decodable {
+        let planId: UUID
+        let title: String?
+        let myRole: String?
+        let alreadyMember: Bool?
     }
 
     // MARK: - 확정
@@ -254,6 +342,13 @@ struct APIPlanService: PlanService {
         /// 구 서버와도 붙을 수 있게 옵셔널로 둔다 — 없으면 카드가 DAY 줄을 안 그릴 뿐이다.
         let daySummaries: [DaySummaryDTO]?
         let fallbackImageUrl: String?
+        /// 공동 편집(서버 "플랜 공동 편집"). 셋 다 목록·개인·구버전 응답에는 없어 옵셔널이다.
+        /// - version: 낙관적 잠금. 저장 때 그대로 실어 보낸다.
+        /// - myRole: 이 플랜에서 내 역할(owner/editor).
+        /// - members: 함께 편집하는 멤버들(소유자 포함).
+        let version: Int?
+        let myRole: String?
+        let members: [MemberDTO]?
 
         var plan: Plan {
             Plan(
@@ -276,7 +371,26 @@ struct APIPlanService: PlanService {
                 // 초안이 확정된 것으로 뒤바뀐다.
                 confirmedAt: PlanWireDate.optionalTimestamp(from: confirmedAt),
                 createdAt: PlanWireDate.timestamp(from: createdAt),
-                updatedAt: PlanWireDate.timestamp(from: updatedAt)
+                updatedAt: PlanWireDate.timestamp(from: updatedAt),
+                version: version,
+                // 앱이 모르는 역할이 오면 nil — 없는 권한을 있는 것처럼 그리지 않는다.
+                myRole: myRole.flatMap(PlanRole.init(rawValue:)),
+                members: (members ?? []).map(\.member)
+            )
+        }
+    }
+
+    /// 멤버 한 명. 역할을 못 읽으면 편집자로 둔다 — 소유자 권한을 잘못 주는 것보다 안전하다.
+    private struct MemberDTO: Decodable {
+        let uuid: String
+        let nickname: String?
+        let role: String?
+
+        var member: PlanMember {
+            PlanMember(
+                uuid: uuid,
+                nickname: nickname ?? "여행자",
+                role: role.flatMap(PlanRole.init(rawValue:)) ?? .editor
             )
         }
     }
@@ -451,6 +565,9 @@ struct APIPlanService: PlanService {
         let budget: String?
         let dayTripOnly: Bool
         let days: [DayBody]
+        /// 낙관적 잠금 버전(서버 "플랜 공동 편집"). 공유 플랜은 이 값을 실어 보내야 저장된다 —
+        ///  없으면 400 version_required. **nil 이면 키가 빠지고**(개인 플랜) 기존처럼 그냥 저장된다.
+        let version: Int?
 
         init(plan: Plan, authorNm: String?) {
             self.authorNm = authorNm
@@ -464,6 +581,7 @@ struct APIPlanService: PlanService {
             budget = plan.budget
             dayTripOnly = plan.dayTripOnly
             days = plan.days.map(DayBody.init)
+            version = plan.version
         }
     }
 

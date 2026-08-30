@@ -18,6 +18,24 @@ enum PlanServiceError: LocalizedError {
     /// 401 `session_expired` — 토큰이 낡았다. 앱은 로그아웃 상태로 돌아간다.
     case sessionExpired
 
+    /// 409 `version_conflict` — 공유 플랜을 저장하는 사이 다른 멤버가 먼저 저장했다.
+    /// `latest` 에 서버가 준 **최신 본문 전체**(days 포함)가 들어 있다 — 다시 GET 하지 않고
+    /// 이 값으로 화면을 갈아끼운 뒤 재편집시킨다(서버 "플랜 공동 편집" 규칙).
+    case versionConflict(latest: Plan)
+
+    /// 403 `owner_only` — 편집자가 소유자 전용 기능(초대·회수·강퇴·삭제)을 시도했다.
+    /// ⚠️ 404 가 아니다 — 플랜은 그대로 있다. 목록에서 지우면 안 된다.
+    case ownerOnly
+
+    /// 400 `invalid_code` — 잘못된 초대 코드.
+    case invalidCode
+    /// 400 `invite_expired` — 만료된 초대(30분). 새 코드를 요청하게 안내한다.
+    case inviteExpired
+    /// 409 `member_limit` — 정원(소유자 포함 10명) 초과.
+    case memberLimit
+    /// 400 `owner_cannot_leave` — 소유자는 나갈 수 없다(삭제로만 정리된다).
+    case ownerCannotLeave
+
     var errorDescription: String? {
         switch self {
         case .unavailable: "지금은 플랜을 저장할 수 없어요. 잠시 후 다시 시도해 주세요."
@@ -27,6 +45,12 @@ enum PlanServiceError: LocalizedError {
         case .nicknameRequired: "플랜에 표시될 이름을 입력해 주세요."
         case .loginRequired: "로그인하면 플랜을 만들고 볼 수 있어요."
         case .sessionExpired: "로그인이 만료됐어요. 다시 로그인해 주세요."
+        case .versionConflict: "다른 멤버가 방금 수정했어요. 최신 내용으로 맞췄어요. 다시 편집해 주세요."
+        case .ownerOnly: "플랜을 만든 사람만 할 수 있어요."
+        case .invalidCode: "초대 코드가 올바르지 않아요. 다시 확인해 주세요."
+        case .inviteExpired: "초대가 만료됐어요. 초대한 분에게 새 코드를 요청하세요."
+        case .memberLimit: "정원이 가득 찼어요. 한 플랜에는 10명까지 함께할 수 있어요."
+        case .ownerCannotLeave: "플랜을 만든 사람은 나갈 수 없어요. 플랜을 삭제하면 정리돼요."
         }
     }
 }
@@ -91,6 +115,26 @@ protocol PlanService: Sendable {
     /// 플랜 조회와 달리 **누구에게나 같은 공용 사전**이라 로그인이 필요하지 않다.
     /// 실패하면 그 두 단계를 그릴 수 없다 — 호출부가 건너뛴다(문구를 앱에서 지어낼 수 없다).
     func fetchPlanOptions() async throws -> PlanOptions
+
+    // MARK: - 공동 편집 (서버 "플랜 공동 편집")
+
+    /// 초대 링크를 발급한다 (`POST /v1/plans/:planId/invites`, **소유자 전용**).
+    /// 재발급하면 서버가 이전 링크를 자동 회수한다 — 플랜당 활성 코드는 하나다.
+    /// 편집자가 부르면 `.ownerOnly` 를 던진다.
+    func createInvite(planId: UUID) async throws -> PlanInvite
+
+    /// 활성 초대를 회수한다 (`DELETE /v1/plans/:planId/invites`, **소유자 전용**).
+    func revokeInvite(planId: UUID) async throws
+
+    /// 초대 코드로 플랜에 참여한다 (`POST /v1/plan-invites/accept`).
+    /// 하이픈·소문자가 섞여도 서버가 받아 준다. 만료/오류는 `.inviteExpired`/`.invalidCode`,
+    /// 정원 초과는 `.memberLimit`.
+    func acceptInvite(code: String) async throws -> InviteAcceptance
+
+    /// 멤버를 내보낸다 (`DELETE /v1/plans/:planId/members/:uuid`).
+    /// **소유자가 부르면 강퇴, 본인 uuid 를 넘기면 나가기**다. 소유자가 자기 uuid 로 부르면
+    /// 서버가 `.ownerCannotLeave` 를 던진다(삭제로만 정리된다).
+    func removeMember(planId: UUID, memberUUID: String) async throws
 }
 
 extension EnvironmentValues {

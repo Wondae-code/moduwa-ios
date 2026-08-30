@@ -63,6 +63,35 @@ actor MockPlanService: PlanService {
         RecommendedCourse(regionLabel: "강릉", stay: nil, days: [], notes: [])
     }
 
+    func createInvite(planId: UUID) async throws -> PlanInvite {
+        let code = String(UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(8)).uppercased()
+        return PlanInvite(
+            code: code,
+            inviteURL: URL(string: "https://moduwa.app/i/\(code)")!,
+            expiresAt: Date().addingTimeInterval(30 * 60),
+            expiresInMinutes: 30
+        )
+    }
+
+    func revokeInvite(planId: UUID) async throws {}
+
+    func acceptInvite(code: String) async throws -> InviteAcceptance {
+        let plan = plans.first
+        return InviteAcceptance(
+            planId: plan?.id ?? UUID(),
+            title: plan?.title ?? "여행 플랜",
+            myRole: .editor,
+            alreadyMember: false
+        )
+    }
+
+    func removeMember(planId: UUID, memberUUID: String) async throws {
+        guard let index = plans.firstIndex(where: { $0.id == planId }) else {
+            throw PlanServiceError.notFound
+        }
+        plans[index].members.removeAll { $0.uuid == memberUUID }
+    }
+
     func fetchPlanOptions() async throws -> PlanOptions { Self.sampleOptions }
 
     /// 프리뷰에서 4/6·5/6이 빈 화면으로 보이지 않게 두는 사본.
@@ -113,6 +142,11 @@ struct EmptyPlanService: PlanService {
         throw PlanServiceError.notFound
     }
 
+    func createInvite(planId: UUID) async throws -> PlanInvite { throw PlanServiceError.unavailable }
+    func revokeInvite(planId: UUID) async throws { throw PlanServiceError.unavailable }
+    func acceptInvite(code: String) async throws -> InviteAcceptance { throw PlanServiceError.invalidCode }
+    func removeMember(planId: UUID, memberUUID: String) async throws { throw PlanServiceError.notFound }
+
     func fetchPlanOptions() async throws -> PlanOptions { MockPlanService.sampleOptions }
 }
 
@@ -138,6 +172,19 @@ struct FailingPlanService: PlanService {
     @discardableResult
     func setPlanConfirmed(id: UUID, _ confirmed: Bool) async throws -> Plan {
         throw PlanServiceError.server(message: "일정에 추가하지 못했어요. (서버 점검 중)")
+    }
+
+    func createInvite(planId: UUID) async throws -> PlanInvite {
+        throw PlanServiceError.server(message: "초대 링크를 만들지 못했어요. (서버 점검 중)")
+    }
+    func revokeInvite(planId: UUID) async throws {
+        throw PlanServiceError.server(message: "초대를 회수하지 못했어요. (서버 점검 중)")
+    }
+    func acceptInvite(code: String) async throws -> InviteAcceptance {
+        throw PlanServiceError.server(message: "초대를 수락하지 못했어요. (서버 점검 중)")
+    }
+    func removeMember(planId: UUID, memberUUID: String) async throws {
+        throw PlanServiceError.server(message: "멤버를 정리하지 못했어요. (서버 점검 중)")
     }
 
     /// 선택지를 못 받으면 새 플랜 플로우가 4/6·5/6을 건너뛴다 — 그 동작을 프리뷰로 볼 수 있게 던진다.

@@ -3,8 +3,12 @@ import SwiftUI
 struct PlanView: View {
     @Environment(\.planService) private var planService
     @Environment(SessionStore.self) private var session
+    /// 링크·코드로 들어온 초대를 여기서 수락한다 — 목록 상태와 `planService` 가 여기 있다.
+    @Environment(\.inviteCoordinator) private var invites
 
     @State private var state: PlanListState = .loading
+    /// 초대 코드 입력 시트.
+    @State private var isJoiningByCode = false
     /// 새 플랜을 만든 직후 그 상세로 보내려면 목적지를 코드로 밀어 넣어야 한다 —
     /// 플로우가 닫히는 자리에는 누를 `NavigationLink`가 없다.
     ///
@@ -79,13 +83,63 @@ struct PlanView: View {
                     guard case .loaded(var plans) = state else { return }
                     plans.removeAll { $0.id == plan.id }
                     state = .loaded(plans)
-                }
+                },
+                // 편집자가 상세에서 플랜을 나갔다 — 서버는 이미 지웠고, 목록에서만 뺀다.
+                onPlanLeft: { planId in
+                    guard case .loaded(var plans) = state else { return }
+                    plans.removeAll { $0.id == planId }
+                    state = .loaded(plans)
+                },
+                onJoinByCode: { isJoiningByCode = true }
             )
         }
         .task { await load() }
+        // 링크로 코드가 도착하면(RootView 가 채운다) 여기서 수락한다.
+        .task(id: invites.pendingCode) { await processPendingInvite() }
         // 로그인·로그아웃이 일어나면 목록을 다시 받는다. 로그아웃한 기기는 **비어야** 하고,
         //  로그인한 직후에는 곧바로 보여야 한다 — 탭을 나갔다 와야 보이면 안 된다.
-        .onChange(of: session.phase) { Task { await load() } }
+        //  로그인 뒤에는 대기 중이던 초대도 이어서 수락한다.
+        .onChange(of: session.phase) {
+            Task {
+                await load()
+                await processPendingInvite()
+            }
+        }
+        .sheet(isPresented: $isJoiningByCode) {
+            PlanJoinByCodeView(onJoined: { result in Task { await applyJoined(result) } })
+        }
+        .alert("함께하기", isPresented: Binding(
+            get: { invites.notice != nil }, set: { if !$0 { invites.notice = nil } })
+        ) {
+            Button("확인", role: .cancel) { invites.notice = nil }
+        } message: {
+            Text(invites.notice ?? "")
+        }
+    }
+
+    /// 대기 중인 초대 코드를 수락한다(유니버설 링크 경로).
+    /// 로그인 전이면 로그인 창을 띄우고 코드는 남겨 둔다 — 로그인 뒤 `phase` 변화로 다시 온다.
+    private func processPendingInvite() async {
+        guard let code = invites.pendingCode else { return }
+        guard session.account != nil else {
+            session.prompt = .plan
+            return
+        }
+        invites.pendingCode = nil
+        do {
+            let result = try await planService.acceptInvite(code: code)
+            await applyJoined(result)
+        } catch {
+            invites.notice = (error as? LocalizedError)?.errorDescription ?? "초대를 수락하지 못했어요."
+        }
+    }
+
+    /// 수락 성공을 목록·안내에 반영한다. 참여한 플랜이 목록에 나타나도록 다시 받는다.
+    private func applyJoined(_ result: InviteAcceptance) async {
+        invites.notice = result.alreadyMember
+            ? "이미 ‘\(result.title)’에 참여 중이에요."
+            : "‘\(result.title)’에 함께하게 됐어요."
+        await load()
     }
 
     private func load() async {

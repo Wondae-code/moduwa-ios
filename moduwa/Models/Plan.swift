@@ -180,6 +180,25 @@ extension TravelRegion {
     }
 }
 
+// MARK: - 공동 편집
+
+/// 플랜에서의 역할(서버 "플랜 공동 편집"). 소유자만 초대·회수·강퇴·삭제를 할 수 있다.
+/// rawValue 는 서버 키다 — 앱이 모르는 값이 오면 매핑에서 버린다(칩만 안 그린다).
+enum PlanRole: String, Codable, Sendable, Hashable {
+    case owner, editor
+}
+
+/// 함께 편집하는 멤버 한 명(`GET /v1/plans/:id` 의 `members[]`).
+///
+/// `uuid` 는 **멤버 식별자**다(플랜 id 가 아니다) — 강퇴·나가기(`DELETE …/members/:uuid`)에 쓴다.
+struct PlanMember: Identifiable, Hashable, Sendable, Codable {
+    let uuid: String
+    var nickname: String
+    var role: PlanRole
+
+    var id: String { uuid }
+}
+
 // MARK: - 플랜
 
 struct Plan: Identifiable, Hashable, Sendable, Codable {
@@ -226,6 +245,20 @@ struct Plan: Identifiable, Hashable, Sendable, Codable {
     var createdAt: Date
     var updatedAt: Date
 
+    // MARK: 공동 편집 (서버 "플랜 공동 편집")
+
+    /// 낙관적 잠금용 버전. 공유 플랜은 저장 때 이 값을 그대로 실어 보내야 하고(없으면
+    /// 400 version_required), 그 사이 다른 멤버가 저장했으면 서버가 409 로 최신본을 돌려준다.
+    /// **`nil` 은 버전 없는 응답** — 혼자 쓰는 플랜이거나 구버전 서버다(하위 호환으로 그냥 저장된다).
+    var version: Int?
+
+    /// 이 플랜에서 내 역할. 소유자만 초대·강퇴·삭제를 할 수 있다.
+    /// `nil` 은 역할을 모르는 응답(구버전·목·아직 상세를 안 받음).
+    var myRole: PlanRole?
+
+    /// 함께 편집하는 멤버들(소유자 포함, 정원 10명). 목록·구버전 응답에는 없어 빈 배열이다.
+    var members: [PlanMember]
+
     init(
         id: UUID = UUID(),
         title: String,
@@ -242,7 +275,10 @@ struct Plan: Identifiable, Hashable, Sendable, Codable {
         fallbackImageURL: URL? = nil,
         confirmedAt: Date? = nil,
         createdAt: Date = .now,
-        updatedAt: Date = .now
+        updatedAt: Date = .now,
+        version: Int? = nil,
+        myRole: PlanRole? = nil,
+        members: [PlanMember] = []
     ) {
         self.id = id
         self.title = title
@@ -260,7 +296,26 @@ struct Plan: Identifiable, Hashable, Sendable, Codable {
         self.confirmedAt = confirmedAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.version = version
+        self.myRole = myRole
+        self.members = members
     }
+}
+
+extension Plan {
+    /// 함께 편집하는 플랜인지 — 나 말고도 멤버가 있다. 목록의 "함께하는 플랜" 구분과 배지에 쓴다.
+    var isShared: Bool { members.count > 1 }
+
+    /// 내가 소유자인지. 초대·강퇴·삭제 버튼을 그릴지 가른다.
+    /// `myRole` 이 `nil`(역할 미상)이면 소유자로 단정하지 않는다 — 없는 권한을 있는 것처럼 보이면 안 된다.
+    var isOwner: Bool { myRole == .owner }
+
+    /// **남이 나를 초대한** 플랜인지 — 목록의 "함께하는 플랜" 배지에 쓴다.
+    ///
+    /// 목록 응답(`GET /v1/plans`)에는 멤버 수가 없고 `myRole` 만 온다. 편집자면 누군가 나를
+    /// 초대했다는 뜻이라 확실히 공유 플랜이다. 소유자 플랜은 혼자 쓰는 것과 공유한 것을
+    /// 목록에서 구분할 수 없어(멤버 수를 모른다) 배지를 달지 않는다.
+    var isSharedWithMe: Bool { myRole == .editor }
 }
 
 /// 목록 카드용 하루 요약. 상세의 `PlanDay`와 달리 **이름만** 들고 있다.

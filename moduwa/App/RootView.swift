@@ -11,6 +11,8 @@ struct RootView: View {
 
     @Environment(SessionStore.self) private var session
     @Environment(SavedPlacesStore.self) private var savedPlacesStore
+    /// 초대 링크가 도착하면 코드를 여기 담고 플랜 탭으로 보낸다 — 수락은 `PlanView` 가 한다.
+    @Environment(\.inviteCoordinator) private var inviteCoordinator
 
     /// 첫 실행 온보딩. 한 번 마치면(건너뛰어도) 다시 띄우지 않는다.
     @State private var isOnboardingPresented = !OnboardingProfileStore.shared.didFinish
@@ -58,6 +60,14 @@ struct RootView: View {
         //  여기서 한 번 꽂아 둔다.
         .onAppear {
             session.onSignedOut = { savedPlacesStore.clear() }
+        }
+        // 유니버설 링크(https://moduwa.app/i/{코드})로 앱이 열리면 코드를 우편함에 담고 플랜
+        //  탭으로 보낸다 — 실제 수락은 `PlanView` 가 로그인 여부까지 보고 처리한다. 유니버설
+        //  링크는 커스텀 스킴(onOpenURL)이 아니라 NSUserActivity 로 도착한다.
+        .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+            guard let url = activity.webpageURL, let code = InviteCoordinator.code(from: url) else { return }
+            inviteCoordinator.pendingCode = code
+            selection = .plan
         }
         // 쓰기 진입점이 비로그인이면 이 시트가 뜬다(`SessionStore.requireSignIn`).
         //  세션이 만료돼 쫓겨난 경우도 같은 자리로 온다.
