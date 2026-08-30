@@ -16,6 +16,8 @@ struct PlanDetailView: View {
 
     @Environment(\.planService) private var planService
     @Environment(\.dismiss) private var dismiss
+    /// 포그라운드 복귀 시 상세를 다시 받아 판 번호·다른 멤버 변경을 최신으로 유지한다(⑤).
+    @Environment(\.scenePhase) private var scenePhase
     @State private var detent: SheetDetent = .medium
     /// 드래그 중인 손가락 이동량. 놓으면 0으로 돌아가고 `detent`가 갱신된다.
     @State private var dragOffset: CGFloat = 0
@@ -133,6 +135,10 @@ struct PlanDetailView: View {
             Text(conflictNotice ?? "")
         }
         .task { await load() }
+        // 포그라운드 복귀 시 최신 판으로 갱신(⑤). 이미 받아 둔 뒤에만 — 첫 로드와 경합하지 않는다.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active, detail != nil { Task { await reload() } }
+        }
         .navigationDestination(isPresented: $isEditing) {
             // 편집은 상세를 받은 뒤에만 열린다(`dayHeader` 참고) — 목록의 빈 일정으로 저장하면
             // 서버의 일정이 통째로 지워지기 때문이다.

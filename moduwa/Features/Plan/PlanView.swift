@@ -5,6 +5,9 @@ struct PlanView: View {
     @Environment(SessionStore.self) private var session
     /// 링크·코드로 들어온 초대를 여기서 수락한다 — 목록 상태와 `planService` 가 여기 있다.
     @Environment(\.inviteCoordinator) private var invites
+    /// 앱이 포그라운드로 돌아오면 목록을 다시 받는다 — 낡은 판을 보는 시간을 줄여 저장 충돌
+    ///  확률을 낮춘다(서버 "플랜 공동 편집" 권장). 공유 플랜의 다른 멤버 변경도 곧 보인다.
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var state: PlanListState = .loading
     /// 초대 코드 입력 시트.
@@ -104,6 +107,10 @@ struct PlanView: View {
                 await load()
                 await processPendingInvite()
             }
+        }
+        // 포그라운드 복귀 시 재조회(⑤). onChange 는 전이에만 불려 콜드런치에서 중복 로드는 없다.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active, case .loaded = state { Task { await load() } }
         }
         .sheet(isPresented: $isJoiningByCode) {
             PlanJoinByCodeView(onJoined: { result in Task { await applyJoined(result) } })
