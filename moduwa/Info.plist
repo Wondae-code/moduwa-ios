@@ -33,6 +33,17 @@
 				<string>com.googleusercontent.apps.356992308499-84vtm5c6f3q9gt9tbi63ju2cgiiaio2m</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.waasegye.moduwa.invite</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<!-- 카톡 등 인앱 웹뷰 폴백. 유니버설 링크(https://moduwa.app/i/CODE)는 인앱
+				     브라우저에서 앱을 못 여는데, 대체 페이지의 "앱에서 열기" 버튼이
+				     moduwa://i/CODE 로 앱을 연다 — 커스텀 스킴은 웹뷰에서도 동작한다. -->
+				<string>moduwa</string>
+			</array>
+		</dict>
 	</array>
 	<!-- 카카오톡이 깔려 있는지 SDK 가 물어볼 수 있게 한다. 없으면 iOS 가 조회를 막아
 	     `isKakaoTalkLoginAvailable()` 이 항상 false 가 되고, 톡이 있어도 웹 로그인으로 간다. -->

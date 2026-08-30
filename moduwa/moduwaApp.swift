@@ -54,9 +54,8 @@ struct moduwaApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
-                // 카카오톡에서 로그인을 마치고 돌아온 URL 을 SDK 에 넘긴다.
-                //  이게 없으면 톡에서 승인해도 앱이 멈춰 있다(완료 핸들러가 불리지 않는다).
-                .onOpenURL { KakaoSignInFlow.handle($0) }
+                // URL 로 앱이 열리는 두 경우(카카오 로그인 콜백 + 초대 커스텀 스킴)는 `RootView`
+                //  가 한곳에서 가른다 — 초대는 플랜 탭 전환·수락까지 이어져야 해 거기서 처리한다.
                 // 라이브 API(moduwa-backend). MODUWA_API_KEY 미설정/네트워크 실패 시 번들 데이터로 자동 폴백.
                 .environment(\.feedService, APIFeedService())
                 .environment(savedPlacesStore)

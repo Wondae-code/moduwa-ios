@@ -69,6 +69,18 @@ struct RootView: View {
             inviteCoordinator.pendingCode = code
             selection = .plan
         }
+        // 커스텀 스킴으로 앱이 열리는 두 경우를 한곳에서 가른다:
+        //  ① 카카오 로그인 콜백 — SDK 가 처리한다(맞으면 true 를 돌려주고 여기서 끝낸다).
+        //  ② 초대 폴백 `moduwa://i/{코드}` — 카톡 인앱 웹뷰의 대체 페이지 "앱에서 열기" 버튼이
+        //     이 스킴으로 앱을 연다(유니버설 링크가 웹뷰에서 막힐 때). 유니버설 링크와 같은
+        //     우편함으로 흘려보내 플랜 탭에서 수락까지 이어진다.
+        .onOpenURL { url in
+            if KakaoSignInFlow.handle(url) { return }
+            if let code = InviteCoordinator.code(from: url) {
+                inviteCoordinator.pendingCode = code
+                selection = .plan
+            }
+        }
         // 쓰기 진입점이 비로그인이면 이 시트가 뜬다(`SessionStore.requireSignIn`).
         //  세션이 만료돼 쫓겨난 경우도 같은 자리로 온다.
         //

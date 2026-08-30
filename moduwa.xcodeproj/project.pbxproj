@@ -159,7 +159,7 @@
 				CODE_SIGN_ENTITLEMENTS = moduwa/moduwa.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 8G2743WJL4;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = moduwa/Info.plist;
@@ -306,7 +306,7 @@
 				CODE_SIGN_ENTITLEMENTS = moduwa/moduwa.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 8G2743WJL4;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = moduwa/Info.plist;
