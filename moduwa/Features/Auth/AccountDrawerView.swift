@@ -278,7 +278,7 @@ struct AccountDrawerView: View {
         case .myPosts:
             comingSoon("내 게시글", "square.text.square", "내 게시글은 준비 중이에요")
         case .accessibility:
-            comingSoon("접근성", "accessibility", "접근성 설정은 준비 중이에요")
+            AccessibilitySettingsView()
         case .settings:
             comingSoon("설정", "gearshape", "설정은 준비 중이에요")
         case .guide:

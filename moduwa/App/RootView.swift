@@ -24,6 +24,10 @@ struct RootView: View {
         // `@Environment` 는 바인딩을 내주지 않는다. 시트의 `item:` 이 쓸 수 있게 감싼다.
         @Bindable var session = session
 
+        // 앱 전체 글자 크기(마이페이지 → 접근성). body 에서 읽어야 값이 바뀔 때 다시 그린다.
+        //  ZStack 에 걸면 탭·서랍은 물론 여기서 띄우는 시트·전체화면까지 환경으로 물려받는다.
+        let textScale = AccessibilitySettings.shared.textScale
+
         return ZStack {
             tabs
                 // 서랍이 열려 있으면 뒤쪽은 VoiceOver 에서 숨긴다 — 시트는 시스템이 알아서
@@ -37,6 +41,7 @@ struct RootView: View {
                 .accessibilityHidden(!accountDrawer.isPresented)
         }
         .environment(\.accountDrawer, accountDrawer)
+        .applyTextScale(textScale)
         .tint(.deepGreen)
         // 저장해 둔 토큰이 아직 쓸 수 있는지 한 번 확인한다. 실패를 로그아웃으로 단정하지
         //  않는다 — 비행기에서 앱을 켰다고 로그아웃시키면 안 된다(`SessionStore.bootstrap`).
