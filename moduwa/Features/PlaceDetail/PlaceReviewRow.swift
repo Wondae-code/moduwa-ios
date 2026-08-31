@@ -25,6 +25,8 @@ struct PlaceReviewRow: View {
 
     @State private var showsFollowNotice = false
     @State private var showsMoreNotice = false
+    /// 신고 시트. 서버 후기일 때만 열린다.
+    @State private var isReporting = false
 
     /// 버튼이 눌릴 수 있는 화면이면 접근성 구조도 달라진다 —
     /// 행 전체를 한 요소로 묶으면 그 안의 버튼에 도달할 방법이 없다.
@@ -157,19 +159,28 @@ struct PlaceReviewRow: View {
             }
     }
 
-    /// 리뷰 신고·숨김 라우트도 없어 더보기 역시 같은 처지다 — 팔로우와 같은 방식으로 답한다
-    /// (두 버튼이 다르게 반응하면 어느 쪽이 고장인지 구분되지 않는다).
+    /// 더보기 — **신고**로 간다. 숨기기는 넣지 않았다: 서버에 그 개념이 없고, 앱에만 숨기면
+    /// 기기를 바꾸면 되살아나 "숨겼는데 다시 보인다"가 된다.
+    ///
+    /// 서버 후기(`serverId`)만 신고할 수 있다 — 번들·목 후기에는 신고를 붙일 대상이 없다.
     private var moreButton: some View {
-        Button { showsMoreNotice = true } label: {
+        Button {
+            if review.serverId != nil { isReporting = true } else { showsMoreNotice = true }
+        } label: {
             moreDots
                 // 3pt 점 세 개는 44pt 터치 영역에 한참 못 미친다
                 .frame(width: 30, height: 40)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("이 후기 더보기")
+        .accessibilityLabel("이 후기 신고")
         .popover(isPresented: $showsMoreNotice) {
-            noticeContent("후기 신고·숨기기는 아직 준비 중이에요")
+            noticeContent("이 후기는 신고할 수 없어요")
+        }
+        .sheet(isPresented: $isReporting) {
+            if let serverId = review.serverId {
+                ReviewReportSheet(reviewId: serverId)
+            }
         }
     }
 

@@ -213,6 +213,23 @@ struct APIFeedService: FeedService {
         return (likeCount: result.likeCount, likedByMe: result.likedByMe)
     }
 
+    /// 후기 신고. 서버에 라우트가 아직 없으면 404 가 오는데, 그것은 실패가 아니라 **아직
+    /// 열리지 않았다**는 뜻이라 따로 가른다(`FeedServiceError.reportUnsupported`).
+    func reportReview(reviewId: Int, reason: ReviewReportReason, detail: String?) async throws {
+        guard !apiKey.isEmpty else { throw FeedServiceError.reportUnsupported }
+        var req = authorized(baseURL.appending(path: "/v1/reviews/\(reviewId)/report"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        var body: [String: Any] = ["reason": reason.rawValue]
+        if let detail, !detail.isEmpty { body["detail"] = detail }
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, resp) = try await session.data(for: req)
+        let status = (resp as? HTTPURLResponse)?.statusCode ?? -1
+        if status == 404 { throw FeedServiceError.reportUnsupported }
+        guard (200..<300).contains(status) else { throw failure(status: status, data: data) }
+    }
+
     func fetchRecommendedPlaces(
         category: PlaceCategory, page: Int, accessFeatures: [AccessibilityFeature]
     ) async throws -> [Place] {

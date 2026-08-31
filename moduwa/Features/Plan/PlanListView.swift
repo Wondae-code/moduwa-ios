@@ -39,6 +39,8 @@ struct PlanListView: View {
     var onJoinByCode: () -> Void = {}
 
     @Environment(SessionStore.self) private var session
+    /// 홈에서 온 "새 플랜" 요청. 이 화면이 플로우를 쥐고 있어 여기서 연다.
+    @Environment(\.planCreation) private var planCreation
 
     @State private var isCreatingPlan = false
     /// 삭제 확인 대상. nil 이면 확인 창이 닫혀 있다.
@@ -94,6 +96,16 @@ struct PlanListView: View {
             }
         }
         .background(Color.appBackground)
+        // 홈 히어로 CTA에서 온 요청. **`task(id:)` 로 본다** — 탭이 아직 만들어지지 않은 사이에
+        //  값이 바뀌면 `onChange` 는 놓치지만, 이쪽은 화면이 뜰 때도 한 번 확인한다.
+        .task(id: planCreation.isRequested) {
+            guard planCreation.isRequested else { return }
+            planCreation.isRequested = false
+            // 저장은 로그인 필수다 — 6단계를 다 답한 뒤 401 을 만나면 답한 것이 어디로 갔는지
+            //  알 수 없어진다(아래 "+ 새 플랜 계획하기"와 같은 관문).
+            guard session.requireSignIn(.plan) else { return }
+            isCreatingPlan = true
+        }
         .overlay(alignment: .bottom) { createPlanOverlay }
         .navigationDestination(for: Plan.self) {
             PlanDetailView(plan: $0, onPlanSaved: onPlanSaved, onPlanLeft: onPlanLeft)

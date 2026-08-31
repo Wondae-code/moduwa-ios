@@ -12,6 +12,8 @@ struct HomeView: View {
     @Environment(\.postService) private var postService
     @Environment(NotificationStore.self) private var notificationStore
     @Environment(SessionStore.self) private var session
+    /// 홈 히어로 CTA → 새 플랜 플로우(플랜 탭이 연다).
+    @Environment(\.planCreation) private var planCreation
     @State private var viewModel = HomeViewModel()
     @State private var isSortPickerPresented = false
 
@@ -145,7 +147,9 @@ struct HomeView: View {
                 userName: session.account?.nickname,
                 // 로그인했으면 계정 값, 아니면 기기에 있는 온보딩 값(`SessionStore.accessFeatures`).
                 accessFeatures: session.accessFeatures,
-                onSignIn: { session.prompt = .recommendation }
+                onSignIn: { session.prompt = .recommendation },
+                // 플로우는 플랜 탭이 쥐고 있다 — 만들고 싶다고만 알린다(`PlanCreationSignal`).
+                onStartPlan: { planCreation.isRequested = true }
             )
             .padding(.horizontal, Spacing.xl)
             .padding(.top, Spacing.m)

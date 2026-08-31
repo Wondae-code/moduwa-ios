@@ -16,6 +16,8 @@ struct HeroCard: View {
     var accessFeatures: [AccessibilityFeature] = []
     /// 비로그인 상태의 CTA. 로그인 시트를 띄우는 자리다.
     var onSignIn: (() -> Void)?
+    /// 로그인 상태에서 CTA("추천 여행 코스 보러가기")를 눌렀을 때. 새 플랜 6단계 플로우로 간다.
+    var onStartPlan: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 15) {
@@ -54,7 +56,9 @@ struct HeroCard: View {
                     onSignIn()
                     return
                 }
-                // TODO: 코스 추천 화면 연결
+                // 추천 코스는 새 플랜 플로우의 마지막(6/6)에서 나온다 — 그 앞의 조건(지역·날짜·
+                //  테마)을 모르면 코스를 만들 수 없으므로 플로우 처음으로 보낸다.
+                onStartPlan?()
             } label: {
                 HStack(spacing: 4) {
                     Text(userName == nil ? "로그인하기" : "추천 여행 코스 보러가기")

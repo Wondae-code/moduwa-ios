@@ -49,14 +49,25 @@ struct PlanEditView: View {
                             .listRowBackground(Color.appBackground)
                             // 머리글이 끌려다니면 날짜 순서가 뒤바뀐다. 날짜는 편집 대상이 아니다.
                             .moveDisabled(true)
+                            // 날짜 자체는 지울 수 없다 — 여행 기간에서 나오는 값이다.
+                            .deleteDisabled(true)
                     case .item(let dayIndex, let item):
                         self.row(for: item, in: days[dayIndex])
                             .listRowInsets(EdgeInsets(top: 0, leading: 36, bottom: 0, trailing: 24))
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.appBackground)
+                    case .distance(_, let text):
+                        distanceRow(text)
+                            .listRowInsets(EdgeInsets(top: 0, leading: 36, bottom: 0, trailing: 24))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.appBackground)
+                            // 거리는 편집 대상이 아니다 — 장소 순서에서 나오는 값이다.
+                            .moveDisabled(true)
+                            .deleteDisabled(true)
                     }
                 }
                 .onMove(perform: move)
+                .onDelete(perform: delete)
             }
             .listStyle(.plain)
             .environment(\.editMode, .constant(.active))
@@ -73,20 +84,43 @@ struct PlanEditView: View {
     private enum EditRow: Identifiable {
         case header(dayIndex: Int)
         case item(dayIndex: Int, item: PlanDayItem)
+        /// 앞 장소에서 다음 장소까지의 거리. **장소 카드와 한 행에 두지 않는다** —
+        /// 편집 모드의 드래그 핸들은 행 높이의 가운데에 놓이므로, 거리까지 한 행이면 핸들이
+        /// 카드 중심보다 아래로 내려간다(거리 줄 높이의 절반만큼). 별도 행으로 빼면 카드 행의
+        /// 높이가 카드 그 자체라 핸들이 카드 가운데에 온다.
+        case distance(afterItemID: UUID, text: String)
 
         /// 머리글과 항목의 id 가 겹치지 않게 접두사를 붙인다.
         var id: String {
             switch self {
             case .header(let index): "day-\(index)"
             case .item(_, let item): "item-\(item.id.uuidString)"
+            case .distance(let afterID, _): "gap-\(afterID.uuidString)"
             }
         }
     }
 
     private var rows: [EditRow] {
-        days.enumerated().flatMap { index, day in
-            [EditRow.header(dayIndex: index)] + day.items.map { .item(dayIndex: index, item: $0) }
+        days.enumerated().flatMap { index, day -> [EditRow] in
+            var out: [EditRow] = [.header(dayIndex: index)]
+            for (position, item) in day.items.enumerated() {
+                out.append(.item(dayIndex: index, item: item))
+                if let text = distanceText(after: position, in: day) {
+                    out.append(.distance(afterItemID: item.id, text: text))
+                }
+            }
+            return out
         }
+    }
+
+    /// `position` 의 장소에서 **다음 장소**까지의 직선 거리. 상세 화면과 같은 규칙이고,
+    /// 좌표가 없는 장소가 끼면 구간을 만들지 않는다(`TravelLeg.straightLine`).
+    private func distanceText(after position: Int, in day: PlanDay) -> String? {
+        guard case .stop(let current) = day.items[position],
+              let next = day.stopAfter(position),
+              let leg = TravelLeg.straightLine(from: current.place, to: next.place)
+        else { return nil }
+        return leg.distanceText
     }
 
     private func move(from source: IndexSet, to destination: Int) {
@@ -96,6 +130,33 @@ struct PlanEditView: View {
 
         // 다른 날로 건너간 경우 화면만 보고는 알아채기 어렵다 — 스크린리더에도 알린다.
         UIAccessibility.post(notification: .announcement, argument: "순서를 옮겼어요")
+    }
+
+    /// 항목을 지운다. 편집 모드의 표준 삭제(빨간 −)를 그대로 쓴다 — iOS 가 한 번 더
+    /// "삭제"를 눌러야 지워지게 해 주므로 별도 확인 창을 두지 않는다.
+    ///
+    /// ⚠️ **시안(519:987)에는 삭제 어피던스가 없다**(드래그 핸들만). 그래도 두는 이유: 담은
+    /// 장소·메모를 뺄 길이 아예 없어 잘못 담으면 되돌릴 수 없었다. 날짜 머리글은
+    /// `deleteDisabled` 로 막았다.
+    ///
+    /// 서버에는 지금 보내지 않는다 — 이 화면의 다른 편집(순서·날짜 이동)과 같이 "완료"를
+    /// 누를 때 한 번에 저장된다. 지우고 나가면 지워지지 않는다.
+    private func delete(at offsets: IndexSet) {
+        let targets = offsets.compactMap { index -> (dayIndex: Int, itemID: UUID)? in
+            guard case .item(let dayIndex, let item) = rows[index] else { return nil }
+            return (dayIndex, item.id)
+        }
+        guard !targets.isEmpty else { return }
+
+        withAnimation(.snappy(duration: 0.25)) {
+            for target in targets {
+                days[target.dayIndex].items.removeAll { $0.id == target.itemID }
+            }
+        }
+        // 목록에서 줄이 사라지는 것 말고는 결과를 알릴 자리가 없다.
+        UIAccessibility.post(notification: .announcement,
+                             argument: targets.count == 1 ? "항목을 지웠어요"
+                                                          : "\(targets.count)개를 지웠어요")
     }
 
     /// 옮겨진 평평한 목록을 다시 날짜별로 나눈다 — **머리글이 곧 경계**다.
@@ -112,6 +173,9 @@ struct PlanEditView: View {
             case .item(_, let item):
                 // 첫 머리글보다 위로 끌어올린 항목은 갈 곳이 없다 — 첫 날에 담는다.
                 buckets[passedFirstHeader ? current : 0].append(item)
+            case .distance:
+                // 거리는 장소 순서에서 파생되는 값이라 다시 계산된다 — 옮겨진 목록에서는 무시한다.
+                break
             }
         }
 
@@ -239,29 +303,27 @@ struct PlanEditView: View {
 
     // MARK: 행
 
+    /// 카드 한 장 **그것만** 한 행이다. 거리는 `distanceRow` 로 따로 나가 있다 —
+    /// 그래야 편집 모드의 드래그 핸들이 카드 가운데에 놓인다(`EditRow.distance` 주석).
     @ViewBuilder
     private func row(for item: PlanDayItem, in day: PlanDay) -> some View {
         let index = day.items.firstIndex(where: { $0.id == item.id }) ?? 0
-        VStack(alignment: .leading, spacing: 0) {
-            switch item {
-            case .stop(let stop):
-                PlanEditStopRow(number: day.stopNumber(at: index) ?? 0, stop: stop)
-            case .memo(let memo):
-                PlanEditMemoRow(memo: memo)
-            }
-
-            // 상세와 같은 규칙 — 앞 장소에서 여기까지의 직선 거리.
-            if case .stop = item,
-               let next = day.stopAfter(index),
-               case .stop(let current) = item,
-               let leg = TravelLeg.straightLine(from: current.place, to: next.place) {
-                Text(leg.distanceText)
-                    .font(.notoSans(12, .medium, relativeTo: .caption))
-                    .foregroundStyle(Color.iconGray)
-                    .padding(.leading, 39)
-                    .padding(.vertical, 8)
-            }
+        switch item {
+        case .stop(let stop):
+            PlanEditStopRow(number: day.stopNumber(at: index) ?? 0, stop: stop)
+        case .memo(let memo):
+            PlanEditMemoRow(memo: memo)
         }
+    }
+
+    /// 장소 사이의 거리 한 줄. 상세 화면과 같은 자리·같은 글씨다.
+    private func distanceRow(_ text: String) -> some View {
+        Text(text)
+            .font(.notoSans(12, .medium, relativeTo: .caption))
+            .foregroundStyle(Color.iconGray)
+            .padding(.leading, 39)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// 첫 장소를 기준으로 가까운 곳부터 다시 줄 세운다(최근접 이웃).

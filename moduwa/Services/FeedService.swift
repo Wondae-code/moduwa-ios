@@ -38,6 +38,9 @@ enum FeedServiceError: LocalizedError {
     case loginRequired
     /// 401 `session_expired` — 토큰이 낡았다. 이미 지워졌고 앱은 로그아웃 상태로 돌아간다.
     case sessionExpired
+    /// 서버에 신고 라우트가 아직 없다(404). "실패"가 아니라 **아직 열리지 않았다**는 뜻이라
+    /// 따로 가른다 — 사용자에게 다시 시도하라고 말하면 영원히 같은 결과다.
+    case reportUnsupported
 
     var errorDescription: String? {
         switch self {
@@ -45,6 +48,7 @@ enum FeedServiceError: LocalizedError {
         case .server(let message): message
         case .imageUploadFailed: "사진을 올리지 못했어요. 네트워크 상태를 확인하고 다시 시도해 주세요."
         case .nicknameRequired: "댓글에 표시될 이름을 입력해 주세요."
+        case .reportUnsupported: "신고 기능은 곧 열려요. 조금만 기다려 주세요."
         case .commentsUnavailable: "이 후기의 댓글은 지금 볼 수 없어요."
         case .loginRequired: "로그인이 필요해요."
         case .sessionExpired: "로그인이 만료됐어요. 다시 로그인해 주세요."
@@ -127,6 +131,15 @@ protocol FeedService: Sendable {
     /// **로그인 필수**다 — 비로그인이면 `.loginRequired` 를 던진다(`deviceId` 는 더 이상
     /// 신원이 아니라서 예전처럼 기기 키로 대신할 수 없다).
     func submitReviewComment(reviewId: Int, body: String, authorNm: String?) async throws
+
+    // MARK: - 신고
+
+    /// 후기를 신고한다 (`POST /v1/reviews/:reviewId/report`).
+    ///
+    /// 무엇을 지우거나 숨기지 않는다 — **운영자에게 알리는 것**이 전부다. 앱이 곧바로 글을
+    /// 감추면 신고를 눌러 남의 글을 지우는 길이 되고, 서버도 그렇게 설계하지 않는다.
+    /// - Parameter detail: 사유를 고른 뒤 덧붙이는 설명. 비어 있어도 된다.
+    func reportReview(reviewId: Int, reason: ReviewReportReason, detail: String?) async throws
 }
 
 /// 장소 상세 하단 3섹션용 API는 라이브 서버에만 있다. 오프라인 폴백(`BundledFeedService`)에는
@@ -145,6 +158,11 @@ extension FeedService {
 
     func fetchRelatedPlaces(contentId: String, limit: Int) async throws -> [RelatedPlace] {
         []
+    }
+
+    /// 번들·목 데이터에는 신고를 받을 서버가 없다.
+    func reportReview(reviewId: Int, reason: ReviewReportReason, detail: String?) async throws {
+        throw FeedServiceError.reportUnsupported
     }
 
     /// 태그 사전이 없으면 칩·집계 막대를 그리지 않는다 (빈 목록은 "없음"이지 오류가 아니다).

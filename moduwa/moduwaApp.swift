@@ -50,6 +50,8 @@ struct moduwaApp: App {
     @State private var postSignal = PostInteractionSignal()
     /// 초대 링크·코드 수락을 잇는 우편함. 링크는 RootView 가 받고 수락은 플랜 탭이 한다.
     @State private var inviteCoordinator = InviteCoordinator()
+    /// 홈 히어로 CTA → 새 플랜 플로우를 잇는 신호.
+    @State private var planCreation = PlanCreationSignal()
 
     var body: some Scene {
         WindowGroup {
@@ -69,6 +71,7 @@ struct moduwaApp: App {
                 .environment(sessionStore)
                 .environment(postSignal)
                 .environment(\.inviteCoordinator, inviteCoordinator)
+                .environment(\.planCreation, planCreation)
                 .environment(\.authService, APIAuthService())
         }
     }

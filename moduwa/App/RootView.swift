@@ -13,6 +13,8 @@ struct RootView: View {
     @Environment(SavedPlacesStore.self) private var savedPlacesStore
     /// 초대 링크가 도착하면 코드를 여기 담고 플랜 탭으로 보낸다 — 수락은 `PlanView` 가 한다.
     @Environment(\.inviteCoordinator) private var inviteCoordinator
+    /// 홈에서 "새 플랜"을 요청하면 플랜 탭으로 옮긴다 — 플로우는 그 탭이 연다.
+    @Environment(\.planCreation) private var planCreation
 
     /// 첫 실행 온보딩. 한 번 마치면(건너뛰어도) 다시 띄우지 않는다.
     @State private var isOnboardingPresented = !OnboardingProfileStore.shared.didFinish
@@ -60,6 +62,11 @@ struct RootView: View {
         //  ② 초대 폴백 `moduwa://i/{코드}` — 카톡 인앱 웹뷰의 대체 페이지 "앱에서 열기" 버튼이
         //     이 스킴으로 앱을 연다(유니버설 링크가 웹뷰에서 막힐 때). 유니버설 링크와 같은
         //     우편함으로 흘려보내 플랜 탭에서 수락까지 이어진다.
+        // 홈 히어로 CTA가 새 플랜을 요청했다 — 플로우를 쥔 플랜 탭으로 옮긴다.
+        //  플로우를 여는 것은 그 탭(`PlanListView`)이 하고, 요청도 거기서 내린다.
+        .onChange(of: planCreation.isRequested) { _, requested in
+            if requested { selection = .plan }
+        }
         .onOpenURL { url in
             if KakaoSignInFlow.handle(url) { return }
             if let code = InviteCoordinator.code(from: url) {
