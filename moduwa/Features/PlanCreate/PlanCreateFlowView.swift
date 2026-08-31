@@ -78,7 +78,10 @@ struct PlanCreateFlowView: View {
                 if options.themes.isEmpty {
                     optionsNotice
                 } else {
-                    PlanThemeStep(themes: options.themes, selected: $draft.themes)
+                    PlanThemeStep(
+                        themes: options.themes,
+                        selected: $draft.themes,
+                        avoidsCrowds: $draft.avoidsCrowds)
                 }
             }
         case .budget:
@@ -247,7 +250,9 @@ struct PlanCreateFlowView: View {
         case .dates:
             draft.startDate = nil
             draft.endDate = nil
-        case .themes: draft.themes = []
+        case .themes:
+            draft.themes = []
+            draft.avoidsCrowds = false
         case .budget: draft.budget = nil
         case .finish: break
         }
@@ -318,6 +323,9 @@ struct PlanCreateFlowView: View {
                 party: draft.party.courseCodes,
                 themes: draft.themes,
                 budget: draft.budget,
+                // ⚠️ `draft.avoidsCrowds`("덜 붐볐으면 좋겠어요")는 아직 싣지 않는다 — 서버에
+                //  혼잡도 선호를 받는 필드가 없다(`PlanDraft.avoidsCrowds` 주석). 필드가 열리면
+                //  여기 한 줄을 더한다.
                 // 당일치기는 따로 묻지 않는다 — **날짜가 이미 답이다.** 하루짜리 여행에
                 //  숙소를 고르는 것은 서버 일을 낭비하는 것이고, 저장된 플랜에 넣어 두면
                 //  나중에 날짜를 늘렸을 때 낡은 값이 남는다. 요청할 때 그 자리에서 계산한다.

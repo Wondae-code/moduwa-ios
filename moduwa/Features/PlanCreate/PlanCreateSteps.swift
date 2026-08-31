@@ -103,6 +103,8 @@ struct PlanRegionStep: View {
 struct PlanThemeStep: View {
     let themes: [PlanOption]
     @Binding var selected: [String]
+    /// "덜 붐볐으면 좋겠어요" — 테마와 같은 화면에 있다(시안 958:633, 선택 상태 958:281).
+    @Binding var avoidsCrowds: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
@@ -123,6 +125,11 @@ struct PlanThemeStep: View {
                 }
             }
 
+            // 시안은 이 체크박스를 칩 격자 아래 가운데에 둔다. 로그인 화면의 "로그인 상태 유지"와
+            //  **같은 컴포넌트**다(시안도 그 프레임을 복제해 썼다 — 이름이 "login remain") —
+            //  선택을 색만으로 전하지 않고 체크 글리프가 함께 들어온다.
+            AuthCheckbox(title: "덜 붐볐으면 좋겠어요", isOn: $avoidsCrowds)
+                .frame(maxWidth: .infinity)
         }
     }
 }

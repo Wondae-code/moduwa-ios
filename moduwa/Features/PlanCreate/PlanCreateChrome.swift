@@ -152,12 +152,17 @@ struct PlanCreateChip: View {
 
 // MARK: - 하단 버튼
 
-/// 시안 공통 하단 — "완료했어요"(딥그린 345×55 알약) 위에 "다음에 할래요"(건너뛰기).
+/// 시안 공통 하단 — "다음으로"(라임 320×47 알약) 위에 "나중에 할래요"(건너뛰기).
 ///
-/// ⚠️ **초기 시안(372:409)에는 두 버튼이 아예 없고 선택시 시안(391:96)에만 나온다.**
-///  그대로 옮기면 아무것도 고르지 않은 사용자는 앞으로도 뒤로도 갈 수 없다. 그래서
-///  "완료했어요"만 값이 생겼을 때 나타나게 하고 **"다음에 할래요"는 항상 남긴다** —
-///  건너뛰기가 곧 "고르지 않고 넘어간다"는 뜻이라 값이 없을 때가 오히려 필요한 자리다.
+/// **문구·색이 갱신됐다(2026-08-31 시안)**: 구 "완료했어요"(딥그린 345×55) 버튼은 시안에서
+///  hidden 처리되고(958:639) 라임 "다음으로"(958:661)가 그 자리에 왔다. 스킵도 "다음에
+///  할래요" → "나중에 할래요"(구 문구 958:638 은 hidden).
+///
+/// ⚠️ **표시 조건은 시안과 다르게 둔다.** 시안은 "다음으로"를 항상 그리지만, 그러면 값이 없을
+///  때 "다음으로"와 "나중에 할래요"가 같은 동작이 되어 두 버튼이 같은 뜻을 두 번 말한다.
+///  값이 생겼을 때만 "다음으로"를 내고 **"나중에 할래요"는 항상 남긴다** — 건너뛰기가 곧
+///  "고르지 않고 넘어간다"는 뜻이라 값이 없을 때가 오히려 필요한 자리다.
+///  (초기 시안 372:409 에는 두 버튼이 아예 없어 아무것도 못 고른 사용자가 갇히기도 했다.)
 struct PlanCreateFooter: View {
     /// 이 단계에서 고른 값이 있는지
     let hasValue: Bool
@@ -170,25 +175,25 @@ struct PlanCreateFooter: View {
             if hasValue {
                 Button(action: onComplete) {
                     ZStack {
-                        Text("완료했어요")
+                        Text("다음으로")
                             .font(.notoSans(16, .bold, relativeTo: .headline))
                             .tracking(-0.4)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(.textPrimary)
                             .opacity(isBusy ? 0 : 1)
-                        if isBusy { ProgressView().tint(.white) }
+                        if isBusy { ProgressView().tint(.textPrimary) }
                     }
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 55)
-                    .background(Capsule().fill(Color.deepGreen))
+                    .frame(maxWidth: 320)
+                    .frame(minHeight: 47)
+                    .background(Capsule().fill(Color.moduwaGreen))
                 }
                 .buttonStyle(.plain)
                 .disabled(isBusy)
-                .accessibilityLabel("완료했어요")
+                .accessibilityLabel("다음으로")
                 .accessibilityHint("다음 단계로 넘어갑니다")
             }
 
             Button(action: onSkip) {
-                Text("다음에 할래요")
+                Text("나중에 할래요")
                     .font(.notoSans(14, .medium, relativeTo: .subheadline))
                     .tracking(-0.4)
                     .foregroundStyle(Color.textSecondary)
@@ -198,7 +203,7 @@ struct PlanCreateFooter: View {
             }
             .buttonStyle(.plain)
             .disabled(isBusy)
-            .accessibilityLabel("다음에 할래요")
+            .accessibilityLabel("나중에 할래요")
             .accessibilityHint("이 단계를 건너뜁니다")
         }
         .padding(.horizontal, 24)

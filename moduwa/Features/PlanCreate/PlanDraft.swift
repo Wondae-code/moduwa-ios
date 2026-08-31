@@ -19,6 +19,12 @@ struct PlanDraft {
     var endDate: Date?
     /// 4/6 — 서버가 준 테마 `code` 목록
     var themes: [String] = []
+    /// 4/6 — "덜 붐볐으면 좋겠어요"(시안 958:633 의 체크박스).
+    ///
+    /// ⚠️ **아직 서버로 가지 않는다** — `POST /v1/plans/recommend` 에 혼잡도 선호를 받는 필드가
+    /// 없다(응답에는 `congestion`·`busy` 가 온다). 모르는 키를 실어 보내면 검증이 엄격한 경우
+    /// 추천 자체가 400 으로 막히므로, 서버가 필드를 열어 줄 때까지 값만 들고 있는다.
+    var avoidsCrowds = false
     /// 5/6 — `low`/`medium`/`high`. nil은 "고르지 않음"이고 저예산과 다르다.
     var budget: String?
 }
