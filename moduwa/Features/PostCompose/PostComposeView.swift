@@ -15,6 +15,19 @@ struct PostComposeView: View {
     /// 다시 받는 자리다(`WriteFloatingButton.onPosted` 주석 참고).
     var onPosted: (() -> Void)? = nil
 
+    /// 고칠 글. nil 이면 새 글이다.
+    ///
+    /// **수정 화면을 따로 만들지 않는다** — 고칠 수 있는 것(내용·사진·장소·무장애 정보)이
+    /// 새로 쓸 때와 정확히 같고, 두 화면을 두면 한쪽에만 고친 것이 생긴다. 다른 점 셋만
+    /// 여기서 가른다: 제목, 임시저장 없음(초안은 새 글의 것이다), 저장 경로(PATCH).
+    var editing: TravelPost? = nil
+
+    private var isEditing: Bool { editing != nil }
+
+    /// 고치는 글에 이미 올라가 있는 사진. 새로 고른 사진(`photos`)과 달리 서버에 이미 있어
+    /// URL 만 들고 있고, 저장할 때 남긴 것 + 새로 올린 것을 이어 보낸다.
+    @State private var keptImageURLs: [URL] = []
+
     /// 프로필에 보일 작성자. 후기 작성과 같은 저장소를 쓴다 — 같은 사람이다.
     @AppStorage(ReviewAuthorStore.nicknameKey) private var savedNickname = ""
     @Environment(SessionStore.self) private var session
@@ -82,7 +95,9 @@ struct PostComposeView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     profileRow
                     editor
-                    if !photos.isEmpty || isPreparingPhotos || photoError != nil { photoStrip }
+                    if !photos.isEmpty || !keptImageURLs.isEmpty || isPreparingPhotos || photoError != nil {
+                        photoStrip
+                    }
                     if !places.isEmpty { placeStrip }
                     if submitError != nil { errorBanner }
                     toolbar
@@ -102,7 +117,11 @@ struct PostComposeView: View {
         .background(.white)
         .toolbar(.hidden, for: .navigationBar)
         .onAppear {
-            restoreDraft()
+            if let editing {
+                fill(from: editing)
+            } else {
+                restoreDraft()
+            }
             isFocused = true
         }
         .onChange(of: photoSelection) { _, items in
@@ -137,7 +156,7 @@ struct PostComposeView: View {
             }
             .accessibilityLabel("뒤로")
 
-            Text("게시글 작성")
+            Text(isEditing ? "게시글 수정" : "게시글 작성")
                 .font(.notoSans(20, .bold, relativeTo: .title3))
                 .tracking(-0.4)
                 .foregroundStyle(Color.textPrimary)
@@ -155,6 +174,9 @@ struct PostComposeView: View {
             .disabled(isSubmitting)
             .accessibilityHint("짜 놓은 플랜의 장소를 한꺼번에 붙입니다")
 
+            // 임시저장은 새 글에만 있다 — 고치는 글의 초안을 따로 들면 다음에 새 글을 쓸 때
+            //  남의 글 내용이 되살아난다.
+            if !isEditing {
             Button(action: saveDraft) {
                 Text("임시저장")
                     .font(.notoSans(14, .regular, relativeTo: .subheadline))
@@ -167,6 +189,7 @@ struct PostComposeView: View {
             .disabled(!hasContent || isSubmitting)
             .accessibilityLabel("임시저장")
             .accessibilityHint(hasContent ? "쓴 내용을 기기에 저장하고 나갑니다" : "저장할 내용이 없어요")
+            }
         }
         .padding(.leading, 26)
         .padding(.trailing, 24)
@@ -329,7 +352,8 @@ struct PostComposeView: View {
             }
             .buttonStyle(.plain)
             .disabled(!canSubmit || isSubmitting)
-            .accessibilityLabel(isSubmitting ? "게시 중" : "게시하기")
+            .accessibilityLabel(isSubmitting ? (isEditing ? "저장 중" : "게시 중")
+                                             : (isEditing ? "수정 완료" : "게시하기"))
             .accessibilityHint(canSubmit ? "" : "내용을 입력하면 게시할 수 있어요")
         }
         .foregroundStyle(Color.deepGreen)
@@ -357,6 +381,15 @@ struct PostComposeView: View {
             category: .attraction,
             imageURL: nil
         )
+    }
+
+    /// 고치는 글의 값을 화면에 채운다. `onAppear` 에서 한 번만 부른다 —
+    /// 다시 부르면 사용자가 지운 사진·장소가 되살아난다.
+    private func fill(from post: TravelPost) {
+        text = post.body
+        keptImageURLs = post.imageURLs
+        places = post.places.map(Self.place(from:))
+        accessFeatures = post.accessFeatures
     }
 
     // MARK: - 임시저장
@@ -436,6 +469,23 @@ struct PostComposeView: View {
         let attached = places.map {
             PostPlace(contentID: $0.id, name: $0.name, region: $0.region)
         }
+
+        // 고치는 글이면 여기서 갈린다. 남긴 사진 + 새로 올린 사진을 이어 보낸다 —
+        //  서버는 배열을 통째로 갈아끼우므로(부분 병합이 아니다) 남길 것도 함께 실어야 한다.
+        if let editing {
+            do {
+                try await postService.updatePost(
+                    id: editing.id, body: trimmed, imageURLs: keptImageURLs + uploaded,
+                    places: attached, accessFeatures: accessFeatures)
+                UIAccessibility.post(notification: .announcement, argument: "수정했어요")
+                onPosted?()
+                dismiss()
+            } catch {
+                submitError = (error as? PostServiceError)?.errorDescription
+                    ?? "수정하지 못했어요. 네트워크 상태를 확인하고 다시 시도해 주세요."
+            }
+            return
+        }
         // 이름을 정하는 중이면 그 값을 함께 보낸다. 아니면 nil — 빈 문자열을 보내면
         // 서버가 기존 닉네임을 덮어쓴다.
         let name = isEditingNickname ? savedNickname.trimmingCharacters(in: .whitespacesAndNewlines) : nil
@@ -482,9 +532,31 @@ struct PostComposeView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if !photos.isEmpty {
+            if !photos.isEmpty || !keptImageURLs.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
+                        // 이미 올라가 있는 사진(수정 중) — 빼면 저장할 때 목록에서 사라진다.
+                        ForEach(keptImageURLs, id: \.self) { url in
+                            AsyncImage(url: url) { image in
+                                image.resizable().scaledToFill()
+                            } placeholder: {
+                                Color.photoPlaceholder
+                            }
+                            .frame(width: 96, height: 96)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(alignment: .topTrailing) {
+                                Button {
+                                    withoutAnimation { keptImageURLs.removeAll { $0 == url } }
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 20))
+                                        .foregroundStyle(.white, .black.opacity(0.45))
+                                        .padding(4)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("이 사진 빼기")
+                            }
+                        }
                         ForEach(photos) { photo in
                             Image(uiImage: photo.thumbnail)
                                 .resizable()

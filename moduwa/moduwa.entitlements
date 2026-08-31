@@ -6,5 +6,10 @@
 	<array>
 		<string>applinks:moduwa.app</string>
 	</array>
+	<!-- 푸시 알림(APNs). 값은 `development` 로 두고 배포 서명에서 Xcode 가 `production` 으로
+	     바꿔 끼운다 — 그래서 앱은 이 파일이 아니라 **번들에 실린 프로비저닝 프로파일**의
+	     `aps-environment` 를 읽어 서버에 알린다(`PushEnvironment`). -->
+	<key>aps-environment</key>
+	<string>development</string>
 </dict>
 </plist>

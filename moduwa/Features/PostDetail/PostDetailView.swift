@@ -34,6 +34,8 @@ struct PostDetailView: View {
     @State private var isSending = false
     @State private var sendError: String?
 
+    /// 수정 화면(작성 화면을 그대로 쓴다).
+    @State private var isEditing = false
     /// 삭제 확인 창. 되돌릴 수 없는 일이라 한 번 더 묻는다.
     @State private var isConfirmingDelete = false
     @State private var isDeleting = false
@@ -86,6 +88,13 @@ struct PostDetailView: View {
         // 글과 댓글은 서로 독립된 요청이다 — 한 task 에 이어 붙이면 뒤엣것이 앞의 응답을 기다린다.
         .task { detail = try? await postService.fetchPost(id: post.id) }
         .task { await loadComments() }
+        // 수정은 작성 화면을 그대로 쓴다(`PostComposeView.editing`). 돌아오면 이 화면을 다시
+        //  받는다 — 고친 내용이 곧바로 보여야 한다.
+        .navigationDestination(isPresented: $isEditing) {
+            PostComposeView(
+                onPosted: { Task { detail = try? await postService.fetchPost(id: post.id) } },
+                editing: current)
+        }
         // ⚠️ 확인 창은 **바깥 뷰**에 붙인다 — 헤더 메뉴 안이나 조건부 하위 뷰에 붙이면
         //  창은 떠도 버튼이 죽는 일이 있었다(플랜 상세에서 실측).
         .confirmationDialog("이 글을 삭제할까요?", isPresented: $isConfirmingDelete,
@@ -137,6 +146,7 @@ struct PostDetailView: View {
 
             if isMine {
                 Menu {
+                    Button("수정", systemImage: "pencil") { isEditing = true }
                     Button("삭제", systemImage: "trash", role: .destructive) {
                         isConfirmingDelete = true
                     }

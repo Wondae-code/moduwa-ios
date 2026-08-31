@@ -147,6 +147,7 @@ struct APIPlanService: PlanService {
             "startDate": PlanWireDate.text(from: request.startDate),
             "endDate": PlanWireDate.text(from: request.endDate),
             "dayTripOnly": request.dayTripOnly,
+            "avoidCrowds": request.avoidCrowds,
         ]
         // 빈 배열은 보내지 않는다 — 서버는 "고르지 않음"과 "빈 목록"을 같게 다루지만,
         //  보내지 않는 편이 요청만 봐도 무엇을 고른 사람인지 분명하다.

@@ -213,8 +213,10 @@ struct APIFeedService: FeedService {
         return (likeCount: result.likeCount, likedByMe: result.likedByMe)
     }
 
-    /// 후기 신고. 서버에 라우트가 아직 없으면 404 가 오는데, 그것은 실패가 아니라 **아직
-    /// 열리지 않았다**는 뜻이라 따로 가른다(`FeedServiceError.reportUnsupported`).
+    /// 후기 신고(`POST /v1/reviews/:reviewId/report`, 서버 `2026-08-31` 배포).
+    ///
+    /// 204 이고 재신고도 204 다(멱등) — 두 번 눌렀다고 오류를 보여 줄 이유가 없다는 서버 판단.
+    /// **404 는 이제 "없는 후기"다**(라우트가 열리기 전에는 "아직 열리지 않았다"로 읽었다).
     func reportReview(reviewId: Int, reason: ReviewReportReason, detail: String?) async throws {
         guard !apiKey.isEmpty else { throw FeedServiceError.reportUnsupported }
         var req = authorized(baseURL.appending(path: "/v1/reviews/\(reviewId)/report"))
@@ -226,7 +228,6 @@ struct APIFeedService: FeedService {
 
         let (data, resp) = try await session.data(for: req)
         let status = (resp as? HTTPURLResponse)?.statusCode ?? -1
-        if status == 404 { throw FeedServiceError.reportUnsupported }
         guard (200..<300).contains(status) else { throw failure(status: status, data: data) }
     }
 

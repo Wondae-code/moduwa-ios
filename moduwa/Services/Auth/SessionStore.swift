@@ -56,6 +56,8 @@ final class SessionStore {
             account = fetched
             phase = .signedIn
             mirrorNickname(fetched.nickname)
+            // 저장된 토큰으로 돌아온 것도 "로그인" 이다 — 기기 토큰을 다시 등록해 둔다.
+            PushRegistrar.shared.registerAfterSignIn()
         } catch AuthError.sessionExpired, AuthError.loginRequired {
             SessionTokenStore.shared.clear()
             account = nil
@@ -119,6 +121,9 @@ final class SessionStore {
     /// 로그아웃. **서버 요청이 실패해도 기기에서는 나간다** —
     /// 남기면 사용자는 로그아웃을 눌렀는데 계정 데이터가 계속 보인다.
     func signOut() async {
+        // ⚠️ **기기 토큰을 먼저 지운다.** 세션 토큰이 사라진 뒤에는 401 이라 지울 수 없고,
+        //  남겨 두면 로그아웃한 사람의 기기로 알림이 계속 간다(서버가 토큰에 계정을 묶는다).
+        await PushRegistrar.shared.unregisterBeforeSignOut()
         try? await service.signOut()
         SessionTokenStore.shared.clear()
         account = nil
@@ -241,6 +246,10 @@ final class SessionStore {
         account = result.account
         phase = .signedIn
         mirrorNickname(result.account.nickname)
+        // **로그인할 때마다** 기기 토큰을 다시 등록한다(서버 요청). 한 기기를 다른 계정으로
+        //  로그인하면 소유자가 바뀌어야 하고, 안 그러면 앞사람에게 알림이 계속 간다.
+        //  저장된 토큰으로 돌아오는 길(`bootstrap`)에도 같은 호출이 있다.
+        PushRegistrar.shared.registerAfterSignIn()
     }
 
     /// 계정 닉네임을 작성 화면의 입력칸 기본값(`@AppStorage`)에 비춘다.

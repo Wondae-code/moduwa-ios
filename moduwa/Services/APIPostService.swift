@@ -118,6 +118,37 @@ struct APIPostService: PostService {
         return try JSONDecoder().decode(PostDTO.self, from: data).post
     }
 
+    /// `PATCH /v1/posts/:postId` — 본인 글만, 없거나 남의 글이면 `404`(삭제와 같은 규칙).
+    ///
+    /// 네 키를 **항상 모두** 보낸다. 서버는 온 키만 갱신하므로 빼도 되지만, 편집 화면이
+    /// 넷 다 고칠 수 있어서 "안 바꿨다"와 "지웠다"를 앱이 구분해 봐야 이득이 없다 —
+    /// 화면의 현재 상태가 곧 저장할 상태다.
+    @discardableResult
+    func updatePost(
+        id: String, body: String, imageURLs: [URL], places: [PostPlace],
+        accessFeatures: [AccessibilityFeature]
+    ) async throws -> TravelPost {
+        guard !apiKey.isEmpty else { throw PostServiceError.unavailable }
+        var request = authorized(url("/v1/posts/\(id)"))
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(UpdateBody(
+            body: body,
+            imageURLs: imageURLs.map(\.absoluteString),
+            places: places,
+            accessFeatures: accessFeatures.map(\.rawValue)
+        ))
+        let data = try await data(for: request)
+        return try JSONDecoder().decode(PostDTO.self, from: data).post
+    }
+
+    private struct UpdateBody: Encodable {
+        let body: String
+        let imageURLs: [String]
+        let places: [PostPlace]
+        let accessFeatures: [String]
+    }
+
     /// `DELETE /v1/posts/:postId` — 서버가 세션의 계정으로 범위를 좁혀 지운다(본인 글만).
     /// 204 라 본문이 없고, 남의 글·없는 글은 `404` 로 온다 — 이때 서버 문구가 그대로 사용자에게
     /// 보인다("게시글을 찾을 수 없습니다.").

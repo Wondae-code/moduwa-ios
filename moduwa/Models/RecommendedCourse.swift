@@ -17,6 +17,9 @@ struct CourseRequest: Sendable {
     var budget: String?
     /// true 면 숙소를 고르지 않는다.
     var dayTripOnly: Bool
+    /// 4/6 의 "덜 붐볐으면 좋겠어요". 서버는 원래도 혼잡일에 감점을 주고 있었고, 이 값은
+    /// **그 세기를 키우는 스위치**다(혼잡도를 켜고 끄는 것이 아니다). false 면 기존 동작 그대로다.
+    var avoidCrowds: Bool = false
 }
 
 /// 서버가 제안한 코스. **아직 저장된 플랜이 아니다** — 사용자가 받아들이면 앱이 기존

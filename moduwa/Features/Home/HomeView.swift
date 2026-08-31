@@ -12,11 +12,16 @@ struct HomeView: View {
     @Environment(\.postService) private var postService
     @Environment(NotificationStore.self) private var notificationStore
     @Environment(PostInteractionSignal.self) private var postSignal
+    /// 알림(좋아요·댓글)을 눌러 열어야 할 게시글.
+    @Environment(\.pushRouter) private var pushRouter
     @Environment(SessionStore.self) private var session
     /// 홈 히어로 CTA → 새 플랜 플로우(플랜 탭이 연다).
     @Environment(\.planCreation) private var planCreation
     @State private var viewModel = HomeViewModel()
     @State private var isSortPickerPresented = false
+    /// 알림에서 온 게시글 상세. 목록에 없는 글일 수도 있어(다른 사람이 스크롤 밖의 글에
+    /// 댓글을 달았다) 아이디로 받아 와 직접 민다.
+    @State private var pushedPost: TravelPost?
 
     private let gridColumns = [
         GridItem(.flexible(), spacing: 14),
@@ -66,7 +71,14 @@ struct HomeView: View {
             .navigationDestination(for: TravelReview.self) { review in
                 ReviewDetailView(review: review)
             }
+            // 알림에서 온 글. 내 글에 달린 좋아요·댓글이라 삭제 메뉴를 띄울 수 있다.
+            .navigationDestination(item: $pushedPost) { post in
+                PostDetailView(post: post, isMine: true)
+            }
         }
+        // ⚠️ `onChange` 가 아니라 `task(id:)` 다 — 종료 상태에서 알림으로 앱이 열리면 값이
+        //  이 뷰보다 먼저 담겨 변화 이벤트가 오지 않는다.
+        .task(id: pushRouter.pendingPostID) { await openPushedPost() }
         .task {
             await viewModel.loadInitial(using: feedService, accessFeatures: session.accessFeatures)
         }
@@ -82,6 +94,21 @@ struct HomeView: View {
     }
 
     // MARK: - 헤더
+
+    /// 알림에서 온 게시글을 열어 준다.
+    ///
+    /// 실패하면 **조용히 넘긴다** — 대개 그 사이에 지워진 글이고, 알림을 눌렀더니 오류창이
+    /// 뜨는 것보다 아무 일도 없는 편이 낫다(알림 자체는 이미 읽혔다).
+    private func openPushedPost() async {
+        guard let id = pushRouter.pendingPostID else { return }
+        // ⚠️ **값을 먼저 비우지 않는다.** `task(id:)` 는 id 가 바뀌면 돌던 작업을 취소하는데,
+        //  여기서 비우면 바로 아래 요청이 그 자리에서 취소된다(실측: 10ms 만에 실패).
+        //  받아 온 뒤에 비우면 그 취소가 두 번째 호출을 막아 주는 역할까지 한다.
+        let post = try? await postService.fetchPost(id: id)
+        pushRouter.pendingPostID = nil
+        pushedPost = post
+        PushRegistrar.log.notice("알림에서 게시글 열기: \(id, privacy: .public) → \(post == nil ? "실패" : "성공", privacy: .public)")
+    }
 
     private var headerBar: some View {
         HStack {

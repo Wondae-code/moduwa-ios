@@ -4,6 +4,9 @@ import SwiftUI
 
 @main
 struct moduwaApp: App {
+    /// APNs 콜백(기기 토큰·알림 탭)은 SwiftUI 로 올라오지 않아 델리게이트가 필요하다.
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
     init() {
         Self.applyBrandTabBarFont()
 
@@ -52,6 +55,9 @@ struct moduwaApp: App {
     @State private var inviteCoordinator = InviteCoordinator()
     /// 홈 히어로 CTA → 새 플랜 플로우를 잇는 신호.
     @State private var planCreation = PlanCreationSignal()
+    /// 알림을 눌렀을 때 갈 곳. `AppDelegate` 가 담고 탭이 꺼내 쓴다 —
+    /// 싱글턴을 그대로 꽂는다(델리게이트는 환경을 볼 수 없다).
+    private let pushRouter = PushRouter.shared
 
     var body: some Scene {
         WindowGroup {
@@ -72,6 +78,7 @@ struct moduwaApp: App {
                 .environment(postSignal)
                 .environment(\.inviteCoordinator, inviteCoordinator)
                 .environment(\.planCreation, planCreation)
+                .environment(\.pushRouter, pushRouter)
                 .environment(\.authService, APIAuthService())
         }
     }

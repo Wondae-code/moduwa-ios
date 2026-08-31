@@ -5,6 +5,8 @@ struct PlanView: View {
     @Environment(SessionStore.self) private var session
     /// 링크·코드로 들어온 초대를 여기서 수락한다 — 목록 상태와 `planService` 가 여기 있다.
     @Environment(\.inviteCoordinator) private var invites
+    /// 합류 알림을 눌러 열어야 할 플랜.
+    @Environment(\.pushRouter) private var pushRouter
     /// 앱이 포그라운드로 돌아오면 목록을 다시 받는다 — 낡은 판을 보는 시간을 줄여 저장 충돌
     ///  확률을 낮춘다(서버 "플랜 공동 편집" 권장). 공유 플랜의 다른 멤버 변경도 곧 보인다.
     @Environment(\.scenePhase) private var scenePhase
@@ -99,6 +101,10 @@ struct PlanView: View {
         .task { await load() }
         // 링크로 코드가 도착하면(RootView 가 채운다) 여기서 수락한다.
         .task(id: invites.pendingCode) { await processPendingInvite() }
+        // 합류 알림에서 왔다. 목록에 있든 없든 아이디로 받아 와 상세로 민다.
+        //  ⚠️ `task(id:)` 인 이유는 초대 코드와 같다 — 종료 상태에서 알림으로 열리면 값이
+        //  이 뷰보다 먼저 담겨 변화 이벤트가 오지 않는다.
+        .task(id: pushRouter.pendingPlanID) { await openPushedPlan() }
         // 로그인·로그아웃이 일어나면 목록을 다시 받는다. 로그아웃한 기기는 **비어야** 하고,
         //  로그인한 직후에는 곧바로 보여야 한다 — 탭을 나갔다 와야 보이면 안 된다.
         //  로그인 뒤에는 대기 중이던 초대도 이어서 수락한다.
@@ -122,6 +128,20 @@ struct PlanView: View {
         } message: {
             Text(invites.notice ?? "")
         }
+    }
+
+    /// 합류 알림에서 온 플랜을 상세로 민다.
+    ///
+    /// 실패하면 **조용히 넘긴다** — 대개 그 사이에 지워졌거나 내가 나온 플랜이고, 알림을
+    /// 눌렀더니 오류창이 뜨는 것보다 아무 일도 없는 편이 낫다.
+    private func openPushedPlan() async {
+        guard let id = pushRouter.pendingPlanID else { return }
+        // ⚠️ **값을 먼저 비우지 않는다** — `task(id:)` 는 id 가 바뀌면 돌던 작업을 취소한다
+        //  (게시글 쪽에서 실측한 함정). 받아 온 뒤에 비운다.
+        guard session.account != nil else { return }
+        let plan = try? await planService.fetchPlan(id: id)
+        pushRouter.pendingPlanID = nil
+        if let plan { path.append(plan) }
     }
 
     /// 대기 중인 초대 코드를 수락한다(유니버설 링크 경로).

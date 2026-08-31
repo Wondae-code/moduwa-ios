@@ -38,8 +38,9 @@ enum FeedServiceError: LocalizedError {
     case loginRequired
     /// 401 `session_expired` — 토큰이 낡았다. 이미 지워졌고 앱은 로그아웃 상태로 돌아간다.
     case sessionExpired
-    /// 서버에 신고 라우트가 아직 없다(404). "실패"가 아니라 **아직 열리지 않았다**는 뜻이라
-    /// 따로 가른다 — 사용자에게 다시 시도하라고 말하면 영원히 같은 결과다.
+    /// 신고를 받을 서버가 없는 데이터 소스다(번들·목). 라우트는 열렸으므로(서버 2026-08-31)
+    /// 실제 앱에서는 API 키가 없을 때만 나온다 — "실패"가 아니라 **이 소스로는 못 보낸다**는
+    /// 뜻이라 따로 가른다(다시 시도하라고 말하면 영원히 같은 결과다).
     case reportUnsupported
 
     var errorDescription: String? {
@@ -48,7 +49,7 @@ enum FeedServiceError: LocalizedError {
         case .server(let message): message
         case .imageUploadFailed: "사진을 올리지 못했어요. 네트워크 상태를 확인하고 다시 시도해 주세요."
         case .nicknameRequired: "댓글에 표시될 이름을 입력해 주세요."
-        case .reportUnsupported: "신고 기능은 곧 열려요. 조금만 기다려 주세요."
+        case .reportUnsupported: "지금은 신고를 보낼 수 없어요. 네트워크 상태를 확인해 주세요."
         case .commentsUnavailable: "이 후기의 댓글은 지금 볼 수 없어요."
         case .loginRequired: "로그인이 필요해요."
         case .sessionExpired: "로그인이 만료됐어요. 다시 로그인해 주세요."

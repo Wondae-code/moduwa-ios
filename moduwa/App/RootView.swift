@@ -15,6 +15,8 @@ struct RootView: View {
     @Environment(\.inviteCoordinator) private var inviteCoordinator
     /// 홈에서 "새 플랜"을 요청하면 플랜 탭으로 옮긴다 — 플로우는 그 탭이 연다.
     @Environment(\.planCreation) private var planCreation
+    /// 알림을 눌러 열린 경우 갈 곳. 탭만 여기서 옮기고 상세는 그 탭이 민다.
+    @Environment(\.pushRouter) private var pushRouter
 
     /// 첫 실행 온보딩. 한 번 마치면(건너뛰어도) 다시 띄우지 않는다.
     @State private var isOnboardingPresented = !OnboardingProfileStore.shared.didFinish
@@ -66,6 +68,17 @@ struct RootView: View {
         //  플로우를 여는 것은 그 탭(`PlanListView`)이 하고, 요청도 거기서 내린다.
         .onChange(of: planCreation.isRequested) { _, requested in
             if requested { selection = .plan }
+        }
+        // 알림을 눌렀다(`AppDelegate` → `PushRouter`). 목적지가 있는 탭으로 옮긴다 —
+        //  게시글 상세는 홈이, 플랜 상세는 플랜 탭이 민다.
+        //
+        // `onChange` 가 아니라 `task(id:)` 인 이유: 앱이 **종료 상태에서 알림으로 열리면**
+        //  값이 이 뷰가 만들어지기 전에 이미 담겨 있어 변화 이벤트가 오지 않는다.
+        .task(id: pushRouter.pendingPostID) {
+            if pushRouter.pendingPostID != nil { selection = .home }
+        }
+        .task(id: pushRouter.pendingPlanID) {
+            if pushRouter.pendingPlanID != nil { selection = .plan }
         }
         .onOpenURL { url in
             if KakaoSignInFlow.handle(url) { return }

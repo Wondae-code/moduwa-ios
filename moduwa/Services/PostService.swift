@@ -98,6 +98,19 @@ protocol PostService: Sendable {
     /// 게시글 하나. 상세 화면이 좋아요·댓글 수까지 최신값으로 받는다.
     func fetchPost(id: String) async throws -> TravelPost
 
+    /// 게시글 수정(`PATCH /v1/posts/:postId`, 서버 2026-08-31).
+    ///
+    /// **온 키만 갱신되고 배열은 통째로 교체된다** — 사진·장소를 부분 병합하지 않으므로
+    /// 남길 것까지 함께 실어야 한다(빈 배열은 "다 지운다"는 뜻이다).
+    /// `authorNm` 은 보내지 않는다(서버가 받지 않는다) — 프로필 편집이 생긴 뒤로 글을 고친다고
+    /// 닉네임이 따라 바뀌면 안 된다.
+    /// - Returns: 갱신된 글. 목록 카드와 상세를 이 값으로 갱신한다.
+    @discardableResult
+    func updatePost(
+        id: String, body: String, imageURLs: [URL], places: [PostPlace],
+        accessFeatures: [AccessibilityFeature]
+    ) async throws -> TravelPost
+
     /// 게시글 삭제. **내 글만** 지워진다 — 남의 글이면 서버가 `404` 를 준다(존재 여부를 알려 주지
     /// 않는 편이 낫다는 서버 판단). 성공은 204 라 돌려줄 값이 없다.
     ///
@@ -139,6 +152,16 @@ struct MockPostService: PostService {
     }
 
     func fetchPost(id: String) async throws -> TravelPost { throw PostServiceError.unavailable }
+
+    @discardableResult
+    func updatePost(
+        id: String, body: String, imageURLs: [URL], places: [PostPlace],
+        accessFeatures: [AccessibilityFeature]
+    ) async throws -> TravelPost {
+        TravelPost(id: id, author: "여행자", body: body, imageURLs: imageURLs, places: places,
+                   accessFeatures: accessFeatures, likeCount: 0, commentCount: 0,
+                   likedByMe: false, createdAt: .now)
+    }
 
     func deletePost(id: String) async throws {}
 

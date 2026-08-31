@@ -17,6 +17,8 @@ import SwiftUI
 struct AccountSettingsView: View {
     @Environment(SessionStore.self) private var session
     @Environment(\.dismiss) private var dismiss
+    /// iOS 설정에서 알림을 바꾸고 돌아오는 경우가 있어 포그라운드 복귀를 본다.
+    @Environment(\.scenePhase) private var scenePhase
 
     /// 줄 하나가 미는 화면.
     private enum Row: Hashable, Identifiable {
@@ -27,12 +29,13 @@ struct AccountSettingsView: View {
 
     @State private var row: Row?
 
-    /// 앱 푸시 알림 허용(시안 978:1163).
+    /// 앱 푸시 알림 허용(시안 978:1163). 실제 등록·해제는 `PushRegistrar` 가 한다.
     ///
-    /// ⚠️ **아직 UI 뿐이다** — 앱에 APNs 등록도, 권한 요청도 없다(`UNUserNotificationCenter`
-    /// 호출 0건). 값은 기기에 남지만 그것으로 알림이 오거나 멈추지는 않는다. 푸시가 붙으면
-    /// 이 값을 시스템 권한 상태와 맞추고, 켤 때 권한을 요청하는 자리로 쓴다.
-    @AppStorage("pushNotificationsAllowed") private var pushAllowed = true
+    /// **토글이 보는 값은 앱 선호와 시스템 권한의 AND 다**(`isOn`) — iOS 설정에서 껐는데
+    /// 앱 토글만 켜져 있으면 "켰는데 안 온다" 가 된다. 켜는 순간이 권한을 물어볼 자리다.
+    @State private var push = PushRegistrar.shared
+    /// 시스템 권한이 거절 상태여서 앱에서 되돌릴 수 없다 — iOS 설정으로 보내는 안내.
+    @State private var isShowingSystemSettingsNotice = false
 
     /// 시안 값: 화면 393에 줄 폭 321 — 좌우 36.
     private static let rowInset: CGFloat = 36
@@ -54,6 +57,32 @@ struct AccountSettingsView: View {
         .background(.white)
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(item: $row) { destination($0) }
+        // 사용자가 iOS 설정에서 알림을 껐다 켰을 수 있다 — 앱에 통보되지 않아 직접 확인한다.
+        .task { await push.refresh() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await push.refresh() } }
+        }
+        .onChange(of: push.needsSystemSettings) { _, needs in
+            if needs { isShowingSystemSettingsNotice = true }
+        }
+        .alert("알림이 꺼져 있어요", isPresented: $isShowingSystemSettingsNotice) {
+            // 앱에서 시스템 권한을 되돌릴 수는 없다 — 설정으로 보내는 것이 전부다.
+            Button("설정 열기") {
+                push.needsSystemSettings = false
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button("나중에", role: .cancel) { push.needsSystemSettings = false }
+        } message: {
+            Text("iOS 설정 → 모두와 → 알림에서 허용해 주세요. 앱에서는 켤 수 없어요.")
+        }
+    }
+
+    /// 토글을 실제 등록·해제로 잇는다. 값을 그냥 저장하면 스위치만 움직이고 알림은 그대로다.
+    private var pushBinding: Binding<Bool> {
+        Binding(get: { push.isOn },
+                set: { on in Task { on ? await push.turnOn() : await push.turnOff() } })
     }
 
     // MARK: - 헤더
@@ -220,10 +249,11 @@ struct AccountSettingsView: View {
                 subtitle: "앱 푸시 알림 허용",
                 height: 85
             ) {
-                Toggle("", isOn: $pushAllowed)
+                Toggle("", isOn: pushBinding)
                     .labelsHidden()
                     .tint(.moduwaGreen)
                     .accessibilityLabel("앱 푸시 알림 허용")
+                    .accessibilityHint("내 글에 달린 좋아요·댓글과 플랜 합류를 알려 줍니다")
             }
 
             if session.account != nil {
