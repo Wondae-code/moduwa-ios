@@ -90,16 +90,23 @@ struct HomeView: View {
             // Figma: 아이콘마다 25×25 정렬 박스, 간격 10
             HStack(spacing: 10) {
                 NavigationLink(value: HomeRoute.search) {
-                    Image("search")
+                    // 시안(153:20)의 돋보기는 25×25 — 앱의 `search`(17×20)가 아니라
+                    //  장소 검색에서 쓰는 `plan_search` 와 같은 글리프다.
+                    Image("plan_search")
                         .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
                         .frame(width: 25, height: 25)
                 }
                 .accessibilityLabel("검색")
 
                 NavigationLink(value: HomeRoute.notifications) {
-                    // 알림 벨 에셋은 아직 미제공 — SF Symbol 유지 (시안은 Material Symbols 글리프)
-                    Image(systemName: "bell")
-                        .font(.system(size: 19, weight: .medium))
+                    // 시안의 벨(13:549, 25×25)을 에셋으로 받아 쓴다 — 예전에는 SF Symbol
+                    //  `bell` 이었고 글리프가 시안과 달랐다.
+                    Image("notification")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
                         .frame(width: 25, height: 25)
                         .overlay(alignment: .topTrailing) {
                             // 안 읽은 알림이 있을 때만 도트 표시

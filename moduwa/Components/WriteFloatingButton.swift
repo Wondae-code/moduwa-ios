@@ -59,6 +59,10 @@ struct WriteFloatingButton: View {
 struct WriteHeaderButton: View {
     /// `WriteFloatingButton.onPosted` 와 같다 — 목록을 들고 있는 화면이면 넘긴다.
     var onPosted: (() -> Void)? = nil
+    /// 헤더의 글리프. 시안은 자리에 따라 다른 연필을 쓴다 — 저장 탭 헤더(642:1255)는 **연필만**
+    /// (`detail_pencil`), 홈의 플로팅 버튼(652:3399)은 **연필+플러스**(`compose_write`)다.
+    /// 기본값은 시안이 있는 저장 탭 쪽에 맞춘다.
+    var icon: String = "detail_pencil"
 
     @Environment(SessionStore.self) private var session
     @State private var isComposing = false
@@ -68,7 +72,7 @@ struct WriteHeaderButton: View {
             guard session.requireSignIn(.writePost) else { return }
             isComposing = true
         } label: {
-            Image("compose_write")
+            Image(icon)
                 .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
