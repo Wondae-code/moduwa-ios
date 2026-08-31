@@ -158,21 +158,26 @@ struct ProfileEditView: View {
         let size = feature.iconSize(height: 19)
         return Group {
             if let picked {
+                // 방금 고른 사진은 아직 URL 이 없다 — 미리보기는 여기서만 그린다.
                 Image(uiImage: picked.thumbnail)
                     .resizable()
                     .scaledToFill()
-            } else if let url = session.account?.avatarURL, !clearsPhoto {
-                AsyncImage(url: url) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: {
-                    Color.photoPlaceholder
-                }
+                    .frame(width: 100, height: 100)
+                    .clipShape(Circle())
             } else {
-                Color.moduwaGreen.opacity(0.3)
+                // 나머지는 설정 화면과 **같은 컴포넌트·같은 규칙**(사진 > 이니셜)이다.
+                //  지우기를 눌렀으면 계정 사진을 무시하고 이니셜로 되돌아간다.
+                AuthorAvatar(
+                    name: session.account?.nickname ?? "",
+                    avatarURL: clearsPhoto ? nil : session.account?.avatarURL,
+                    diameter: 100,
+                    fontSize: 36,
+                    background: Color.moduwaGreen.opacity(0.3),
+                    foreground: .deepGreen,
+                    showsInitial: session.account != nil
+                )
             }
         }
-        .frame(width: 100, height: 100)
-        .clipShape(Circle())
         .overlay(alignment: .bottomTrailing) {
             Circle()
                 .fill(Color.deepGreen)

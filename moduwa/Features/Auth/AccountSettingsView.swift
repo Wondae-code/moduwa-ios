@@ -142,20 +142,19 @@ struct AccountSettingsView: View {
     private var avatar: some View {
         let feature = session.accessFeatures.first ?? .wheelchairAccessible
         let size = feature.iconSize(height: 19)
-        return Group {
-            // 사진을 올렸으면 그것, 없으면 라임 원(시안 983:1302 의 기본 아바타).
-            if let url = session.account?.avatarURL {
-                AsyncImage(url: url) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: {
-                    Color.photoPlaceholder
-                }
-            } else {
-                Color.moduwaGreen.opacity(0.3)
-            }
-        }
-            .frame(width: 100, height: 100)
-            .clipShape(Circle())
+        // 사진이 없으면 **닉네임 첫 글자**를 그린다 — 남이 보는 자리(게시글·후기)와 같은
+        //  규칙이라, 사진을 안 올린 사람이 자리마다 다른 얼굴로 보이지 않는다.
+        //  원 색은 시안(983:1302)의 라임을 유지하고, 밝은 배경이라 글자는 딥그린이다.
+        //  이름을 모르는 비로그인에서는 이니셜 없이 원만 남긴다.
+        return AuthorAvatar(
+            name: session.account?.nickname ?? "",
+            avatarURL: session.account?.avatarURL,
+            diameter: 100,
+            fontSize: 36,
+            background: Color.moduwaGreen.opacity(0.3),
+            foreground: .deepGreen,
+            showsInitial: session.account != nil
+        )
             .overlay(alignment: .bottomTrailing) {
                 Circle()
                     .fill(Color.deepGreen)
