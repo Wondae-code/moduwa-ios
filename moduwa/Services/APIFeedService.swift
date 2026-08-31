@@ -417,6 +417,8 @@ struct APIFeedService: FeedService {
             let nickname: String?
             let reviewCount: Int?
             let level: Int?
+            /// 프로필 사진(042). 서버가 https 로만 내려준다.
+            let avatarUrl: String?
         }
     }
 
@@ -454,6 +456,7 @@ struct APIFeedService: FeedService {
             rating: dto.rating,
             authorLevel: dto.authorInfo?.level,
             authorReviewCount: dto.authorInfo?.reviewCount,
+            authorAvatarURL: URL(imageAddress: dto.authorInfo?.avatarUrl),
             tags: (dto.tags ?? []).map(\.tag),
             wouldRevisit: dto.wouldRevisit
         )
@@ -627,7 +630,8 @@ struct APIFeedService: FeedService {
                 body: body,
                 createdAt: (try? Date(createdAt, strategy: .iso8601)) ?? Date(),
                 authorLevel: authorInfo?.level,
-                authorReviewCount: authorInfo?.reviewCount
+                authorReviewCount: authorInfo?.reviewCount,
+                authorAvatarURL: URL(imageAddress: authorInfo?.avatarUrl)
             )
         }
     }

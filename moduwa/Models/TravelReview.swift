@@ -59,6 +59,8 @@ struct TravelReview: Identifiable, Hashable, Sendable {
     var authorLevel: Int? = nil
     /// 서버 `authorInfo.reviewCount` — 시안(333:1396)의 "3개의 리뷰" 자리
     var authorReviewCount: Int? = nil
+    /// 작성자 프로필 사진(서버 `authorInfo.avatarUrl`, 042). 없으면 이니셜 원을 그린다.
+    var authorAvatarURL: URL? = nil
     /// 작성자가 고른 후기 태그. 후기 한 줄에서는 `shortLabel` 뱃지로 그린다.
     var tags: [ReviewTag] = []
     /// "재방문을 하고 싶어요" 응답. **세 상태를 구분한다** — true/false/미응답(nil).

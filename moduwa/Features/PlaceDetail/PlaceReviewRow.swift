@@ -97,17 +97,9 @@ struct PlaceReviewRow: View {
 
     private var profileRow: some View {
         HStack(spacing: 10) {
-            // 시안은 빈 원이지만 이 앱의 아바타는 딥그린 원 + 이름 첫 글자다
-            // (ReviewCard·ReviewDetailView와 같은 규격 — 프로필 사진 소스가 없다)
-            Circle()
-                .fill(Color.deepGreen)
-                .frame(width: 36, height: 36)
-                .overlay(
-                    Text(String(review.author.prefix(1)))
-                        .font(.notoSans(14, .bold))
-                        .foregroundStyle(.white)
-                )
-                .accessibilityHidden(true)
+            // 사진을 올린 작성자면 사진, 아니면 딥그린 원 + 이름 첫 글자(`AuthorAvatar`).
+            AuthorAvatar(name: review.author, avatarURL: review.authorAvatarURL,
+                         diameter: 36, fontSize: 14)
 
             VStack(alignment: .leading, spacing: 0) {
                 Text(review.author)

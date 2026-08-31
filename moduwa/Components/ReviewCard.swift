@@ -26,14 +26,8 @@ struct ReviewCard: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 9) {
-                    Circle()
-                        .fill(Color.deepGreen)
-                        .frame(width: 36, height: 36)
-                        .overlay(
-                            Text(String(review.author.prefix(1)))
-                                .font(.notoSans(14, .bold))
-                                .foregroundStyle(.white)
-                        )
+                    AuthorAvatar(name: review.author, avatarURL: review.authorAvatarURL,
+                                 diameter: 36, fontSize: 14)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(review.author)
                             .font(.notoSans(14, .bold))

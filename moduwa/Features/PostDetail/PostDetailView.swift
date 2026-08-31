@@ -125,12 +125,8 @@ struct PostDetailView: View {
 
     private var authorRow: some View {
         HStack(spacing: 10) {
-            Text(String(current.author.prefix(1)))
-                .font(.notoSans(15, .bold))
-                .foregroundStyle(.white)
-                .frame(width: 36, height: 36)
-                .background(Color.deepGreen, in: Circle())
-                .accessibilityHidden(true)
+            AuthorAvatar(name: current.author, avatarURL: current.authorAvatarURL,
+                         diameter: 36, fontSize: 15)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(current.author)

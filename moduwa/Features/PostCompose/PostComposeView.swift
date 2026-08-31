@@ -178,12 +178,10 @@ struct PostComposeView: View {
 
     private var profileRow: some View {
         HStack(alignment: .top, spacing: 12) {
-            Text(initial)
-                .font(.notoSans(16, .bold))
-                .foregroundStyle(.white)
-                .frame(width: 40, height: 40)
-                .background(Color.deepGreen, in: Circle())
-                .accessibilityHidden(true)
+            // 프로필 사진을 올린 계정이면 그 사진을 쓴다 — 글에 붙어 남에게 보일 얼굴을
+            //  쓰는 자리에서 미리 보여 주는 것이 맞다(`AuthorAvatar`).
+            AuthorAvatar(name: nickname, avatarURL: session.account?.avatarURL,
+                         diameter: 40, fontSize: 16)
 
             if isEditingNickname {
                 // 시안에는 없는 입력칸이다. 서버가 첫 작성에 이름을 요구하므로(글은 사람에게

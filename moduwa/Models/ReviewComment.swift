@@ -12,6 +12,8 @@ struct ReviewComment: Identifiable, Hashable, Sendable {
     /// 뱃지를 붙일 때 API부터 다시 봐야 한다.
     var authorLevel: Int? = nil
     var authorReviewCount: Int? = nil
+    /// 작성자 프로필 사진(`authorInfo.avatarUrl`). 없으면 이니셜 원.
+    var authorAvatarURL: URL? = nil
 
     /// 아바타에 넣을 이름 첫 글자
     var initial: String { String(author.prefix(1)) }

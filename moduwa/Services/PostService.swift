@@ -37,6 +37,8 @@ struct PostPlace: Identifiable, Hashable, Sendable, Codable {
 struct TravelPost: Identifiable, Hashable, Sendable {
     let id: String
     var author: String
+    /// 작성자 프로필 사진(서버 `authorInfo.avatarUrl`, 042). 없으면 이니셜 원을 그린다.
+    var authorAvatarURL: URL? = nil
     var body: String
     var imageURLs: [URL]
     var places: [PostPlace]
@@ -54,6 +56,8 @@ struct TravelPost: Identifiable, Hashable, Sendable {
 struct PostComment: Identifiable, Hashable, Sendable {
     let id: String
     var author: String
+    /// 작성자 프로필 사진(`authorInfo.avatarUrl`). 없으면 이니셜 원.
+    var authorAvatarURL: URL? = nil
     var body: String
     var createdAt: Date
 }

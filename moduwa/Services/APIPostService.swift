@@ -168,16 +168,25 @@ struct APIPostService: PostService {
 
     private struct CommentListResponse: Decodable { let items: [CommentDTO] }
 
+    /// 작성자 프로필 — 서버가 **기존 `author` 문자열을 그대로 두고 나란히** 덧붙인 객체다
+    /// (후기의 `authorInfo` 와 같은 모양이라 서버가 파서 공유를 의도했다). 구 서버에는 없어 옵셔널.
+    private struct AuthorInfoDTO: Decodable {
+        let nickname: String?
+        let avatarUrl: String?
+    }
+
     private struct CommentDTO: Decodable {
         let id: Int
         let author: String?
         let body: String?
         let createdAt: String?
+        let authorInfo: AuthorInfoDTO?
 
         var comment: PostComment {
             PostComment(
                 id: String(id),
                 author: author ?? "",
+                authorAvatarURL: URL(imageAddress: authorInfo?.avatarUrl),
                 body: body ?? "",
                 createdAt: createdAt.flatMap { try? Date($0, strategy: .iso8601) } ?? .now
             )
@@ -206,11 +215,13 @@ struct APIPostService: PostService {
         let likedByMe: Bool?
         /// ISO8601 UTC
         let createdAt: String?
+        let authorInfo: AuthorInfoDTO?
 
         var post: TravelPost {
             TravelPost(
                 id: id,
                 author: author ?? "",
+                authorAvatarURL: URL(imageAddress: authorInfo?.avatarUrl),
                 body: body ?? "",
                 imageURLs: (imageURLs ?? []).compactMap(URL.init(string:)),
                 places: places ?? [],

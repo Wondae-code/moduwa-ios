@@ -201,7 +201,8 @@ struct ReviewDetailView: View {
 
     private var authorRow: some View {
         HStack(alignment: .center, spacing: 12) {
-            avatar(initial: String(review.author.prefix(1)), diameter: 40, fontSize: 15)
+            avatar(name: review.author, avatarURL: review.authorAvatarURL,
+                   diameter: 40, fontSize: 15)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(review.author)
@@ -394,7 +395,8 @@ struct ReviewDetailView: View {
 
     private func commentRow(_ comment: ReviewComment) -> some View {
         HStack(alignment: .top, spacing: 10) {
-            avatar(initial: comment.initial, diameter: 32, fontSize: 13)
+            avatar(name: comment.author, avatarURL: comment.authorAvatarURL,
+                   diameter: 32, fontSize: 13)
             VStack(alignment: .leading, spacing: 3) {
                 // 접근성 글자 크기에서는 이름 + 시간이 한 줄에 들어가지 않아 세로로 쌓는다
                 authorTimeLine(comment)
@@ -736,20 +738,10 @@ struct ReviewDetailView: View {
 
     // MARK: - 공통
 
-    private func avatar(initial: String, diameter: CGFloat, fontSize: CGFloat) -> some View {
-        Circle()
-            .fill(Color.deepGreen)
-            .frame(width: diameter, height: diameter)
-            .overlay(
-                Text(initial)
-                    .font(.notoSans(fontSize, .bold))
-                    .foregroundStyle(.white)
-                    // 원은 고정 크기인데 글자만 커져서 접근성 글자 크기에서 원을 넘쳐 흐른다.
-                    // 이름 첫 글자는 옆 텍스트에 이미 있는 정보라 장식으로 두고 크기를 묶는다.
-                    .dynamicTypeSize(...DynamicTypeSize.large)
-            )
-            // 첫 글자를 따로 읽어 주면 "여, 여행자"처럼 이름이 두 번 들린다
-            .accessibilityHidden(true)
+    /// 사진이 있으면 사진, 없으면 이니셜 원. 규칙은 `AuthorAvatar` 한 곳에 있다 —
+    /// 이 화면만 따로 그리면 카드와 상세에서 같은 작성자가 달리 보인다.
+    private func avatar(name: String, avatarURL: URL?, diameter: CGFloat, fontSize: CGFloat) -> some View {
+        AuthorAvatar(name: name, avatarURL: avatarURL, diameter: diameter, fontSize: fontSize)
     }
 
     private var fullDivider: some View {

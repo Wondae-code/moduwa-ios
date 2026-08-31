@@ -92,13 +92,9 @@ struct PostCard: View {
 
     private var authorRow: some View {
         HStack(spacing: 9) {
-            // 프로필 사진이 없다 — 작성 화면과 같이 닉네임 첫 글자를 원에 담는다.
-            Text(String(post.author.prefix(1)))
-                .font(.notoSans(14, .bold))
-                .foregroundStyle(.white)
-                .frame(width: 32, height: 32)
-                .background(Color.deepGreen, in: Circle())
-                .accessibilityHidden(true)
+            // 사진을 올린 작성자면 사진, 아니면 닉네임 첫 글자(`AuthorAvatar`).
+            AuthorAvatar(name: post.author, avatarURL: post.authorAvatarURL,
+                         diameter: 32, fontSize: 14)
 
             Text(post.author)
                 .font(.notoSans(14, .bold))
