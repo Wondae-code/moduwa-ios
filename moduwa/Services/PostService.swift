@@ -50,6 +50,9 @@ struct TravelPost: Identifiable, Hashable, Sendable {
     /// 이 기기가 좋아요를 눌렀는지. 서버가 보는 사람 기준으로 준다.
     var likedByMe: Bool
     var createdAt: Date
+    /// 보는 사람이 쓴 글인지(서버 `isMine`). 수정·삭제 메뉴를 띄울 근거다.
+    /// `likedByMe` 와 같은 성질의 파생 값이고 비로그인은 false 다.
+    var isMine: Bool = false
 }
 
 /// 게시글 댓글.

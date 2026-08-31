@@ -55,9 +55,6 @@ struct moduwaApp: App {
     @State private var inviteCoordinator = InviteCoordinator()
     /// 홈 히어로 CTA → 새 플랜 플로우를 잇는 신호.
     @State private var planCreation = PlanCreationSignal()
-    /// 내가 쓴 글의 아이디 모음. 어느 목록에서 열어도 수정·삭제 메뉴를 띄울지 가른다
-    /// (서버 응답에 소유 표시가 없어서다 — `MyPostIDStore` 주석).
-    @State private var myPostIDs = MyPostIDStore()
     /// 알림을 눌렀을 때 갈 곳. `AppDelegate` 가 담고 탭이 꺼내 쓴다 —
     /// 싱글턴을 그대로 꽂는다(델리게이트는 환경을 볼 수 없다).
     private let pushRouter = PushRouter.shared
@@ -82,7 +79,6 @@ struct moduwaApp: App {
                 .environment(\.inviteCoordinator, inviteCoordinator)
                 .environment(\.planCreation, planCreation)
                 .environment(\.pushRouter, pushRouter)
-                .environment(myPostIDs)
                 .environment(\.authService, APIAuthService())
         }
     }

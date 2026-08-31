@@ -11,8 +11,6 @@ struct RootView: View {
 
     @Environment(SessionStore.self) private var session
     @Environment(SavedPlacesStore.self) private var savedPlacesStore
-    /// 로그아웃하면 비운다 — 다음 사람의 화면에서 남의 글에 수정 메뉴가 달리면 안 된다.
-    @Environment(MyPostIDStore.self) private var myPostIDs
     /// 초대 링크가 도착하면 코드를 여기 담고 플랜 탭으로 보낸다 — 수락은 `PlanView` 가 한다.
     @Environment(\.inviteCoordinator) private var inviteCoordinator
     /// 홈에서 "새 플랜"을 요청하면 플랜 탭으로 옮긴다 — 플로우는 그 탭이 연다.
@@ -51,10 +49,7 @@ struct RootView: View {
         // 로그아웃하면 이 기기의 화면을 비운다. 세션이 화면을 직접 알면 의존이 거꾸로 흐르므로
         //  여기서 한 번 꽂아 둔다.
         .onAppear {
-            session.onSignedOut = {
-                savedPlacesStore.clear()
-                myPostIDs.clear()
-            }
+            session.onSignedOut = { savedPlacesStore.clear() }
         }
         // 유니버설 링크(https://moduwa.app/i/{코드})로 앱이 열리면 코드를 우편함에 담고 플랜
         //  탭으로 보낸다 — 실제 수락은 `PlanView` 가 로그인 여부까지 보고 처리한다. 유니버설

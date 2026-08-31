@@ -254,6 +254,9 @@ struct APIPostService: PostService {
         let likeCount: Int?
         let commentCount: Int?
         let likedByMe: Bool?
+        /// 보는 사람이 쓴 글인지(서버 2026-08-31). 옵셔널로 받는 이유는 서버가 null 을 주기
+        /// 때문이 아니라(coalesce 로 막아 두었다) **키가 없던 시절의 응답을 견디기 위해서**다.
+        let isMine: Bool?
         /// ISO8601 UTC
         let createdAt: String?
         let authorInfo: AuthorInfoDTO?
@@ -272,7 +275,9 @@ struct APIPostService: PostService {
                 commentCount: commentCount ?? 0,
                 likedByMe: likedByMe ?? false,
                 // 목록 정렬은 서버가 하므로 못 읽어도 화면이 어긋나지 않는다.
-                createdAt: createdAt.flatMap { try? Date($0, strategy: .iso8601) } ?? .now
+                createdAt: createdAt.flatMap { try? Date($0, strategy: .iso8601) } ?? .now,
+                // 없으면 false — 메뉴가 안 보이는 쪽으로 실패한다(남의 글에 보이는 것보다 낫다).
+                isMine: isMine ?? false
             )
         }
     }

@@ -9,17 +9,10 @@ import SwiftUI
 struct PostDetailView: View {
     /// 목록에서 넘어온 값. 좋아요·댓글 수는 목록 시점 값이라 열자마자 다시 받는다.
     let post: TravelPost
-    /// 부르는 쪽이 이미 아는 경우("내 게시글" 목록 — `mine=true` 로 받았다).
-    /// 모르고 열어도 `MyPostIDStore` 가 가려 주므로 넘기지 않아도 된다 —
-    /// 다만 이 값이 true 면 목록을 받아 오기를 기다리지 않고 곧바로 메뉴가 뜬다.
-    var isMine = false
 
     @Environment(\.postService) private var postService
     @Environment(SessionStore.self) private var session
     @Environment(PostInteractionSignal.self) private var postSignal
-    /// 어느 목록에서 열었든 내 글인지 가른다. 서버 응답에 소유 표시가 없어서 필요하다
-    /// (`MyPostIDStore` 주석 — `isMine` 이 오면 이 저장소는 사라진다).
-    @Environment(MyPostIDStore.self) private var myPostIDs
     @Environment(\.dismiss) private var dismiss
     @AppStorage(ReviewAuthorStore.nicknameKey) private var savedNickname = ""
 
@@ -45,10 +38,9 @@ struct PostDetailView: View {
 
     private var current: TravelPost { detail ?? post }
 
-    /// 수정·삭제 메뉴를 띄울지. 넘겨받았거나(확실한 경우) 내 글 목록에 있으면 띄운다.
-    private var canManage: Bool {
-        isMine || myPostIDs.contains(post.id)
-    }
+    /// 수정·삭제 메뉴를 띄울지. **서버가 판단한 값이다**(`isMine`) — 목록·단건·생성·수정
+    /// 응답 모두에 실려 오므로 어느 화면에서 열어도 곧바로 안다.
+    private var canManage: Bool { current.isMine }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -106,14 +98,6 @@ struct PostDetailView: View {
             didLoadComments = false
             await loadComments()
         }
-        // 내 글 목록은 이번 실행에 한 번만 받는다. 비로그인이면 받을 것이 없다(401).
-        //  ⚠️ `isMine` 으로 건너뛰지 않는다 — 그 글만 내 것이라고 아는 상태에서 다른 글로
-        //  이어 들어가면(장소·댓글에서) 그때는 가릴 근거가 없다.
-        // 계정을 키로 둔다 — 이 화면을 열어 둔 채로 댓글 게이트에서 로그인하면 그때 받아야 한다.
-        .task(id: session.account?.uuid) {
-            guard session.account != nil else { return }
-            await myPostIDs.loadIfNeeded(using: postService)
-        }
         // 수정은 작성 화면을 그대로 쓴다(`PostComposeView.editing`). 돌아오면 이 화면을 다시
         //  받는다 — 고친 내용이 곧바로 보여야 한다.
         .navigationDestination(isPresented: $isEditing) {
@@ -147,7 +131,6 @@ struct PostDetailView: View {
         do {
             try await postService.deletePost(id: post.id)
             postSignal.postDeleted(id: post.id)
-            myPostIDs.note(deleted: post.id)
             dismiss()
         } catch {
             deleteError = (error as? LocalizedError)?.errorDescription

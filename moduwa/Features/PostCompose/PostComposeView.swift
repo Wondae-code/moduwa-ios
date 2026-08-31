@@ -34,8 +34,6 @@ struct PostComposeView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.postService) private var postService
-    /// 방금 쓴 글도 내 글이다 — 목록을 다시 받지 않아도 상세에서 수정·삭제가 뜨게 한다.
-    @Environment(MyPostIDStore.self) private var myPostIDs
     @Environment(\.feedService) private var feedService
     @State private var text = ""
     @FocusState private var isFocused: Bool
@@ -493,10 +491,10 @@ struct PostComposeView: View {
         let name = isEditingNickname ? savedNickname.trimmingCharacters(in: .whitespacesAndNewlines) : nil
 
         do {
-            let created = try await postService.createPost(
+            // 생성 응답에도 `isMine` 이 온다 — 방금 쓴 글을 열어도 곧바로 메뉴가 뜬다.
+            try await postService.createPost(
                 body: trimmed, imageURLs: uploaded, places: attached,
                 accessFeatures: accessFeatures, authorNm: name)
-            myPostIDs.note(created: created.id)
             // 게시됐으면 초안은 더 이상 이어 쓸 것이 아니다 — 남겨 두면 다음에 열 때
             // 이미 올린 글이 되살아난다.
             PostDraftStore.clear()

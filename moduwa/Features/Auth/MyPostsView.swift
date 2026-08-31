@@ -7,11 +7,9 @@ import SwiftUI
 /// 같은 카드(`PostCard`), 같은 상태 네 가지(비로그인·로딩·실패·빈), 같은 여백. 내 글이라고
 /// 다른 모양으로 보일 이유가 없고, 두 화면이 갈리면 같은 목록을 두 번 배우게 된다.
 ///
-/// **삭제는 상세 화면에서 한다** — 이 목록은 `mine=true` 로 받은 것이라 전부 내 글이고, 그래서
-/// 상세에 삭제 메뉴를 띄울 수 있다(서버 응답에는 소유 표시가 없어 다른 목록에서는 못 띄운다).
+/// **수정·삭제는 상세 화면에서 한다**(어느 목록에서 열어도 같다 — 서버가 `isMine` 을 준다).
 /// 목록에 스와이프 삭제를 두지 않은 이유: 카드가 사진까지 든 큰 행이라 손이 스치기 쉽고,
-/// 되돌릴 수 없는 일을 그렇게 가볍게 둘 수 없다. **수정은 아직 없다** — 서버에 라우트가 없다
-/// (`docs/BACKEND_REQUEST_2026-08-31.md` 요청 1).
+/// 되돌릴 수 없는 일을 그렇게 가볍게 둘 수 없다.
 struct MyPostsView: View {
     @Environment(\.postService) private var postService
     @Environment(PostInteractionSignal.self) private var postSignal
@@ -82,9 +80,7 @@ struct MyPostsView: View {
             LazyVStack(spacing: 16) {
                 ForEach(visiblePosts) { post in
                     NavigationLink {
-                        // 이 목록은 `mine=true` 로 받은 것이라 **전부 내 글이다** —
-                        //  상세가 삭제 메뉴를 띄울 수 있는 유일한 자리다.
-                        PostDetailView(post: post, isMine: true)
+                        PostDetailView(post: post)
                     } label: {
                         PostCard(post: post)
                     }
