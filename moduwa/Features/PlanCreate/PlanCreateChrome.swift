@@ -68,12 +68,20 @@ struct PlanCreateHeader: View {
         .fixedSize()
     }
 
+    /// 채움은 **라임**이다(시안 `958:658` 의 SVG `fill=#A7E100`). 딥그린으로 그리고 있었다.
+    ///
+    /// 트랙은 시안이 `#F2F2F2` 인데 `cardStroke`(#E6E6E6)를 그대로 둔다 — 보통 모드에서는
+    /// 구분되지 않는 차이인데, **고대비에서는 `cardStroke` 가 #8C8C8C 로 짙어져** 라임 채움과
+    /// 훨씬 잘 갈린다(`photoPlaceholder` 는 고대비에서도 #E4E4E4 로 밝다).
+    ///
+    /// ⚠️ 라임 채움과 밝은 트랙의 대비는 1.3:1 로 낮다. 진행 상황을 막대만으로 전달하지 않는
+    /// 이유가 여기 있다 — 옆의 "4 / 6" 숫자와 스크린리더 값이 같은 사실을 함께 말한다.
     private var track: some View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
                 Capsule().fill(Color.cardStroke)
                 Capsule()
-                    .fill(Color.deepGreen)
+                    .fill(Color.moduwaGreen)
                     .frame(width: geometry.size.width * progress)
             }
         }
@@ -121,9 +129,14 @@ struct PlanCreateChip: View {
     var body: some View {
         Button(action: action) {
             Text(label)
+                // 선택을 **색만으로** 전하지 않는다 — 굵기가 함께 바뀐다(시안은 둘 다 Medium 이지만
+                //  고른 것을 색으로만 알리면 색을 구분하기 어려운 사람에게는 단서가 사라진다).
                 .font(.notoSans(14, isSelected ? .bold : .regular, relativeTo: .subheadline))
                 .tracking(-0.4)
-                .foregroundStyle(isSelected ? .white : Color.textSecondary)
+                // 시안 `958:683/684`: 선택 칩은 **라임 배경 + 딥그린 글자**다(딥그린 배경 + 흰
+                //  글자로 그리고 있었다). 미선택 글자는 시안이 `#B3B3B3` 인데 `textSecondary`
+                //  (#4D4D4D)를 유지한다 — #B3B3B3 은 #F2F2F2 배경에서 1.9:1 로 읽을 수 없다.
+                .foregroundStyle(isSelected ? Color.textPrimary : Color.textSecondary)
                 .multilineTextAlignment(.center)
                 // 접근성 글자 크기에서 칩 하나가 여러 줄이 되어도 잘리지 않게
                 .fixedSize(horizontal: false, vertical: true)
@@ -131,7 +144,7 @@ struct PlanCreateChip: View {
                 .padding(.vertical, fillsWidth ? 6 : 2)
                 .frame(maxWidth: fillsWidth ? .infinity : nil)
                 .frame(minHeight: fillsWidth ? 38 : 30)
-                .background(Capsule().fill(isSelected ? Color.deepGreen : Color.photoPlaceholder))
+                .background(Capsule().fill(isSelected ? Color.moduwaGreen : Color.photoPlaceholder))
                 .padding(.vertical, fillsWidth ? 3 : 5)
                 .contentShape(Rectangle())
         }
