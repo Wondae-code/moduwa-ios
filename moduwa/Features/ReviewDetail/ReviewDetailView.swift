@@ -38,6 +38,8 @@ struct ReviewDetailView: View {
     @State private var deletingComment: ReviewComment?
     /// 댓글 입력칸 포커스 — 고치기 시작하면 키보드를 올린다.
     @FocusState private var isCommentFocused: Bool
+    /// 이 후기 신고 시트. 서버 후기일 때만 열린다.
+    @State private var isReporting = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -101,6 +103,11 @@ struct ReviewDetailView: View {
         } message: { _ in
             Text("지우면 되돌릴 수 없어요.")
         }
+        .sheet(isPresented: $isReporting) {
+            if let serverId = review.serverId {
+                ReviewReportSheet(reviewId: serverId)
+            }
+        }
     }
 
     // MARK: - 헤더 (뒤로가기 + 타이틀)
@@ -123,6 +130,20 @@ struct ReviewDetailView: View {
             // 하단은 댓글 입력 바가 차지하고 있어 플로팅 버튼을 쓸 수 없다 —
             // 같은 글리프를 헤더에 둬 작성으로 가는 길을 남긴다.
             WriteHeaderButton()
+
+            // 신고는 장소 상세의 후기 줄(`PlaceReviewRow`)에만 있었다 — 후기를 **끝까지 읽은
+            //  자리**에서 신고할 길이 없으면, 문제를 발견한 사람이 목록으로 되돌아가야 한다.
+            //  번들·목 후기(`serverId == nil`)에는 신고를 붙일 대상이 없어 버튼을 아예 두지 않는다.
+            if review.serverId != nil {
+                Button { isReporting = true } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 17, weight: .semibold))
+                        .frame(width: 30, height: 40)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("이 후기 신고")
+            }
         }
         .foregroundStyle(.textPrimary)
         .padding(.leading, 28)
