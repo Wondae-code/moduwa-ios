@@ -51,8 +51,6 @@ struct CollectionView: View {
                 }
             }
             .background(Color.appBackground)
-            // 홈과 같은 자리에 같은 버튼. 하단에 고정 바가 없어 겹칠 것이 없다.
-            .overlay(alignment: .bottomTrailing) { WriteFloatingButton() }
             .navigationDestination(for: Place.self) { PlaceDetailView(place: $0) }
         }
         // 다른 화면에서 저장을 눌렀을 수도 있다 — 탭을 열 때마다 최신을 받는다.
@@ -91,6 +89,13 @@ struct CollectionView: View {
                 .tracking(-0.4)
 
             Spacer(minLength: 0)
+
+            // 시안은 글쓰기를 **"좋아요한 게시물" 탭에서만** 헤더에 둔다(642:1255의 pencil).
+            //  "저장 모아보기"(642:837)에는 아무 아이콘도 없다 — 그 탭은 장소 목록이라 글쓰기가
+            //  맥락에 없다. 홈만 플로팅 버튼을 쓴다(17:6의 Write Button).
+            if selectedTab == .liked {
+                WriteHeaderButton()
+            }
         }
         .foregroundStyle(Color.textPrimary)
         .padding(.horizontal, 24)
