@@ -118,6 +118,16 @@ struct APIPostService: PostService {
         return try JSONDecoder().decode(PostDTO.self, from: data).post
     }
 
+    /// `DELETE /v1/posts/:postId` — 서버가 세션의 계정으로 범위를 좁혀 지운다(본인 글만).
+    /// 204 라 본문이 없고, 남의 글·없는 글은 `404` 로 온다 — 이때 서버 문구가 그대로 사용자에게
+    /// 보인다("게시글을 찾을 수 없습니다.").
+    func deletePost(id: String) async throws {
+        guard !apiKey.isEmpty else { throw PostServiceError.unavailable }
+        var request = authorized(url("/v1/posts/\(id)"))
+        request.httpMethod = "DELETE"
+        _ = try await data(for: request)
+    }
+
     // MARK: - 좋아요
 
     @discardableResult

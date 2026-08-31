@@ -11,6 +11,7 @@ struct HomeView: View {
     @Environment(\.feedService) private var feedService
     @Environment(\.postService) private var postService
     @Environment(NotificationStore.self) private var notificationStore
+    @Environment(PostInteractionSignal.self) private var postSignal
     @Environment(SessionStore.self) private var session
     /// 홈 히어로 CTA → 새 플랜 플로우(플랜 탭이 연다).
     @Environment(\.planCreation) private var planCreation
@@ -239,10 +240,13 @@ struct HomeView: View {
                     }
                     .buttonStyle(.plain)
                 case .post(let post):
-                    NavigationLink { PostDetailView(post: post) } label: {
-                        PostCard(post: post)
+                    // 상세에서 지운 글은 목록에서 빠진다 — 남겨 두면 눌렀을 때 404 가 된다.
+                    if !postSignal.deletedPostIDs.contains(post.id) {
+                        NavigationLink { PostDetailView(post: post) } label: {
+                            PostCard(post: post)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
 
@@ -316,4 +320,5 @@ struct HomeView: View {
     HomeView()
         .environment(NotificationStore())
         .environment(SessionStore(service: MockAuthService()))
+        .environment(PostInteractionSignal())
 }

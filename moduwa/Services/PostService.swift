@@ -98,6 +98,13 @@ protocol PostService: Sendable {
     /// 게시글 하나. 상세 화면이 좋아요·댓글 수까지 최신값으로 받는다.
     func fetchPost(id: String) async throws -> TravelPost
 
+    /// 게시글 삭제. **내 글만** 지워진다 — 남의 글이면 서버가 `404` 를 준다(존재 여부를 알려 주지
+    /// 않는 편이 낫다는 서버 판단). 성공은 204 라 돌려줄 값이 없다.
+    ///
+    /// 수정은 아직 없다 — 서버에 `PATCH /v1/posts/:postId` 가 없다
+    /// (`docs/BACKEND_REQUEST_2026-08-31.md` 요청 1).
+    func deletePost(id: String) async throws
+
     /// 좋아요 켜기/끄기. 멱등이다.
     /// - Returns: 서버가 센 좋아요 수와 내가 누른 상태.
     @discardableResult
@@ -132,6 +139,8 @@ struct MockPostService: PostService {
     }
 
     func fetchPost(id: String) async throws -> TravelPost { throw PostServiceError.unavailable }
+
+    func deletePost(id: String) async throws {}
 
     @discardableResult
     func setPostLiked(id: String, _ liked: Bool) async throws -> (likeCount: Int, likedByMe: Bool) {

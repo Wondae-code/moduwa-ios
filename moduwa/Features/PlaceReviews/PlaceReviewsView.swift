@@ -16,6 +16,7 @@ struct PlaceReviewsView: View {
 
     @Environment(\.feedService) private var feedService
     @Environment(\.postService) private var postService
+    @Environment(PostInteractionSignal.self) private var postSignal
     @Environment(SessionStore.self) private var session
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -394,7 +395,8 @@ struct PlaceReviewsView: View {
         } else {
             ScrollView {
                 LazyVStack(spacing: 16) {
-                    ForEach(posts) { post in
+                    // 상세에서 지운 글은 곧바로 빠진다(전역 신호).
+                    ForEach(posts.filter { !postSignal.deletedPostIDs.contains($0.id) }) { post in
                         NavigationLink { PostDetailView(post: post) } label: {
                             PostCard(post: post)
                         }
@@ -588,6 +590,7 @@ struct PlaceReviewsView: View {
         )
     }
     .environment(SessionStore(service: MockAuthService()))
+    .environment(PostInteractionSignal())
 }
 
 #Preview("후기 없는 장소") {
@@ -596,6 +599,7 @@ struct PlaceReviewsView: View {
             .environment(\.feedService, EmptyPlaceReviewsPreviewService())
     }
     .environment(SessionStore(service: MockAuthService()))
+    .environment(PostInteractionSignal())
 }
 
 #Preview("큰 글자 (AX3)") {
@@ -604,6 +608,7 @@ struct PlaceReviewsView: View {
     }
     .environment(\.dynamicTypeSize, .accessibility3)
     .environment(SessionStore(service: MockAuthService()))
+    .environment(PostInteractionSignal())
 }
 
 /// 프리뷰 전용 — 후기가 0건인 장소 (프로덕션 후기가 8건뿐이라 대부분의 장소가 실제로 이 상태다).

@@ -293,7 +293,8 @@ struct CollectionView: View {
         } else {
             ScrollView {
                 LazyVStack(spacing: 16) {
-                    ForEach(likedPosts) { post in
+                    // 상세에서 지운 글은 곧바로 빠진다(전역 신호).
+                    ForEach(likedPosts.filter { !postSignal.deletedPostIDs.contains($0.id) }) { post in
                         NavigationLink {
                             PostDetailView(post: post)
                         } label: {

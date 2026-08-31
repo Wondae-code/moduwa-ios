@@ -9,6 +9,11 @@ import SwiftUI
 struct PostDetailView: View {
     /// 목록에서 넘어온 값. 좋아요·댓글 수는 목록 시점 값이라 열자마자 다시 받는다.
     let post: TravelPost
+    /// 내가 쓴 글인지. **부르는 쪽이 안다** — 서버 응답에는 소유 표시가 없어서
+    /// (`authorInfo` 에 닉네임·사진만 온다) 앱이 닉네임으로 짐작하면 동명이인의 글에
+    /// 삭제 버튼을 달게 된다. "내 게시글" 목록은 `mine=true` 로 받은 목록이라 확실하다.
+    /// 서버에 소유 표시를 요청해 두었다(`docs/BACKEND_REQUEST_2026-08-31.md`).
+    var isMine = false
 
     @Environment(\.postService) private var postService
     @Environment(SessionStore.self) private var session
@@ -28,6 +33,11 @@ struct PostDetailView: View {
     @State private var nicknameInput = ""
     @State private var isSending = false
     @State private var sendError: String?
+
+    /// 삭제 확인 창. 되돌릴 수 없는 일이라 한 번 더 묻는다.
+    @State private var isConfirmingDelete = false
+    @State private var isDeleting = false
+    @State private var deleteError: String?
 
     private var current: TravelPost { detail ?? post }
 
@@ -76,6 +86,38 @@ struct PostDetailView: View {
         // 글과 댓글은 서로 독립된 요청이다 — 한 task 에 이어 붙이면 뒤엣것이 앞의 응답을 기다린다.
         .task { detail = try? await postService.fetchPost(id: post.id) }
         .task { await loadComments() }
+        // ⚠️ 확인 창은 **바깥 뷰**에 붙인다 — 헤더 메뉴 안이나 조건부 하위 뷰에 붙이면
+        //  창은 떠도 버튼이 죽는 일이 있었다(플랜 상세에서 실측).
+        .confirmationDialog("이 글을 삭제할까요?", isPresented: $isConfirmingDelete,
+                            titleVisibility: .visible) {
+            Button("삭제", role: .destructive) { Task { await deletePost() } }
+            Button("취소", role: .cancel) {}
+        } message: {
+            Text("삭제하면 사진과 댓글도 함께 사라지고, 되돌릴 수 없어요.")
+        }
+        .alert("삭제하지 못했어요", isPresented: .init(
+            get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })
+        ) {
+            Button("확인") { deleteError = nil }
+        } message: {
+            Text(deleteError ?? "")
+        }
+    }
+
+    /// 삭제는 서버가 먼저다 — 화면에서 먼저 지우고 실패하면 사라진 글이 되살아나는 것처럼 보인다.
+    /// 성공하면 화면을 닫고, 이 글을 든 다른 목록들이 걸러내도록 전역 신호를 올린다.
+    private func deletePost() async {
+        guard !isDeleting else { return }
+        isDeleting = true
+        do {
+            try await postService.deletePost(id: post.id)
+            postSignal.postDeleted(id: post.id)
+            dismiss()
+        } catch {
+            deleteError = (error as? LocalizedError)?.errorDescription
+                ?? "잠시 후 다시 시도해 주세요."
+        }
+        isDeleting = false
     }
 
     private var headerBar: some View {
@@ -92,6 +134,20 @@ struct PostDetailView: View {
                 .padding(.leading, 12)
 
             Spacer()
+
+            if isMine {
+                Menu {
+                    Button("삭제", systemImage: "trash", role: .destructive) {
+                        isConfirmingDelete = true
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 17, weight: .semibold))
+                        .frame(width: 25, height: 25)
+                }
+                .accessibilityLabel("이 글 관리")
+                .disabled(isDeleting)
+            }
         }
         .foregroundStyle(.textPrimary)
         .padding(.leading, 28)

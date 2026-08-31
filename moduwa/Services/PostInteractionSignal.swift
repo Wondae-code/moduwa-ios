@@ -16,4 +16,14 @@ final class PostInteractionSignal {
 
     /// 게시글 좋아요/취소가 성공했을 때 부른다.
     func postLikeChanged() { likeRevision += 1 }
+
+    /// 이 실행에서 지운 글. 목록을 든 화면이 그리기 전에 걸러낸다 —
+    /// 상세에서 지운 글이 홈·저장·장소 후기 목록에 계속 남아 있으면 눌렀을 때 404 가 된다.
+    ///
+    /// 다시 받아오게 하지 않고 **걸러내는** 쪽을 고른 이유: 삭제는 이미 서버에 반영됐고,
+    /// 목록 재요청은 사용자가 보고 있던 스크롤 위치를 잃게 만든다.
+    private(set) var deletedPostIDs: Set<String> = []
+
+    /// 게시글 삭제가 성공했을 때 부른다.
+    func postDeleted(id: String) { deletedPostIDs.insert(id) }
 }
