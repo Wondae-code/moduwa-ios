@@ -190,6 +190,11 @@ struct PlanListView: View {
 
             HStack(spacing: 16) {
                 // 초대 코드 수동 입력 — 링크가 앱을 못 열 때(카톡 인앱 웹뷰 등)의 폴백.
+                //
+                // ⚠️ **시안에 없는 아이콘이다.** 플랜 헤더(391:232)에는 제목만 있고, 파일 어디에도
+                //  공동 편집(초대·멤버) 화면이 없다 — 기능 자체가 시안 밖이다. 그래도 여기 두는
+                //  것으로 정했다(2026-08-31): 지우면 카톡에서 받은 초대를 넣을 길이 사라진다.
+                //  시안이 나오면 그 자리로 옮긴다.
                 Button(action: onJoinByCode) {
                     Image(systemName: "ticket")
                         .font(.system(size: 18, weight: .semibold))
