@@ -17,32 +17,18 @@ struct RootView: View {
     /// 첫 실행 온보딩. 한 번 마치면(건너뛰어도) 다시 띄우지 않는다.
     @State private var isOnboardingPresented = !OnboardingProfileStore.shared.didFinish
 
-    /// 마이페이지 서랍. **여기서 그린다** — 서랍은 탭바까지 덮으므로(시안 821:103) 탭 안쪽에서
-    /// 띄울 수 없고, 시트로 띄우면 아래에서 올라온다. 여는 버튼은 네 탭 헤더의
-    /// `AccountMenuButton` 이고, 그 사이는 환경값 하나로 잇는다.
-    @State private var accountDrawer = AccountDrawerPresenter()
-
     var body: some View {
         // `@Environment` 는 바인딩을 내주지 않는다. 시트의 `item:` 이 쓸 수 있게 감싼다.
         @Bindable var session = session
 
         // 앱 전체 글자 크기(마이페이지 → 접근성). body 에서 읽어야 값이 바뀔 때 다시 그린다.
-        //  ZStack 에 걸면 탭·서랍은 물론 여기서 띄우는 시트·전체화면까지 환경으로 물려받는다.
+        //  여기 걸면 탭 안 화면은 물론 시트·전체화면까지 환경으로 물려받는다.
         let textScale = AccessibilitySettings.shared.textScale
 
-        return ZStack {
-            tabs
-                // 서랍이 열려 있으면 뒤쪽은 VoiceOver 에서 숨긴다 — 시트는 시스템이 알아서
-                //  해 주지만 오버레이는 계층에 그대로 남아 손가락이 뒤 화면을 계속 짚는다.
-                .accessibilityHidden(accountDrawer.isPresented)
-
-            // 서랍은 **늘 계층에 둔다** — 조건부로 넣고 빼면 오프셋 애니메이션이 걸릴
-            //  순간이 없다. 닫혀 있으면 화면 밖에 있고 손가락도 VoiceOver 도 받지 않는다.
-            AccountDrawerView()
-                .allowsHitTesting(accountDrawer.isPresented)
-                .accessibilityHidden(!accountDrawer.isPresented)
-        }
-        .environment(\.accountDrawer, accountDrawer)
+        // 설정(마이페이지)은 서랍이 아니라 탭 안에서 밀어 올리는 전체 화면이다(시안 977:662) —
+        //  네 탭 헤더의 `AccountMenuButton` 이 자기 스택에서 직접 민다. 그래서 여기서 오버레이로
+        //  얹을 것이 없다.
+        return tabs
         .applyTextScale(textScale)
         .tint(.deepGreen)
         // 저장해 둔 토큰이 아직 쓸 수 있는지 한 번 확인한다. 실패를 로그아웃으로 단정하지

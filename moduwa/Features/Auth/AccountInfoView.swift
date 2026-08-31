@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 회원정보 수정 — 마이페이지 서랍의 첫 줄(`AccountDrawerView` 873:2100)에서 들어온다.
+/// 회원정보 수정 — 설정 화면의 이름 옆 연필(`AccountSettingsView`)에서 들어온다.
 ///
 /// **로그아웃이 여기 있다.** 시안(821:103)에는 로그아웃 줄이 없고 "비로그인시" 화면도 없어서,
 /// 계정 자체를 다루는 이 줄 안에 두었다 — 이메일 인증과 같은 자리가 맞다. 서랍 첫 화면에
@@ -12,7 +12,7 @@ struct AccountInfoView: View {
     /// 로그아웃했다. 서랍은 닫혀야 한다 — 로그아웃한 계정의 메뉴가 남아 있으면 안 된다.
     var onSignedOut: () -> Void
     /// 이메일 인증 화면으로. **경로는 서랍이 쥔다** — 밀어 넣는 스택이 하나여야 뒤로 가기가
-    /// 어긋나지 않는다(`AccountDrawerView.Route`).
+    /// 어긋나지 않는다(`AccountSettingsView.SubRoute`).
     var onVerifyEmail: () -> Void
     var onChangePassword: () -> Void
 
