@@ -216,7 +216,9 @@ struct PlanListView: View {
         }
         .foregroundStyle(Color.textPrimary)
         .padding(.horizontal, 24)
-        .frame(height: 49)
+        // 시안 값 49 는 **최소 높이**다. 고정으로 두면 글자 크기를 키운 사람의 화면에서
+        //  "내 플랜" 이 아래 구분선에 잘린다(AX5 에서 실측).
+        .frame(minHeight: 49)
         .background(Color.appBackground)
         .overlay(alignment: .bottom) {
             Rectangle()
@@ -248,9 +250,17 @@ struct PlanListView: View {
                     .font(.notoSans(16, .bold, relativeTo: .headline))
                     .tracking(-0.4)
                     .foregroundStyle(Color.textPrimary)
-                    .frame(width: 234, height: 46)
+                    .multilineTextAlignment(.center)
+                    // 시안 값 234×46 을 **최소 크기**로 둔다. 고정으로 두면 글자 크기를 키운
+                    //  사람의 화면에서 라벨이 "+ 새 플랜…" 으로 잘린다(AX5 에서 실측) —
+                    //  이 화면에서 유일한 다음 행동인데 무엇을 하는 버튼인지 읽을 수 없게 된다.
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 8)
+                    .frame(minWidth: 234, minHeight: 46)
                     .background(Color.moduwaGreen, in: Capsule())
                     .shadow(color: Color.deepGreen.opacity(0.15), radius: 8, y: 3)
+                    // 커져도 화면 좌우로 넘지 않게 — 캡슐이 가장자리에 닿으면 잘린 것처럼 보인다.
+                    .padding(.horizontal, 24)
             }
             .padding(.bottom, 40)
         }
@@ -440,28 +450,36 @@ private struct UpcomingPlanCard: View {
             .padding(.bottom, 22)
             .padding(.trailing, 27)
         }
-        .frame(height: 243)
+        // 시안 값 243 은 **최소 높이**다. 고정으로 두면 제목이 길거나 글자 크기를 키웠을 때
+        //  제목이 카드 안에서 잘린다(AX5 에서 "친구와 함께하는 여…" 로 잘리는 것을 실측).
+        .frame(minHeight: 243)
         .frame(maxWidth: .infinity)
         .clipShape(RoundedRectangle(cornerRadius: 18))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(plan.title), \(plan.dateRangeText)")
     }
 
+    /// ⚠️ 사진을 **`Color` 의 오버레이로** 넣는다. `scaledToFill()` 은 제안받은 크기보다
+    /// **큰 크기를 부모에게 보고**하고, `.clipped()` 는 그리는 것만 자르고 레이아웃은 그대로
+    /// 두기 때문이다 — 그래서 사진을 ZStack 의 형제로 두면 **카드가 사진 비율만큼 옆으로
+    /// 늘어나 화면을 넘는다**(글자 크기를 키워 카드가 높아지면 더 심해진다. AX5 에서 실측:
+    /// 카드가 36~402pt 를 차지해 오른쪽이 잘렸다).
+    ///
+    /// 오버레이 안의 뷰는 부모 크기에 영향을 주지 않으므로, 카드 폭은 글자와 여백만으로 정해진다.
     private var cover: some View {
-        Group {
-            // 표지가 없으면 첫 장소 사진으로 폴백한다(`Plan.cardImageURL`) — 일정 탭 카드와 같은 값.
-            if let url = plan.cardImageURL {
-                AsyncImage(url: url) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: {
-                    Color.photoPlaceholder
+        Color.photoPlaceholder
+            .overlay {
+                // 표지가 없으면 첫 장소 사진으로 폴백한다(`Plan.cardImageURL`) — 일정 탭 카드와 같은 값.
+                if let url = plan.cardImageURL {
+                    AsyncImage(url: url) { image in
+                        image.resizable().scaledToFill()
+                    } placeholder: {
+                        Color.photoPlaceholder
+                    }
                 }
-            } else {
-                Color.photoPlaceholder
             }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipped()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
     }
 }
 

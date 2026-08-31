@@ -772,7 +772,9 @@ private struct PlanStopRow: View {
                     .accessibilityLabel("\(place.name) 후기 보기")
                 }
             }
-            .frame(height: 57)
+            // 시안 값 57 은 **최소 높이**다(고정으로 두면 글자 크기를 키웠을 때 이름·부제목이
+            //  카드 밖으로 밀린다 — 목록 카드·헤더와 같은 함정).
+            .frame(minHeight: 57)
             .background(Color.appBackground, in: RoundedRectangle(cornerRadius: 12))
             .overlay {
                 RoundedRectangle(cornerRadius: 12)
