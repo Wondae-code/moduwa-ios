@@ -236,7 +236,7 @@ struct AccountSettingsView: View {
 
         // 준비 중 안내는 앱의 기존 틀을 그대로 쓴다 — "{이름}은 준비 중이에요" 한 줄.
         case .myPosts:
-            comingSoon("내 게시글", "square.text.square", "내 게시글은 준비 중이에요")
+            MyPostsView()
         case .accessibility:
             AccessibilitySettingsView()
         case .helpCenter:
