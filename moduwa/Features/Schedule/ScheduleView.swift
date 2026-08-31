@@ -27,11 +27,12 @@ struct ScheduleView: View {
     /// 시안은 카드를 393폭 안에서 321로 두어 좌우 36을 남긴다(플랜 탭과 같다).
     private static let sideMargin: CGFloat = 36
 
-    /// 시안 세그먼트 순서 그대로 — 지난 / 예정 / 컬렉션.
+    /// 시안 세그먼트는 지난 / 예정 / **여행 컬렉션** 셋인데 컬렉션은 빼 두었다 —
+    /// 시안에 그 상태의 본문이 없고(무엇을 담는지 미정), 저장 탭의 "저장 모아보기"와 개념이
+    /// 겹쳐 보인다. 기획이 정해지면 케이스를 되살리면 된다.
     enum ScheduleTab: String, CaseIterable, Hashable {
         case past = "지난 일정"
         case upcoming = "예정된 일정"
-        case collection = "여행 컬렉션"
     }
 
     var body: some View {
@@ -96,20 +97,8 @@ struct ScheduleView: View {
 
     // MARK: - 본문
 
-    @ViewBuilder
     private var content: some View {
-        switch selectedTab {
-        case .collection:
-            // 시안에 선택 상태 프레임이 없어 무엇을 담는지 정해지지 않았다.
-            // 저장 탭의 "저장 모아보기"와 이름이 겹쳐 기획 확인이 먼저다.
-            ComingSoonView(
-                title: "여행 컬렉션",
-                systemImage: "square.stack",
-                message: "여행 컬렉션은 준비 중이에요"
-            )
-        case .past, .upcoming:
-            planList
-        }
+        planList
     }
 
     @ViewBuilder
