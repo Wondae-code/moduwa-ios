@@ -188,6 +188,8 @@ struct PlanCreateFooter: View {
             if hasValue {
                 Button(action: onComplete) {
                     ZStack {
+                        // 시안(`958:662`)은 Medium 16 이지만 **Bold 로 둔다**(2026-08-31 사용자 결정) —
+                        //  이 화면에서 유일한 다음 행동이라 눈에 먼저 들어와야 한다.
                         Text("다음으로")
                             .font(.notoSans(16, .bold, relativeTo: .headline))
                             .tracking(-0.4)
