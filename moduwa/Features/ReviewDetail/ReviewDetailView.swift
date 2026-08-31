@@ -438,7 +438,13 @@ struct ReviewDetailView: View {
     }
 
     private func commentRow(_ comment: ReviewComment) -> some View {
-        HStack(alignment: .top, spacing: 10) {
+        let actions = CommentMenuItems(
+            isMine: comment.isMine,
+            edit: { beginEditing(comment) },
+            delete: { deletingComment = comment },
+            report: { reportTarget = .reviewComment(id: comment.id) }
+        )
+        return HStack(alignment: .top, spacing: 10) {
             avatar(name: comment.author, avatarURL: comment.authorAvatarURL,
                    diameter: 32, fontSize: 13)
             VStack(alignment: .leading, spacing: 3) {
@@ -450,6 +456,8 @@ struct ReviewDetailView: View {
                     .lineSpacing(3)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+
+            CommentMenuButton(items: actions)
         }
         // 고치는 중인 줄은 어디를 고치고 있는지 보이게 한다(입력칸은 화면 아래에 있다).
         .padding(editingComment?.id == comment.id ? 8 : 0)
@@ -463,12 +471,7 @@ struct ReviewDetailView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             "\(comment.author), \(comment.createdAt.reviewRelative), \(comment.body)")
-        .modifier(CommentActions(
-            isMine: comment.isMine,
-            edit: { beginEditing(comment) },
-            delete: { deletingComment = comment },
-            report: { reportTarget = .reviewComment(id: comment.id) }
-        ))
+        .modifier(CommentActions(items: actions))
     }
 
     private func beginEditing(_ comment: ReviewComment) {

@@ -392,6 +392,15 @@ struct PostDetailView: View {
     @ViewBuilder
     private func commentRow(_ comment: PostComment) -> some View {
         let isEditingThis = editingComment?.id == comment.id
+        let actions = CommentMenuItems(
+            isMine: comment.isMine,
+            edit: { beginEditing(comment) },
+            delete: { deletingComment = comment },
+            report: { reportTarget = .postComment(id: comment.id) }
+        )
+        // 이름 줄 오른쪽에 `⋯` 를 둔다 — 본문 옆이 아니라 이름 줄인 이유: 본문은 여러 줄로
+        //  늘어나 버튼이 어디 붙을지 정해지지 않는다.
+        HStack(alignment: .top, spacing: 8) {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 Text(comment.author)
@@ -412,6 +421,9 @@ struct PostDetailView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+
+            CommentMenuButton(items: actions)
+        }
         // 고치는 중인 줄은 어디를 고치고 있는지 보이게 한다(입력칸은 화면 아래에 있다).
         .padding(isEditingThis ? 8 : 0)
         .background {
@@ -420,12 +432,7 @@ struct PostDetailView: View {
             }
         }
         .accessibilityElement(children: .combine)
-        .modifier(CommentActions(
-            isMine: comment.isMine,
-            edit: { beginEditing(comment) },
-            delete: { deletingComment = comment },
-            report: { reportTarget = .postComment(id: comment.id) }
-        ))
+        .modifier(CommentActions(items: actions))
     }
 
     private func beginEditing(_ comment: PostComment) {
