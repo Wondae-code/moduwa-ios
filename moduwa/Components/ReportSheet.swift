@@ -1,21 +1,25 @@
 import SwiftUI
 
-/// 후기 신고 — 사유를 고르고 필요하면 설명을 덧붙여 운영자에게 알린다.
+/// 신고 — 사유를 고르고 필요하면 설명을 덧붙여 운영자에게 알린다.
+///
+/// **대상 넷(게시글·후기·양쪽 댓글)이 이 시트 하나를 쓴다**(`ReportTarget`). 사유·상세·멱등
+/// 규칙이 전부 같아서 대상마다 시트를 두면 같은 것을 네 번 손보게 된다 — 달라지는 것은 제목
+/// 한 줄뿐이다. 서버도 라우트 하나로 받는다(`POST /v1/reports`).
 ///
 /// **글을 감추지 않는다.** 신고는 운영자에게 알리는 일이고, 앱이 곧바로 숨기면 "신고를 누르면
 /// 남의 글이 사라지는" 길이 된다. 그래서 보내고 나면 "접수됐다"만 말한다.
 ///
 /// 시안이 없다. 앱의 다른 시트(로그인 계열 폼 · `AccessibilityChoiceRow` 톤)를 따랐다.
-struct ReviewReportSheet: View {
-    let reviewId: Int
+struct ReportSheet: View {
+    let target: ReportTarget
     /// 신고한 뒤 호출부가 알려 줄 것이 있으면(목록 배지 등) 쓴다. 지금은 안내만 띄운다.
     var onReported: (() -> Void)? = nil
 
-    @Environment(\.feedService) private var feedService
+    @Environment(\.reportService) private var reportService
     @Environment(SessionStore.self) private var session
     @Environment(\.dismiss) private var dismiss
 
-    @State private var reason: ReviewReportReason?
+    @State private var reason: ReportReason?
     @State private var detail = ""
     @State private var isSending = false
     @State private var errorMessage: String?
@@ -28,7 +32,7 @@ struct ReviewReportSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Spacing.l) {
                     AuthHeader(
-                        title: "이 후기를 신고할까요?",
+                        title: "이 \(target.noun)을 신고할까요?",
                         subtitle: "확인 후 조치돼요. 신고했다고 글이 바로 사라지지는 않아요."
                     )
 
@@ -64,12 +68,12 @@ struct ReviewReportSheet: View {
 
     private var reasons: some View {
         VStack(spacing: 0) {
-            ForEach(ReviewReportReason.allCases) { item in
+            ForEach(ReportReason.allCases) { item in
                 Button {
                     withoutAnimation { reason = item }
                 } label: {
                     HStack(spacing: Spacing.m) {
-                        Text(item.label)
+                        Text(item.label(for: target))
                             .font(.notoSans(15, .medium, relativeTo: .body))
                             .foregroundStyle(.textPrimary)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -85,7 +89,7 @@ struct ReviewReportSheet: View {
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(reason == item ? [.isButton, .isSelected] : .isButton)
 
-                if item != ReviewReportReason.allCases.last {
+                if item != ReportReason.allCases.last {
                     Rectangle().fill(Color.cardStroke).frame(height: 1)
                 }
             }
@@ -134,8 +138,8 @@ struct ReviewReportSheet: View {
         errorMessage = nil
         defer { isSending = false }
         do {
-            try await feedService.reportReview(
-                reviewId: reviewId, reason: reason,
+            try await reportService.submit(
+                target: target, reason: reason,
                 detail: detail.trimmingCharacters(in: .whitespacesAndNewlines))
             onReported?()
             isDone = true
@@ -150,6 +154,11 @@ struct ReviewReportSheet: View {
 }
 
 #Preview("후기 신고") {
-    ReviewReportSheet(reviewId: 1)
+    ReportSheet(target: .review(id: 1))
+        .environment(SessionStore(service: MockAuthService()))
+}
+
+#Preview("댓글 신고") {
+    ReportSheet(target: .postComment(id: "12"))
         .environment(SessionStore(service: MockAuthService()))
 }

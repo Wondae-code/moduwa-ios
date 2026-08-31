@@ -40,6 +40,8 @@ struct ReviewDetailView: View {
     @FocusState private var isCommentFocused: Bool
     /// 이 후기 신고 시트. 서버 후기일 때만 열린다.
     @State private var isReporting = false
+    /// 댓글 신고 대상. 후기 신고와 시트는 같고 대상만 다르다.
+    @State private var reportTarget: ReportTarget?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -105,9 +107,10 @@ struct ReviewDetailView: View {
         }
         .sheet(isPresented: $isReporting) {
             if let serverId = review.serverId {
-                ReviewReportSheet(reviewId: serverId)
+                ReportSheet(target: .review(id: serverId))
             }
         }
+        .sheet(item: $reportTarget) { ReportSheet(target: $0) }
     }
 
     // MARK: - 헤더 (뒤로가기 + 타이틀)
@@ -463,7 +466,8 @@ struct ReviewDetailView: View {
         .modifier(CommentActions(
             isMine: comment.isMine,
             edit: { beginEditing(comment) },
-            delete: { deletingComment = comment }
+            delete: { deletingComment = comment },
+            report: { reportTarget = .reviewComment(id: comment.id) }
         ))
     }
 

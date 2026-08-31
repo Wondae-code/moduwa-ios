@@ -215,24 +215,6 @@ struct APIFeedService: FeedService {
         return (likeCount: result.likeCount, likedByMe: result.likedByMe)
     }
 
-    /// 후기 신고(`POST /v1/reviews/:reviewId/report`, 서버 `2026-08-31` 배포).
-    ///
-    /// 204 이고 재신고도 204 다(멱등) — 두 번 눌렀다고 오류를 보여 줄 이유가 없다는 서버 판단.
-    /// **404 는 이제 "없는 후기"다**(라우트가 열리기 전에는 "아직 열리지 않았다"로 읽었다).
-    func reportReview(reviewId: Int, reason: ReviewReportReason, detail: String?) async throws {
-        guard !apiKey.isEmpty else { throw FeedServiceError.reportUnsupported }
-        var req = authorized(baseURL.appending(path: "/v1/reviews/\(reviewId)/report"))
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        var body: [String: Any] = ["reason": reason.rawValue]
-        if let detail, !detail.isEmpty { body["detail"] = detail }
-        req.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let (data, resp) = try await session.data(for: req)
-        let status = (resp as? HTTPURLResponse)?.statusCode ?? -1
-        guard (200..<300).contains(status) else { throw failure(status: status, data: data) }
-    }
-
     func fetchRecommendedPlaces(
         category: PlaceCategory, page: Int, accessFeatures: [AccessibilityFeature]
     ) async throws -> [Place] {

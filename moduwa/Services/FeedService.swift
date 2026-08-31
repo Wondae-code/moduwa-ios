@@ -41,10 +41,6 @@ enum FeedServiceError: LocalizedError {
     /// 404 — 이미 지워졌거나 내 것이 아니다. 댓글 삭제가 멱등이 아니라(두 번 지우면 404)
     /// "이미 없어졌다"를 오류가 아니라 목록을 맞추는 신호로 다뤄야 해서 따로 가른다.
     case notFound
-    /// 신고를 받을 서버가 없는 데이터 소스다(번들·목). 라우트는 열렸으므로(서버 2026-08-31)
-    /// 실제 앱에서는 API 키가 없을 때만 나온다 — "실패"가 아니라 **이 소스로는 못 보낸다**는
-    /// 뜻이라 따로 가른다(다시 시도하라고 말하면 영원히 같은 결과다).
-    case reportUnsupported
 
     var errorDescription: String? {
         switch self {
@@ -52,7 +48,6 @@ enum FeedServiceError: LocalizedError {
         case .server(let message): message
         case .imageUploadFailed: "사진을 올리지 못했어요. 네트워크 상태를 확인하고 다시 시도해 주세요."
         case .nicknameRequired: "댓글에 표시될 이름을 입력해 주세요."
-        case .reportUnsupported: "지금은 신고를 보낼 수 없어요. 네트워크 상태를 확인해 주세요."
         case .commentsUnavailable: "이 후기의 댓글은 지금 볼 수 없어요."
         case .loginRequired: "로그인이 필요해요."
         case .sessionExpired: "로그인이 만료됐어요. 다시 로그인해 주세요."
@@ -152,14 +147,8 @@ protocol FeedService: Sendable {
     /// ⚠️ **멱등이 아니다** — 두 번 지우면 404(`.notFound`).
     func deleteReviewComment(reviewId: Int, commentId: Int) async throws
 
-    // MARK: - 신고
-
-    /// 후기를 신고한다 (`POST /v1/reviews/:reviewId/report`).
-    ///
-    /// 무엇을 지우거나 숨기지 않는다 — **운영자에게 알리는 것**이 전부다. 앱이 곧바로 글을
-    /// 감추면 신고를 눌러 남의 글을 지우는 길이 되고, 서버도 그렇게 설계하지 않는다.
-    /// - Parameter detail: 사유를 고른 뒤 덧붙이는 설명. 비어 있어도 된다.
-    func reportReview(reviewId: Int, reason: ReviewReportReason, detail: String?) async throws
+    // 신고는 여기 없다 — 대상이 후기만이 아니게 되어 `ReportService` 로 옮겼다
+    //  (`POST /v1/reports` 하나가 게시글·후기·양쪽 댓글을 받는다).
 }
 
 /// 장소 상세 하단 3섹션용 API는 라이브 서버에만 있다. 오프라인 폴백(`BundledFeedService`)에는
@@ -178,11 +167,6 @@ extension FeedService {
 
     func fetchRelatedPlaces(contentId: String, limit: Int) async throws -> [RelatedPlace] {
         []
-    }
-
-    /// 번들·목 데이터에는 신고를 받을 서버가 없다.
-    func reportReview(reviewId: Int, reason: ReviewReportReason, detail: String?) async throws {
-        throw FeedServiceError.reportUnsupported
     }
 
     /// 태그 사전이 없으면 칩·집계 막대를 그리지 않는다 (빈 목록은 "없음"이지 오류가 아니다).

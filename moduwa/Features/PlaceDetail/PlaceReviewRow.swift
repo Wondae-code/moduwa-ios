@@ -179,7 +179,7 @@ struct PlaceReviewRow: View {
         }
         .sheet(isPresented: $isReporting) {
             if let serverId = review.serverId {
-                ReviewReportSheet(reviewId: serverId)
+                ReportSheet(target: .review(id: serverId))
             }
         }
     }

@@ -38,6 +38,8 @@ struct PostDetailView: View {
     @State private var editingComment: PostComment?
     /// 지울 댓글(확인 창). 되돌릴 수 없어 한 번 더 묻는다.
     @State private var deletingComment: PostComment?
+    /// 신고 시트의 대상. 글이거나 댓글이다 — 시트는 한 벌을 공유한다.
+    @State private var reportTarget: ReportTarget?
     /// 삭제 확인 창. 되돌릴 수 없는 일이라 한 번 더 묻는다.
     @State private var isConfirmingDelete = false
     @State private var isDeleting = false
@@ -105,6 +107,8 @@ struct PostDetailView: View {
             didLoadComments = false
             await loadComments()
         }
+        // 신고 시트. 글이든 댓글이든 대상만 바꿔 같은 시트를 쓴다.
+        .sheet(item: $reportTarget) { ReportSheet(target: $0) }
         // 수정은 작성 화면을 그대로 쓴다(`PostComposeView.editing`). 돌아오면 이 화면을 다시
         //  받는다 — 고친 내용이 곧바로 보여야 한다.
         .navigationDestination(isPresented: $isEditing) {
@@ -174,20 +178,24 @@ struct PostDetailView: View {
 
             Spacer()
 
-            if canManage {
-                Menu {
+            // 내 글이면 수정·삭제, 남의 글이면 신고. 자기 글에 신고를 두지 않는 이유는
+            //  서버가 자기 것 신고를 무시하기 때문이다(204) — 눌러도 아무 일이 없는 버튼이 된다.
+            Menu {
+                if canManage {
                     Button("수정", systemImage: "pencil") { isEditing = true }
                     Button("삭제", systemImage: "trash", role: .destructive) {
                         isConfirmingDelete = true
                     }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 17, weight: .semibold))
-                        .frame(width: 25, height: 25)
+                } else {
+                    Button("신고", systemImage: "flag") { reportTarget = .post(id: post.id) }
                 }
-                .accessibilityLabel("이 글 관리")
-                .disabled(isDeleting)
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 17, weight: .semibold))
+                    .frame(width: 25, height: 25)
             }
+            .accessibilityLabel(canManage ? "이 글 관리" : "이 글 신고")
+            .disabled(isDeleting)
         }
         .foregroundStyle(.textPrimary)
         .padding(.leading, 28)
@@ -415,7 +423,8 @@ struct PostDetailView: View {
         .modifier(CommentActions(
             isMine: comment.isMine,
             edit: { beginEditing(comment) },
-            delete: { deletingComment = comment }
+            delete: { deletingComment = comment },
+            report: { reportTarget = .postComment(id: comment.id) }
         ))
     }
 
