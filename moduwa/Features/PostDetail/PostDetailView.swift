@@ -9,15 +9,17 @@ import SwiftUI
 struct PostDetailView: View {
     /// 목록에서 넘어온 값. 좋아요·댓글 수는 목록 시점 값이라 열자마자 다시 받는다.
     let post: TravelPost
-    /// 내가 쓴 글인지. **부르는 쪽이 안다** — 서버 응답에는 소유 표시가 없어서
-    /// (`authorInfo` 에 닉네임·사진만 온다) 앱이 닉네임으로 짐작하면 동명이인의 글에
-    /// 삭제 버튼을 달게 된다. "내 게시글" 목록은 `mine=true` 로 받은 목록이라 확실하다.
-    /// 서버에 소유 표시를 요청해 두었다(`docs/BACKEND_REQUEST_2026-08-31.md`).
+    /// 부르는 쪽이 이미 아는 경우("내 게시글" 목록 — `mine=true` 로 받았다).
+    /// 모르고 열어도 `MyPostIDStore` 가 가려 주므로 넘기지 않아도 된다 —
+    /// 다만 이 값이 true 면 목록을 받아 오기를 기다리지 않고 곧바로 메뉴가 뜬다.
     var isMine = false
 
     @Environment(\.postService) private var postService
     @Environment(SessionStore.self) private var session
     @Environment(PostInteractionSignal.self) private var postSignal
+    /// 어느 목록에서 열었든 내 글인지 가른다. 서버 응답에 소유 표시가 없어서 필요하다
+    /// (`MyPostIDStore` 주석 — `isMine` 이 오면 이 저장소는 사라진다).
+    @Environment(MyPostIDStore.self) private var myPostIDs
     @Environment(\.dismiss) private var dismiss
     @AppStorage(ReviewAuthorStore.nicknameKey) private var savedNickname = ""
 
@@ -42,6 +44,11 @@ struct PostDetailView: View {
     @State private var deleteError: String?
 
     private var current: TravelPost { detail ?? post }
+
+    /// 수정·삭제 메뉴를 띄울지. 넘겨받았거나(확실한 경우) 내 글 목록에 있으면 띄운다.
+    private var canManage: Bool {
+        isMine || myPostIDs.contains(post.id)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -86,8 +93,27 @@ struct PostDetailView: View {
         .safeAreaInset(edge: .bottom) { commentInputBar }
         .onAppear { nicknameInput = savedNickname }
         // 글과 댓글은 서로 독립된 요청이다 — 한 task 에 이어 붙이면 뒤엣것이 앞의 응답을 기다린다.
-        .task { detail = try? await postService.fetchPost(id: post.id) }
-        .task { await loadComments() }
+        // ⚠️ `task(id: post.id)` 다. 알림을 연달아 누르면(`navigationDestination(item:)` 의 값이
+        //  띄워진 채로 바뀐다) SwiftUI 가 이 뷰를 **같은 것으로 보고 `@State` 를 유지**한다 —
+        //  그러면 `post` 는 새 글인데 `detail`·`comments` 는 앞 글의 것이 남아, 본문은 앞 글이고
+        //  수정 메뉴는 새 글 기준으로 그려지는 화면이 된다(실측). 아이디가 바뀌면 비우고 다시 받는다.
+        .task(id: post.id) {
+            detail = nil
+            detail = try? await postService.fetchPost(id: post.id)
+        }
+        .task(id: post.id) {
+            comments = []
+            didLoadComments = false
+            await loadComments()
+        }
+        // 내 글 목록은 이번 실행에 한 번만 받는다. 비로그인이면 받을 것이 없다(401).
+        //  ⚠️ `isMine` 으로 건너뛰지 않는다 — 그 글만 내 것이라고 아는 상태에서 다른 글로
+        //  이어 들어가면(장소·댓글에서) 그때는 가릴 근거가 없다.
+        // 계정을 키로 둔다 — 이 화면을 열어 둔 채로 댓글 게이트에서 로그인하면 그때 받아야 한다.
+        .task(id: session.account?.uuid) {
+            guard session.account != nil else { return }
+            await myPostIDs.loadIfNeeded(using: postService)
+        }
         // 수정은 작성 화면을 그대로 쓴다(`PostComposeView.editing`). 돌아오면 이 화면을 다시
         //  받는다 — 고친 내용이 곧바로 보여야 한다.
         .navigationDestination(isPresented: $isEditing) {
@@ -121,6 +147,7 @@ struct PostDetailView: View {
         do {
             try await postService.deletePost(id: post.id)
             postSignal.postDeleted(id: post.id)
+            myPostIDs.note(deleted: post.id)
             dismiss()
         } catch {
             deleteError = (error as? LocalizedError)?.errorDescription
@@ -144,7 +171,7 @@ struct PostDetailView: View {
 
             Spacer()
 
-            if isMine {
+            if canManage {
                 Menu {
                     Button("수정", systemImage: "pencil") { isEditing = true }
                     Button("삭제", systemImage: "trash", role: .destructive) {

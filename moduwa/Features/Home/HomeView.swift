@@ -71,9 +71,11 @@ struct HomeView: View {
             .navigationDestination(for: TravelReview.self) { review in
                 ReviewDetailView(review: review)
             }
-            // 알림에서 온 글. 내 글에 달린 좋아요·댓글이라 삭제 메뉴를 띄울 수 있다.
+            // 알림에서 온 글. 소유는 `MyPostIDStore` 가 가른다 — 여기서 `isMine: true` 를
+            //  박아 두면 "알림은 내 글에만 온다" 는 가정에 기대게 된다(지금은 맞지만, 서버가
+            //  알림을 늘리면 남의 글에 수정 메뉴가 달린다).
             .navigationDestination(item: $pushedPost) { post in
-                PostDetailView(post: post, isMine: true)
+                PostDetailView(post: post)
             }
         }
         // ⚠️ `onChange` 가 아니라 `task(id:)` 다 — 종료 상태에서 알림으로 앱이 열리면 값이
