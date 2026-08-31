@@ -91,8 +91,6 @@ struct CollectionView: View {
                 .tracking(-0.4)
 
             Spacer(minLength: 0)
-
-            AccountMenuButton()
         }
         .foregroundStyle(Color.textPrimary)
         .padding(.horizontal, 24)

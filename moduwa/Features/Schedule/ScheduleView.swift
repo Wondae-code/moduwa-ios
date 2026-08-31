@@ -87,9 +87,6 @@ struct ScheduleView: View {
                 .tracking(-0.4)
 
             Spacer(minLength: 0)
-
-            // 메뉴는 아직 목적지가 없다 — 플랜 탭과 같은 방식으로 알린다.
-            AccountMenuButton()
         }
         .foregroundStyle(Color.textPrimary)
         .padding(.horizontal, 24)

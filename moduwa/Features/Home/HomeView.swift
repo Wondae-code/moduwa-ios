@@ -114,8 +114,9 @@ struct HomeView: View {
                 }
                 .accessibilityLabel(notificationStore.hasUnread ? "알림, 새 알림 있음" : "알림")
 
-                // 계정(로그인·로그아웃·이메일 인증)으로 가는 문. 네 탭이 같은 자리를 쓴다.
-                AccountMenuButton()
+                // 설정으로 가는 문. 시안에서 이 자리가 햄버거 → 톱니로 바뀌었고, 다른 탭
+                //  헤더에서는 아이콘이 빠졌다 — 그래서 앱의 설정 진입점은 여기 하나다.
+                SettingsButton()
             }
             .foregroundStyle(.textPrimary)
         }

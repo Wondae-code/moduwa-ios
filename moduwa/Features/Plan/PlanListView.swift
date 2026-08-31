@@ -195,9 +195,6 @@ struct PlanListView: View {
                         .font(.system(size: 18, weight: .semibold))
                 }
                 .accessibilityLabel("초대 코드로 참여")
-
-                // 메뉴 — 마이페이지 서랍을 연다.
-                AccountMenuButton()
             }
         }
         .foregroundStyle(Color.textPrimary)

@@ -96,7 +96,17 @@ struct AccountSettingsView: View {
         VStack(spacing: 0) {
             avatar
 
+            // 시안(983:1192·983:1191): **이름은 화면 가운데**, 연필은 그 오른쪽이다.
+            //  연필을 이름과 한 줄에 그냥 이어 붙이면 둘의 합이 가운데로 잡혀 이름이 왼쪽으로
+            //  밀린다. 반대편에 같은 크기의 빈 자리를 두어 이름의 중심을 화면 중심에 맞춘다.
             HStack(spacing: 6) {
+                if session.account != nil {
+                    // ⚠️ `EmptyView` 는 크기를 줘도 자리를 차지하지 않는다(레이아웃에서 없는
+                    //  것으로 취급된다 — 실측: 이름이 연필 폭의 절반만큼 왼쪽으로 밀렸다).
+                    //  `Color.clear` 는 실제로 자리를 잡는다.
+                    pencilSlot { Color.clear }
+                }
+
                 Text(session.account?.nickname ?? "로그인이 필요해요")
                     .font(.notoSans(20, .bold, relativeTo: .title3))
                     .tracking(-0.08)
@@ -107,14 +117,14 @@ struct AccountSettingsView: View {
                 //  로그아웃)은 그 화면 안에서 이어진다 — 설정 시안 다섯 줄에 자리가 없다.
                 if session.account != nil {
                     Button { row = .profileEdit } label: {
-                        Image("detail_pencil")
-                            .renderingMode(.template)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 17, height: 17)
-                            .foregroundStyle(.textSecondary)
-                            .frame(width: 38, height: 38)
-                            .contentShape(Rectangle())
+                        pencilSlot {
+                            Image("detail_pencil")
+                                .renderingMode(.template)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 17, height: 17)
+                                .foregroundStyle(.textSecondary)
+                        }
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("프로필 편집")
@@ -135,6 +145,14 @@ struct AccountSettingsView: View {
         .frame(maxWidth: .infinity)
         .padding(.top, 33)
         .padding(.bottom, 20)
+    }
+
+    /// 연필이 앉는 자리. 이름 반대편에 **같은 크기**의 빈 자리를 두어 이름을 화면 가운데로
+    /// 맞추는 데도 쓴다(시안 983:1191 의 38×38).
+    private func pencilSlot<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        content()
+            .frame(width: 38, height: 38)
+            .contentShape(Rectangle())
     }
 
     /// 라임 원 100 + 우하단 딥그린 뱃지. 뱃지의 픽토그램은 **지금 고른 무장애 항목**이다 —
