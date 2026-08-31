@@ -42,6 +42,10 @@ struct APIPostService: PostService {
             }
             // 첫 작성이라 이름을 요구하는 경우만 따로 구분한다 — 호출부가 이름을 받아 다시 시도한다.
             if failure?.error == "missing_authorNm" { throw PostServiceError.nicknameRequired }
+            // 404 는 "없다"가 아니라 **"이미 없어졌다"** 로 다뤄야 하는 자리가 있다(댓글 삭제는
+            //  멱등이 아니라 두 번 지우면 404 다). 서버 문구를 그대로 보여 주는 대신 따로 가른다.
+            //  ⚠️ 형식이 틀린 id 도 404 로 온다(서버 2026-08-31: 예전엔 500 이었다).
+            if http.statusCode == 404 { throw PostServiceError.notFound }
             if let message = failure?.message, !message.isEmpty {
                 throw PostServiceError.server(message: message)
             }
@@ -202,6 +206,27 @@ struct APIPostService: PostService {
         return try JSONDecoder().decode(CommentDTO.self, from: data).comment
     }
 
+    /// `PATCH /v1/posts/:postId/comments/:commentId` — 본인 것만, 나머지는 전부 404.
+    @discardableResult
+    func updatePostComment(postId: String, commentId: String, body: String) async throws -> PostComment {
+        guard !apiKey.isEmpty else { throw PostServiceError.unavailable }
+        var request = authorized(url("/v1/posts/\(postId)/comments/\(commentId)"))
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // 닉네임은 보내지 않는다 — 고치는 것은 내용뿐이다(서버도 body 만 받는다).
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["body": body])
+        let data = try await data(for: request)
+        return try JSONDecoder().decode(CommentDTO.self, from: data).comment
+    }
+
+    /// `DELETE /v1/posts/:postId/comments/:commentId` — 204. 두 번 지우면 404 다(멱등 아님).
+    func deletePostComment(postId: String, commentId: String) async throws {
+        guard !apiKey.isEmpty else { throw PostServiceError.unavailable }
+        var request = authorized(url("/v1/posts/\(postId)/comments/\(commentId)"))
+        request.httpMethod = "DELETE"
+        _ = try await data(for: request)
+    }
+
     private struct CommentBody: Encodable {
         let authorNm: String?
         let body: String
@@ -222,6 +247,8 @@ struct APIPostService: PostService {
         let body: String?
         let createdAt: String?
         let authorInfo: AuthorInfoDTO?
+        /// 키가 없던 시절의 응답을 견디려고 옵셔널이다(서버는 coalesce 로 null 을 막았다).
+        let isMine: Bool?
 
         var comment: PostComment {
             PostComment(
@@ -229,7 +256,8 @@ struct APIPostService: PostService {
                 author: author ?? "",
                 authorAvatarURL: URL(imageAddress: authorInfo?.avatarUrl),
                 body: body ?? "",
-                createdAt: createdAt.flatMap { try? Date($0, strategy: .iso8601) } ?? .now
+                createdAt: createdAt.flatMap { try? Date($0, strategy: .iso8601) } ?? .now,
+                isMine: isMine ?? false
             )
         }
     }

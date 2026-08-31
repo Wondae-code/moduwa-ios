@@ -11,6 +11,10 @@ enum PostServiceError: LocalizedError {
     case loginRequired
     /// 401 `session_expired` — 토큰이 낡았다. 앱은 로그아웃 상태로 돌아간다.
     case sessionExpired
+    /// 404 — 이미 지워졌거나 내 것이 아니다. **댓글 수정·삭제에서만 따로 가른다**:
+    /// 서버가 삭제를 멱등으로 두지 않아(두 번 지우면 404) "이미 없어졌다"를 오류가 아니라
+    /// 목록을 맞추는 신호로 다뤄야 한다.
+    case notFound
 
     var errorDescription: String? {
         switch self {
@@ -19,6 +23,7 @@ enum PostServiceError: LocalizedError {
         case .nicknameRequired: "게시글에 표시될 이름을 입력해 주세요."
         case .loginRequired: "로그인이 필요해요."
         case .sessionExpired: "로그인이 만료됐어요. 다시 로그인해 주세요."
+        case .notFound: "이미 지워졌어요."
         }
     }
 }
@@ -63,6 +68,8 @@ struct PostComment: Identifiable, Hashable, Sendable {
     var authorAvatarURL: URL? = nil
     var body: String
     var createdAt: Date
+    /// 보는 사람이 쓴 댓글인지(서버 `isMine`). 수정·삭제 메뉴를 띄울 근거다.
+    var isMine: Bool = false
 }
 
 /// 게시글 데이터 소스 (`/v1/posts`).
@@ -132,6 +139,17 @@ protocol PostService: Sendable {
     /// 댓글 작성. **닉네임이 필요하다** — 사람에게 귀속되는 글이다(좋아요와 다르다).
     @discardableResult
     func createPostComment(id: String, body: String, authorNm: String?) async throws -> PostComment
+
+    /// 댓글 수정(`PATCH …/comments/:commentId`, 서버 2026-08-31). 본인 것만, 나머지는 404.
+    /// ⚠️ **빈 본문은 400 이다** — 지우려면 삭제를 쓴다(수정이 두 번째 삭제 경로가 되지 않게
+    /// 서버가 막았다). 응답은 갱신된 댓글 전체이고 `isMine` 도 들어 있어 재조회가 필요 없다.
+    @discardableResult
+    func updatePostComment(postId: String, commentId: String, body: String) async throws -> PostComment
+
+    /// 댓글 삭제. 하드 삭제다.
+    /// ⚠️ **멱등이 아니다** — 두 번 지우면 404(`.notFound`). 그건 "누가 이미 지웠다"는 뜻이라
+    /// 오류로 보여 주지 않고 목록을 맞춘다.
+    func deletePostComment(postId: String, commentId: String) async throws
 }
 
 extension EnvironmentValues {
@@ -179,4 +197,11 @@ struct MockPostService: PostService {
     func createPostComment(id: String, body: String, authorNm: String?) async throws -> PostComment {
         PostComment(id: UUID().uuidString, author: authorNm ?? "여행자", body: body, createdAt: .now)
     }
+
+    @discardableResult
+    func updatePostComment(postId: String, commentId: String, body: String) async throws -> PostComment {
+        PostComment(id: commentId, author: "여행자", body: body, createdAt: .now, isMine: true)
+    }
+
+    func deletePostComment(postId: String, commentId: String) async throws {}
 }

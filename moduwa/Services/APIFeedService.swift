@@ -75,6 +75,8 @@ struct APIFeedService: FeedService {
         case .expired: return .sessionExpired
         case nil: break
         }
+        // 404 는 "이미 없어졌다" 로 다뤄야 하는 자리가 있다(댓글 삭제는 멱등이 아니다).
+        if status == 404 { return .notFound }
         if let message = body?.message, !message.isEmpty { return .server(message: message) }
         return .writeUnsupported
     }
@@ -640,6 +642,8 @@ struct APIFeedService: FeedService {
         let createdAt: String
         /// 후기의 `authorInfo`와 같은 모양이라 DTO를 재사용한다
         let authorInfo: ReviewDTO.AuthorInfoDTO?
+        /// 키가 없던 시절의 응답을 견디려고 옵셔널이다(서버는 null 을 주지 않는다).
+        let isMine: Bool?
 
         var comment: ReviewComment {
             ReviewComment(
@@ -649,7 +653,8 @@ struct APIFeedService: FeedService {
                 createdAt: (try? Date(createdAt, strategy: .iso8601)) ?? Date(),
                 authorLevel: authorInfo?.level,
                 authorReviewCount: authorInfo?.reviewCount,
-                authorAvatarURL: URL(imageAddress: authorInfo?.avatarUrl)
+                authorAvatarURL: URL(imageAddress: authorInfo?.avatarUrl),
+                isMine: isMine ?? false
             )
         }
     }
@@ -689,6 +694,31 @@ struct APIFeedService: FeedService {
             throw failure(status: (resp as? HTTPURLResponse)?.statusCode ?? -1, data: data)
         }
         // 생성된 댓글 본문은 쓰지 않는다. 호출부가 목록을 다시 받아 `total`까지 함께 맞춘다.
+    }
+
+    /// `PATCH /v1/reviews/:reviewId/comments/:commentId` — 갱신된 댓글을 돌려준다.
+    @discardableResult
+    func updateReviewComment(reviewId: Int, commentId: Int, body: String) async throws -> ReviewComment {
+        guard !apiKey.isEmpty else { throw FeedServiceError.writeUnsupported }
+        var req = authorized(baseURL.appending(path: "/v1/reviews/\(reviewId)/comments/\(commentId)"))
+        req.httpMethod = "PATCH"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: ["body": body])
+
+        let (data, resp) = try await session.data(for: req)
+        let status = (resp as? HTTPURLResponse)?.statusCode ?? -1
+        guard (200..<300).contains(status) else { throw failure(status: status, data: data) }
+        return try JSONDecoder().decode(CommentDTO.self, from: data).comment
+    }
+
+    /// `DELETE /v1/reviews/:reviewId/comments/:commentId` — 204. 두 번 지우면 404 다.
+    func deleteReviewComment(reviewId: Int, commentId: Int) async throws {
+        guard !apiKey.isEmpty else { throw FeedServiceError.writeUnsupported }
+        var req = authorized(baseURL.appending(path: "/v1/reviews/\(reviewId)/comments/\(commentId)"))
+        req.httpMethod = "DELETE"
+        let (data, resp) = try await session.data(for: req)
+        let status = (resp as? HTTPURLResponse)?.statusCode ?? -1
+        guard (200..<300).contains(status) else { throw failure(status: status, data: data) }
     }
 
     // MARK: - 함께 가볼만한 곳

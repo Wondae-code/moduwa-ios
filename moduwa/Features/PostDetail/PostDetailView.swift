@@ -25,12 +25,19 @@ struct PostDetailView: View {
 
     @State private var isLiking = false
     @State private var draft = ""
+    /// 댓글 입력칸 포커스. 댓글을 고치기 시작하면 키보드를 바로 올린다.
+    @FocusState private var isFocused: Bool
     @State private var nicknameInput = ""
     @State private var isSending = false
     @State private var sendError: String?
 
     /// 수정 화면(작성 화면을 그대로 쓴다).
     @State private var isEditing = false
+    /// 고치는 중인 댓글. 입력칸을 새 댓글 대신 이 댓글의 편집기로 쓴다 —
+    /// 댓글 한 줄을 고치려고 별도 화면을 띄우면 읽던 자리를 잃는다.
+    @State private var editingComment: PostComment?
+    /// 지울 댓글(확인 창). 되돌릴 수 없어 한 번 더 묻는다.
+    @State private var deletingComment: PostComment?
     /// 삭제 확인 창. 되돌릴 수 없는 일이라 한 번 더 묻는다.
     @State private var isConfirmingDelete = false
     @State private var isDeleting = false
@@ -107,6 +114,19 @@ struct PostDetailView: View {
         }
         // ⚠️ 확인 창은 **바깥 뷰**에 붙인다 — 헤더 메뉴 안이나 조건부 하위 뷰에 붙이면
         //  창은 떠도 버튼이 죽는 일이 있었다(플랜 상세에서 실측).
+        // 댓글 삭제 확인. ⚠️ 조건부 하위 뷰가 아니라 **바깥 뷰**에 붙인다(글 삭제와 같은 이유).
+        .confirmationDialog("이 댓글을 삭제할까요?", isPresented: Binding(
+            get: { deletingComment != nil }, set: { if !$0 { deletingComment = nil } }),
+            titleVisibility: .visible, presenting: deletingComment
+        ) { comment in
+            Button("삭제", role: .destructive) {
+                deletingComment = nil
+                Task { await deleteComment(comment) }
+            }
+            Button("취소", role: .cancel) { deletingComment = nil }
+        } message: { _ in
+            Text("지우면 되돌릴 수 없어요.")
+        }
         .confirmationDialog("이 글을 삭제할까요?", isPresented: $isConfirmingDelete,
                             titleVisibility: .visible) {
             Button("삭제", role: .destructive) { Task { await deletePost() } }
@@ -350,25 +370,65 @@ struct PostDetailView: View {
                     .foregroundStyle(.iconGray)
             } else {
                 ForEach(comments) { comment in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 8) {
-                            Text(comment.author)
-                                .font(.notoSans(14, .bold))
-                                .foregroundStyle(.textPrimary)
-                            Text(RelativeTimeText.string(from: comment.createdAt))
-                                .font(.caption12)
-                                .foregroundStyle(.textSecondary)
-                        }
-                        Text(comment.body)
-                            .font(.notoSans(14))
-                            .foregroundStyle(.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityElement(children: .combine)
+                    commentRow(comment)
                 }
             }
         }
+    }
+
+    /// 댓글 한 줄. 내 댓글이면 **길게 눌러** 수정·삭제한다.
+    ///
+    /// 줄마다 `⋯` 버튼을 두지 않은 이유: 댓글은 짧은 두 줄짜리 항목이라 버튼이 본문보다
+    /// 눈에 띄고, 남의 댓글에는 어차피 띄울 것이 없어 자리만 비게 된다.
+    /// 길게 누르기는 보이지 않는 동작이므로 **스크린리더에는 별도 동작으로 실어** 둔다.
+    @ViewBuilder
+    private func commentRow(_ comment: PostComment) -> some View {
+        let isEditingThis = editingComment?.id == comment.id
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Text(comment.author)
+                    .font(.notoSans(14, .bold))
+                    .foregroundStyle(.textPrimary)
+                Text(RelativeTimeText.string(from: comment.createdAt))
+                    .font(.caption12)
+                    .foregroundStyle(.textSecondary)
+                if isEditingThis {
+                    Text("수정 중")
+                        .font(.caption12)
+                        .foregroundStyle(.deepGreen)
+                }
+            }
+            Text(comment.body)
+                .font(.notoSans(14))
+                .foregroundStyle(.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // 고치는 중인 줄은 어디를 고치고 있는지 보이게 한다(입력칸은 화면 아래에 있다).
+        .padding(isEditingThis ? 8 : 0)
+        .background {
+            if isEditingThis {
+                RoundedRectangle(cornerRadius: 10).fill(Color.photoPlaceholder)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .modifier(CommentActions(
+            isMine: comment.isMine,
+            edit: { beginEditing(comment) },
+            delete: { deletingComment = comment }
+        ))
+    }
+
+    private func beginEditing(_ comment: PostComment) {
+        editingComment = comment
+        draft = comment.body
+        isFocused = true
+    }
+
+    private func cancelEditing() {
+        editingComment = nil
+        draft = ""
+        sendError = nil
     }
 
     private var commentInputBar: some View {
@@ -381,9 +441,25 @@ struct PostDetailView: View {
                     .padding(.horizontal, 24)
             }
 
+            // 댓글을 고치는 중이면 그 사실과 빠져나갈 길을 함께 둔다 — 입력칸만 채워져 있으면
+            //  새 댓글을 쓰는 중인지 고치는 중인지 알 수 없다.
+            if editingComment != nil {
+                HStack(spacing: 8) {
+                    Text("댓글 수정 중")
+                        .font(.notoSans(13, .bold))
+                        .foregroundStyle(.deepGreen)
+                    Spacer(minLength: 8)
+                    Button("취소", action: cancelEditing)
+                        .font(.notoSans(13, .bold))
+                        .foregroundStyle(.textSecondary)
+                }
+                .padding(.horizontal, 24)
+            }
+
             // 표시 이름이 없을 때만 나오는 인라인 입력 — 리뷰 상세와 같은 판단이다.
             //  시트로 물으면 읽던 글이 가려지고 키보드가 두 번 오간다.
-            if savedNickname.isEmpty {
+            //  고치는 중에는 묻지 않는다 — 이미 이름이 붙은 댓글이다.
+            if savedNickname.isEmpty && editingComment == nil {
                 TextField("댓글에 표시될 이름", text: $nicknameInput)
                     .font(.notoSans(14))
                     .foregroundStyle(.textPrimary)
@@ -402,6 +478,7 @@ struct PostDetailView: View {
 
             HStack(spacing: 8) {
                 TextField("댓글을 입력해 주세요", text: $draft, axis: .vertical)
+                    .focused($isFocused)
                     .font(.notoSans(14))
                     .foregroundStyle(.textPrimary)
                     .tint(.deepGreen)
@@ -429,7 +506,8 @@ struct PostDetailView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!canSend || isSending)
-                .accessibilityLabel(isSending ? "댓글 등록 중" : "댓글 등록")
+                .accessibilityLabel(isSending ? "댓글 등록 중"
+                                              : (editingComment == nil ? "댓글 등록" : "수정 완료"))
             }
             .padding(.horizontal, 24)
         }
@@ -441,8 +519,11 @@ struct PostDetailView: View {
     }
 
     private var canSend: Bool {
-        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !(savedNickname.isEmpty
+        guard !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+        // 고치는 중이면 이름은 이미 붙어 있다. ⚠️ 빈 본문 수정은 서버가 400 으로 막는다 —
+        //  지우려면 삭제를 써야 하고, 그래서 위의 빈 문자열 검사가 그 자리를 대신한다.
+        if editingComment != nil { return true }
+        return !(savedNickname.isEmpty
                  && nicknameInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
@@ -490,6 +571,10 @@ struct PostDetailView: View {
     private func sendComment() async {
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isSending else { return }
+        if let editing = editingComment {
+            await saveEdit(of: editing, body: trimmed)
+            return
+        }
         // 쓴 댓글은 입력칸에 그대로 남는다 — 로그인하고 돌아와 다시 보내면 된다.
         guard session.requireSignIn(.comment) else { return }
         isSending = true
@@ -519,5 +604,51 @@ struct PostDetailView: View {
             sendError = (error as? PostServiceError)?.errorDescription
                 ?? "댓글을 등록하지 못했어요. 네트워크 상태를 확인하고 다시 시도해 주세요."
         }
+    }
+
+    /// 고친 내용을 저장한다. 개수가 바뀌지 않으므로 **그 줄만 갈아끼운다** —
+    /// 목록을 다시 받으면 보고 있던 자리를 잃는다.
+    private func saveEdit(of comment: PostComment, body: String) async {
+        isSending = true
+        sendError = nil
+        defer { isSending = false }
+        do {
+            let updated = try await postService.updatePostComment(
+                postId: post.id, commentId: comment.id, body: body)
+            if let index = comments.firstIndex(where: { $0.id == comment.id }) {
+                comments[index] = updated
+            }
+            cancelEditing()
+            isFocused = false
+            UIAccessibility.post(notification: .announcement, argument: "댓글을 수정했어요")
+        } catch PostServiceError.notFound {
+            // 그 사이에 지워졌다. 오류로 남겨 두면 사용자가 계속 저장을 시도한다.
+            comments.removeAll { $0.id == comment.id }
+            cancelEditing()
+            sendError = "이 댓글은 이미 지워졌어요."
+        } catch {
+            sendError = (error as? PostServiceError)?.errorDescription
+                ?? "댓글을 수정하지 못했어요. 네트워크 상태를 확인하고 다시 시도해 주세요."
+        }
+    }
+
+    /// 댓글을 지운다. 서버가 먼저다 — 화면에서 먼저 지우고 실패하면 되살아나는 것처럼 보인다.
+    private func deleteComment(_ comment: PostComment) async {
+        do {
+            try await postService.deletePostComment(postId: post.id, commentId: comment.id)
+        } catch PostServiceError.notFound {
+            // ⚠️ 삭제는 멱등이 아니다(두 번 지우면 404). 이미 없어진 것은 **성공과 같게** 다룬다 —
+            //  목적(안 보이게 하기)이 이미 달성됐고, 오류창은 사용자에게 할 일을 주지 않는다.
+        } catch {
+            sendError = (error as? PostServiceError)?.errorDescription
+                ?? "댓글을 지우지 못했어요. 네트워크 상태를 확인하고 다시 시도해 주세요."
+            return
+        }
+        comments.removeAll { $0.id == comment.id }
+        if editingComment?.id == comment.id { cancelEditing() }
+        var updated = current
+        updated.commentCount = max(0, updated.commentCount - 1)
+        detail = updated
+        UIAccessibility.post(notification: .announcement, argument: "댓글을 지웠어요")
     }
 }

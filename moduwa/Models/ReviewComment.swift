@@ -14,6 +14,8 @@ struct ReviewComment: Identifiable, Hashable, Sendable {
     var authorReviewCount: Int? = nil
     /// 작성자 프로필 사진(`authorInfo.avatarUrl`). 없으면 이니셜 원.
     var authorAvatarURL: URL? = nil
+    /// 보는 사람이 쓴 댓글인지(서버 `isMine`, 2026-08-31). 수정·삭제 메뉴를 띄울 근거다.
+    var isMine: Bool = false
 
     /// 아바타에 넣을 이름 첫 글자
     var initial: String { String(author.prefix(1)) }

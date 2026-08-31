@@ -32,6 +32,12 @@ struct ReviewDetailView: View {
     @State private var nicknameInput = ""
     @State private var isSending = false
     @State private var sendError: String?
+    /// 고치는 중인 댓글. 입력칸을 그 댓글의 편집기로 쓴다(게시글 상세와 같은 문법).
+    @State private var editingComment: ReviewComment?
+    /// 지울 댓글(확인 창).
+    @State private var deletingComment: ReviewComment?
+    /// 댓글 입력칸 포커스 — 고치기 시작하면 키보드를 올린다.
+    @FocusState private var isCommentFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -81,6 +87,20 @@ struct ReviewDetailView: View {
             visitedDetail = try? await feedService.fetchPlaceDetail(contentId: cid)
         }
         .task { await loadComments(reset: true) }
+        // ⚠️ 확인 창은 **바깥 뷰**에 붙인다 — 조건부 하위 뷰에 붙이면 창은 떠도 버튼이 죽는다
+        //  (플랜 상세에서 실측한 함정).
+        .confirmationDialog("이 댓글을 삭제할까요?", isPresented: Binding(
+            get: { deletingComment != nil }, set: { if !$0 { deletingComment = nil } }),
+            titleVisibility: .visible, presenting: deletingComment
+        ) { comment in
+            Button("삭제", role: .destructive) {
+                deletingComment = nil
+                Task { await deleteComment(comment) }
+            }
+            Button("취소", role: .cancel) { deletingComment = nil }
+        } message: { _ in
+            Text("지우면 되돌릴 수 없어요.")
+        }
     }
 
     // MARK: - 헤더 (뒤로가기 + 타이틀)
@@ -407,11 +427,35 @@ struct ReviewDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+        // 고치는 중인 줄은 어디를 고치고 있는지 보이게 한다(입력칸은 화면 아래에 있다).
+        .padding(editingComment?.id == comment.id ? 8 : 0)
+        .background {
+            if editingComment?.id == comment.id {
+                RoundedRectangle(cornerRadius: 10).fill(Color.photoPlaceholder)
+            }
+        }
         // 한 댓글이 한 단위로 읽히게 묶고, 순서를 잃지 않도록 라벨을 직접 조립한다
         // (기본 결합은 "이름 시간 본문"을 붙여 읽어 어디가 시간인지 구분되지 않는다).
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             "\(comment.author), \(comment.createdAt.reviewRelative), \(comment.body)")
+        .modifier(CommentActions(
+            isMine: comment.isMine,
+            edit: { beginEditing(comment) },
+            delete: { deletingComment = comment }
+        ))
+    }
+
+    private func beginEditing(_ comment: ReviewComment) {
+        editingComment = comment
+        draft = comment.body
+        isCommentFocused = true
+    }
+
+    private func cancelEditing() {
+        editingComment = nil
+        draft = ""
+        sendError = nil
     }
 
     @ViewBuilder
@@ -527,7 +571,21 @@ struct ReviewDetailView: View {
                         .padding(.horizontal, 24)
                 }
 
-                if savedNickname.isEmpty { nicknameField }
+                if editingComment != nil {
+                    HStack(spacing: 8) {
+                        Text("댓글 수정 중")
+                            .font(.notoSans(13, .bold))
+                            .foregroundStyle(.deepGreen)
+                        Spacer(minLength: 8)
+                        Button("취소", action: cancelEditing)
+                            .font(.notoSans(13, .bold))
+                            .foregroundStyle(.textSecondary)
+                    }
+                    .padding(.horizontal, 24)
+                }
+
+                // 고치는 중에는 이름을 묻지 않는다 — 이미 이름이 붙은 댓글이다.
+                if savedNickname.isEmpty && editingComment == nil { nicknameField }
 
                 draftField.padding(.horizontal, 24)
             }
@@ -569,6 +627,7 @@ struct ReviewDetailView: View {
     private var draftField: some View {
         // 접근성 글자 크기에서는 입력창과 보내기 버튼이 한 캡슐 안에 나란히 들어가지 않는다.
         let field = TextField("댓글을 남겨보세요", text: $draft, axis: .vertical)
+            .focused($isCommentFocused)
             .font(.notoSans(14))
             .foregroundStyle(Color.textPrimary)
             .tint(.deepGreen)
@@ -641,7 +700,11 @@ struct ReviewDetailView: View {
     ///  기본 이름을 지어내 등록하면 댓글 작성자가 전부 같은 이름이 된다.
     private var needsNickname: Bool { savedNickname.isEmpty && nicknameInput.trimmed.isEmpty }
 
-    private var canSend: Bool { !draft.trimmed.isEmpty && !needsNickname && !isSending }
+    private var canSend: Bool {
+        guard !draft.trimmed.isEmpty, !isSending else { return false }
+        // 고치는 중이면 이름은 이미 붙어 있다.
+        return editingComment != nil || !needsNickname
+    }
 
     private var sendDisabledReason: String? {
         if isSending { return "보내는 중이에요" }
@@ -689,8 +752,58 @@ struct ReviewDetailView: View {
             reviewId: reviewId, body: text, authorNm: authorNm)
     }
 
+    /// 고친 내용을 저장한다. 개수가 바뀌지 않으므로 **그 줄만 갈아끼운다** — 목록을 다시 받으면
+    /// 페이지를 이어 받아 둔 것까지 잃고 보고 있던 자리가 튄다(작성은 개수가 바뀌어 재조회한다).
+    private func saveEdit(of comment: ReviewComment, reviewId: Int, body: String) async {
+        isSending = true
+        sendError = nil
+        defer { isSending = false }
+        do {
+            let updated = try await feedService.updateReviewComment(
+                reviewId: reviewId, commentId: comment.id, body: body)
+            if let index = comments.firstIndex(where: { $0.id == comment.id }) {
+                comments[index] = updated
+            }
+            cancelEditing()
+            isCommentFocused = false
+            UIAccessibility.post(notification: .announcement, argument: "댓글을 수정했어요")
+        } catch FeedServiceError.notFound {
+            comments.removeAll { $0.id == comment.id }
+            cancelEditing()
+            sendError = "이 댓글은 이미 지워졌어요."
+        } catch {
+            sendError = (error as? FeedServiceError)?.errorDescription
+                ?? "댓글을 수정하지 못했어요. 네트워크 상태를 확인하고 다시 시도해 주세요."
+        }
+    }
+
+    /// 댓글을 지운다. 서버가 먼저다 — 화면에서 먼저 지우고 실패하면 되살아나는 것처럼 보인다.
+    ///
+    /// 지운 뒤에는 **목록을 다시 받는다**: 서버가 같은 트랜잭션에서 `reviews.comment_count` 를
+    /// 내리므로 `total` 까지 함께 맞춰야 한다(작성과 같은 판단).
+    private func deleteComment(_ comment: ReviewComment) async {
+        guard let reviewId = review.serverId else { return }
+        do {
+            try await feedService.deleteReviewComment(reviewId: reviewId, commentId: comment.id)
+        } catch FeedServiceError.notFound {
+            // ⚠️ 삭제는 멱등이 아니다(두 번 지우면 404). 이미 없어진 것은 성공과 같게 다룬다.
+        } catch {
+            sendError = (error as? FeedServiceError)?.errorDescription
+                ?? "댓글을 지우지 못했어요. 네트워크 상태를 확인하고 다시 시도해 주세요."
+            return
+        }
+        comments.removeAll { $0.id == comment.id }
+        if editingComment?.id == comment.id { cancelEditing() }
+        UIAccessibility.post(notification: .announcement, argument: "댓글을 지웠어요")
+        await loadComments(reset: true)
+    }
+
     private func submitComment() async {
         guard let reviewId = review.serverId, canSend else { return }
+        if let editing = editingComment {
+            await saveEdit(of: editing, reviewId: reviewId, body: draft.trimmed)
+            return
+        }
         // 댓글은 로그인 필수다. 쓴 글은 입력칸에 남으므로 로그인하고 돌아와 다시 보내면 된다.
         guard session.requireSignIn(.comment) else { return }
         let text = draft.trimmed

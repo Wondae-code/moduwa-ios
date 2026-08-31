@@ -38,6 +38,9 @@ enum FeedServiceError: LocalizedError {
     case loginRequired
     /// 401 `session_expired` — 토큰이 낡았다. 이미 지워졌고 앱은 로그아웃 상태로 돌아간다.
     case sessionExpired
+    /// 404 — 이미 지워졌거나 내 것이 아니다. 댓글 삭제가 멱등이 아니라(두 번 지우면 404)
+    /// "이미 없어졌다"를 오류가 아니라 목록을 맞추는 신호로 다뤄야 해서 따로 가른다.
+    case notFound
     /// 신고를 받을 서버가 없는 데이터 소스다(번들·목). 라우트는 열렸으므로(서버 2026-08-31)
     /// 실제 앱에서는 API 키가 없을 때만 나온다 — "실패"가 아니라 **이 소스로는 못 보낸다**는
     /// 뜻이라 따로 가른다(다시 시도하라고 말하면 영원히 같은 결과다).
@@ -53,6 +56,7 @@ enum FeedServiceError: LocalizedError {
         case .commentsUnavailable: "이 후기의 댓글은 지금 볼 수 없어요."
         case .loginRequired: "로그인이 필요해요."
         case .sessionExpired: "로그인이 만료됐어요. 다시 로그인해 주세요."
+        case .notFound: "이미 지워졌어요."
         }
     }
 }
@@ -133,6 +137,21 @@ protocol FeedService: Sendable {
     /// 신원이 아니라서 예전처럼 기기 키로 대신할 수 없다).
     func submitReviewComment(reviewId: Int, body: String, authorNm: String?) async throws
 
+    /// 댓글 수정 (`PATCH /v1/reviews/:reviewId/comments/:commentId`, 서버 2026-08-31).
+    /// 본인 것만, 나머지는 404. ⚠️ **빈 본문은 400 이다** — 지우려면 삭제를 쓴다.
+    ///
+    /// 작성과 달리 반환값이 있다: 개수가 바뀌지 않으므로 그 줄만 갈아끼우면 되고,
+    /// 목록을 다시 받으면 사용자가 보고 있던 스크롤 위치를 잃는다.
+    @discardableResult
+    func updateReviewComment(reviewId: Int, commentId: Int, body: String) async throws -> ReviewComment
+
+    /// 댓글 삭제 (`DELETE /v1/reviews/:reviewId/comments/:commentId`). 하드 삭제다.
+    ///
+    /// 서버가 같은 트랜잭션에서 `reviews.comment_count` 를 내린다(`greatest(…, 0)` 로 감쌌다) —
+    /// 앱은 목록을 다시 받아 `total` 까지 함께 맞춘다(작성과 같은 판단).
+    /// ⚠️ **멱등이 아니다** — 두 번 지우면 404(`.notFound`).
+    func deleteReviewComment(reviewId: Int, commentId: Int) async throws
+
     // MARK: - 신고
 
     /// 후기를 신고한다 (`POST /v1/reviews/:reviewId/report`).
@@ -189,6 +208,15 @@ extension FeedService {
     }
 
     func submitReviewComment(reviewId: Int, body: String, authorNm: String?) async throws {
+        throw FeedServiceError.commentsUnavailable
+    }
+
+    @discardableResult
+    func updateReviewComment(reviewId: Int, commentId: Int, body: String) async throws -> ReviewComment {
+        throw FeedServiceError.commentsUnavailable
+    }
+
+    func deleteReviewComment(reviewId: Int, commentId: Int) async throws {
         throw FeedServiceError.commentsUnavailable
     }
 }
