@@ -12,28 +12,20 @@ import SwiftUI
 /// "이용 가이드"는 시안에서 빠졌다.
 ///
 /// ⚠️ 시안에 **로그아웃 자리가 없다.** 로그아웃·이메일 인증·비밀번호 변경은 `AccountInfoView`
-/// 하나에 모여 있어서, 그 화면을 **이름 옆 연필**(시안의 프로필 편집 자리)에 붙였다 — 빼면
-/// 앱에서 로그아웃할 길이 사라진다. 시안에 프로필 편집 화면이 따로 없기도 하다.
+/// 하나에 모여 있어서 **프로필 편집 화면 안**으로 옮겼다(이름 옆 연필 → 프로필 편집 → 회원정보 수정).
+/// 빼면 앱에서 로그아웃할 길이 사라진다.
 struct AccountSettingsView: View {
     @Environment(SessionStore.self) private var session
     @Environment(\.dismiss) private var dismiss
 
     /// 줄 하나가 미는 화면.
     private enum Row: Hashable, Identifiable {
-        case accessProfile, accountInfo, myPosts, accessibility, helpCenter, terms
-
-        var id: Self { self }
-    }
-
-    /// 회원정보 수정 **안에서** 이어지는 화면들.
-    private enum SubRoute: Hashable, Identifiable {
-        case verifyEmail, resetPassword
+        case accessProfile, profileEdit, myPosts, accessibility, helpCenter, terms
 
         var id: Self { self }
     }
 
     @State private var row: Row?
-    @State private var subRoute: SubRoute?
 
     /// 앱 푸시 알림 허용(시안 978:1163).
     ///
@@ -111,10 +103,10 @@ struct AccountSettingsView: View {
                     .foregroundStyle(.textSecondary)
                     .accessibilityAddTraits(.isHeader)
 
-                // 시안의 연필은 프로필 편집 자리인데, 그 화면이 아직 없다. 계정을 다루는 화면
-                //  (회원정보·인증·로그아웃)이 여기 붙는 것이 지금은 가장 가깝다.
+                // 시안의 연필 = 프로필 편집(사진·닉네임). 계정을 다루는 화면(회원정보·인증·
+                //  로그아웃)은 그 화면 안에서 이어진다 — 설정 시안 다섯 줄에 자리가 없다.
                 if session.account != nil {
-                    Button { row = .accountInfo } label: {
+                    Button { row = .profileEdit } label: {
                         Image("detail_pencil")
                             .renderingMode(.template)
                             .resizable()
@@ -125,7 +117,7 @@ struct AccountSettingsView: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("회원정보 수정")
+                    .accessibilityLabel("프로필 편집")
                 }
             }
             .padding(.top, 4)
@@ -150,9 +142,20 @@ struct AccountSettingsView: View {
     private var avatar: some View {
         let feature = session.accessFeatures.first ?? .wheelchairAccessible
         let size = feature.iconSize(height: 19)
-        return Circle()
-            .fill(Color.moduwaGreen.opacity(0.3))
+        return Group {
+            // 사진을 올렸으면 그것, 없으면 라임 원(시안 983:1302 의 기본 아바타).
+            if let url = session.account?.avatarURL {
+                AsyncImage(url: url) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    Color.photoPlaceholder
+                }
+            } else {
+                Color.moduwaGreen.opacity(0.3)
+            }
+        }
             .frame(width: 100, height: 100)
+            .clipShape(Circle())
             .overlay(alignment: .bottomTrailing) {
                 Circle()
                     .fill(Color.deepGreen)
@@ -225,14 +228,8 @@ struct AccountSettingsView: View {
         case .accessProfile:
             AccessibilityProfileEditView(current: session.accessFeatures)
 
-        case .accountInfo:
-            AccountInfoView(
-                // 로그아웃하면 이 화면에 남을 이유가 없다 — 계정 화면과 설정을 함께 닫는다.
-                onSignedOut: { subRoute = nil; self.row = nil },
-                onVerifyEmail: { subRoute = .verifyEmail },
-                onChangePassword: { subRoute = .resetPassword }
-            )
-            .navigationDestination(item: $subRoute) { subScreen($0) }
+        case .profileEdit:
+            ProfileEditView()
 
         // 준비 중 안내는 앱의 기존 틀을 그대로 쓴다 — "{이름}은 준비 중이에요" 한 줄.
         case .myPosts:
@@ -243,20 +240,6 @@ struct AccountSettingsView: View {
             comingSoon("고객센터", "questionmark.circle", "고객센터는 준비 중이에요")
         case .terms:
             comingSoon("서비스 이용약관", "doc.text", "서비스 이용약관은 준비 중이에요")
-        }
-    }
-
-    @ViewBuilder
-    private func subScreen(_ route: SubRoute) -> some View {
-        switch route {
-        case .verifyEmail:
-            EmailVerifyCodeView { subRoute = nil }
-        case .resetPassword:
-            PasswordResetView { _ in
-                // 서버가 모든 세션을 끊었다 — 이 기기도 로그아웃 상태다.
-                subRoute = nil
-                row = nil
-            }
         }
     }
 

@@ -53,6 +53,19 @@ protocol AuthService: Sendable {
     /// - Returns: 갱신된 계정. 화면이 다시 조회하지 않아도 되게 서버가 그대로 돌려준다.
     func updateAccessFeatures(_ features: [AccessibilityFeature]) async throws -> Account
 
+    /// 프로필 부분 갱신 (`PATCH /v1/auth/me`).
+    ///
+    /// **온 키만 바뀐다** — `nil` 을 넘긴 값은 서버가 건드리지 않는다. 그래서 닉네임만 바꾸는
+    /// 요청은 무장애 항목도, 온보딩 상태도 손대지 않는다(서버는 `accessFeatures` 가 올 때만
+    /// `onboarded` 를 켠다).
+    /// - Parameters:
+    ///   - nickname: 앞뒤 공백은 서버가 턴다. **빈 문자열은 오류**(400 `invalid_nickname`) —
+    ///     "지우기"가 아니다. 40자 초과도 같은 오류다.
+    ///   - avatar: `.set` 은 사진 지정, `.clear` 는 사진 제거. `nil` 이면 사진을 건드리지 않는다.
+    ///     URL 은 **https** 여야 한다(서버가 http 를 400 으로 막는다 — ATS 때문에 저장돼도 안 보인다).
+    /// - Returns: 갱신된 계정. 앱은 이 값으로 화면을 갈아 끼운다(재조회하지 않는다).
+    func updateProfile(nickname: String?, avatar: AvatarUpdate?) async throws -> Account
+
     /// 저장해 둔 토큰이 아직 쓸 수 있는지 확인하며 계정을 받아 온다(앱 기동 시).
     /// 만료·폐기된 토큰이면 `.sessionExpired` 를 던진다.
     func currentAccount() async throws -> Account
@@ -126,6 +139,19 @@ struct MockAuthService: AuthService {
         var updated = account("preview@moduwa.app")
         updated.accessFeatures = features
         updated.onboarded = true
+        return updated
+    }
+
+    func updateProfile(nickname: String?, avatar: AvatarUpdate?) async throws -> Account {
+        if let failure { throw failure }
+        // 프리뷰는 상태를 들지 않는다 — 넘어온 값이 반영된 모습만 돌려준다.
+        var updated = account("preview@moduwa.app")
+        if let nickname { updated.nickname = nickname }
+        switch avatar {
+        case .set(let url): updated.avatarURL = url
+        case .clear: updated.avatarURL = nil
+        case nil: break
+        }
         return updated
     }
 

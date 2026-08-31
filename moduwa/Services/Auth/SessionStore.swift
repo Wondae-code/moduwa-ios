@@ -167,6 +167,22 @@ final class SessionStore {
         account = try await service.updateAccessFeatures(features)
     }
 
+    // MARK: - 프로필
+
+    /// 닉네임·프로필 사진을 고친다 (`PATCH /v1/auth/me` 부분 갱신).
+    ///
+    /// 로그인 상태에서만 부른다 — 계정이 없으면 저장할 곳이 없다(온보딩 값과 달리 기기에
+    /// 남겨 둘 자리가 없고, 남에게 보이는 값이라 계정에 있어야 뜻이 있다).
+    ///
+    /// 닉네임이 바뀌면 작성 화면의 표시 이름(`ReviewAuthorStore`)까지 함께 맞춘다 —
+    /// 한 곳만 고치면 프로필에서 바꾼 이름과 글에 붙는 이름이 갈린다.
+    func updateProfile(nickname: String? = nil, avatar: AvatarUpdate? = nil) async throws {
+        guard account != nil else { throw AuthError.loginRequired }
+        let updated = try await service.updateProfile(nickname: nickname, avatar: avatar)
+        account = updated
+        mirrorNickname(updated.nickname)
+    }
+
     // MARK: - 이메일 인증
 
     /// - Returns: 이미 인증된 계정이면 `true`.

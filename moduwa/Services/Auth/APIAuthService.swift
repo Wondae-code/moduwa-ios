@@ -147,6 +147,32 @@ struct APIAuthService: AuthService {
         return dto.account
     }
 
+    /// 프로필 부분 갱신. **보낼 키만 담는다** — 담지 않은 값은 서버가 건드리지 않는다.
+    ///  특히 `accessFeatures` 를 함께 보내지 않는 이유: 서버는 그 키가 올 때만 `onboarded` 를
+    ///  켠다. 닉네임만 고치는 요청이 온보딩 상태까지 바꿔서는 안 된다.
+    func updateProfile(nickname: String?, avatar: AvatarUpdate?) async throws -> Account {
+        var body: [String: Any] = [:]
+        if let nickname { body["nickname"] = nickname }
+        switch avatar {
+        // 서버는 https 만 받는다(http 는 400). 앱도 https 로 만들어 보낸다 —
+        //  업그레이드가 안 되는 주소면 보내지 않고 실패로 다룬다.
+        case .set(let url):
+            guard let https = URL(imageAddress: url.absoluteString),
+                  https.scheme == "https" else {
+                throw AuthError.server(message: "사진 주소가 올바르지 않아요. 다시 시도해 주세요.")
+            }
+            body["avatarUrl"] = https.absoluteString
+        case .clear:
+            body["avatarUrl"] = NSNull()
+        case nil:
+            break
+        }
+        // 셋 다 없으면 서버가 400 nothing_to_update 를 준다 — 부를 이유가 없다.
+        guard !body.isEmpty else { return try await currentAccount() }
+        let dto: AuthorDTO = try await send("PATCH", "/v1/auth/me", body: body)
+        return dto.account
+    }
+
     func currentAccount() async throws -> Account {
         let dto: AuthorDTO = try await send("GET", "/v1/auth/me")
         return dto.account
@@ -208,6 +234,8 @@ struct APIAuthService: AuthService {
         /// 서버가 값을 검증하지 않으므로 **모르는 코드가 올 수 있다** — 문자열로 받고 걸러 낸다.
         let accessFeatures: [String]?
         let onboarded: Bool?
+        /// 프로필 사진(042). 서버가 https 로만 저장하므로 그대로 쓴다.
+        let avatarUrl: String?
 
         var account: Account {
             Account(
@@ -216,7 +244,8 @@ struct APIAuthService: AuthService {
                 email: email,
                 emailVerified: emailVerified ?? false,
                 accessFeatures: (accessFeatures ?? []).compactMap(AccessibilityFeature.init(rawValue:)),
-                onboarded: onboarded ?? false
+                onboarded: onboarded ?? false,
+                avatarURL: URL(imageAddress: avatarUrl)
             )
         }
     }

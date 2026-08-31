@@ -18,8 +18,18 @@ struct Account: Identifiable, Hashable, Sendable {
     /// 온보딩을 마쳤는지. **빈 `accessFeatures` 와 다른 뜻이다** —
     /// "아무것도 고르지 않았다"와 "온보딩을 안 했다"를 구분해야 온보딩을 다시 띄울지 알 수 있다.
     var onboarded: Bool
+    /// 프로필 사진(서버 042). `nil` 이면 사진을 올리지 않은 계정 — 앱이 이니셜 원을 그린다.
+    /// 서버는 **https 만** 저장한다(평문 http 는 ATS 가 막아 화면에 안 뜬다).
+    var avatarURL: URL? = nil
 
     var id: String { uuid }
+}
+
+/// 프로필 사진을 어떻게 바꾸는지. **"건드리지 않음"과 "지우기"는 다른 뜻이다** —
+/// 서버도 그렇게 가른다(키 없음 = 그대로, `null` = 지우기).
+enum AvatarUpdate: Equatable, Sendable {
+    case set(URL)
+    case clear
 }
 
 /// 로그인·가입 실패 사유 중 **화면이 분기해야 하는** 것들.
@@ -65,7 +75,7 @@ enum AuthError: LocalizedError, Equatable {
         case .network: "연결에 실패했어요. 네트워크 상태를 확인하고 다시 시도해 주세요."
         case .invalidEmail: "이메일 형식이 올바르지 않아요."
         case .invalidPassword(let message): message
-        case .invalidNickname: "이름은 40자 이하로 입력해 주세요."
+        case .invalidNickname: "이름은 1자 이상 40자 이하로 입력해 주세요."
         case .emailTaken: "이미 가입된 이메일이에요. 로그인해 주세요."
         case .invalidCredentials: "이메일 또는 비밀번호가 올바르지 않아요."
         case .tooManyAttempts: "시도가 많았어요. 잠시 후 다시 시도해 주세요."
