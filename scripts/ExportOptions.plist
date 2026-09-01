@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- App Store Connect 용 배포. Xcode 15.3 부터 `app-store` 가 이 이름으로 바뀌었다. -->
+	<key>method</key>
+	<string>app-store-connect</string>
+	<!-- ⚠️ 이 한 줄이 "내보내기" 를 "업로드" 로 바꾼다. 없으면 ipa 만 만들고 끝난다
+	     (그 뒤에 altool 이나 Transporter 로 따로 올려야 한다). -->
+	<key>destination</key>
+	<string>upload</string>
+	<key>teamID</key>
+	<string>8G2743WJL4</string>
+	<!-- 크래시 로그를 읽을 수 있게 dSYM 을 함께 올린다. -->
+	<key>uploadSymbols</key>
+	<true/>
+	<!-- ⚠️ **false 로 둔다.** true 면 Xcode 가 빌드 번호를 제멋대로 올려, 저장소의
+	     `CURRENT_PROJECT_VERSION`(= 테스트 노트에 적은 번호)과 어긋난다. -->
+	<key>manageAppVersionAndBuildNumber</key>
+	<false/>
+</dict>
+</plist>
