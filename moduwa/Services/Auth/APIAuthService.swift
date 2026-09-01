@@ -109,6 +109,13 @@ struct APIAuthService: AuthService {
         try await social("/v1/auth/google", idToken: idToken, accessFeatures: accessFeatures)
     }
 
+    func signInWithApple(
+        idToken: String, nickname: String?, accessFeatures: [AccessibilityFeature]?
+    ) async throws -> AuthSession {
+        try await social("/v1/auth/apple", idToken: idToken,
+                         nickname: nickname, accessFeatures: accessFeatures)
+    }
+
     func signInWithKakao(
         idToken: String, accessFeatures: [AccessibilityFeature]?
     ) async throws -> AuthSession {
@@ -118,12 +125,16 @@ struct APIAuthService: AuthService {
     /// 소셜 로그인은 프로바이더마다 **경로만 다르고 본문은 같다**(서버가 그렇게 맞춰 뒀다).
     /// 애플·네이버가 붙어도 여기 한 줄이 늘어날 뿐이다.
     private func social(
-        _ path: String, idToken: String, accessFeatures: [AccessibilityFeature]?
+        _ path: String, idToken: String, nickname: String? = nil,
+        accessFeatures: [AccessibilityFeature]?
     ) async throws -> AuthSession {
         var body: [String: Any] = [
             "idToken": idToken,
             "deviceId": deviceId,
         ]
+        // 애플만 보낸다 — 구글·카카오는 토큰에 이름이 들어 있다. 빈 문자열은 넣지 않는다
+        //  (서버가 받은 이름으로 닉네임을 갱신하므로 빈 값은 실제 이름을 덮어쓴다).
+        if let nickname, !nickname.isEmpty { body["nickname"] = nickname }
         // 이메일 가입과 같은 규칙 — 온보딩을 안 했으면 키를 아예 넣지 않는다.
         if let accessFeatures { body["accessFeatures"] = accessFeatures.map(\.rawValue) }
 

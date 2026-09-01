@@ -11,5 +11,11 @@
 	     `aps-environment` 를 읽어 서버에 알린다(`PushEnvironment`). -->
 	<key>aps-environment</key>
 	<string>development</string>
+	<!-- Sign in with Apple. 제3자 소셜 로그인(구글·카카오)을 제공하는 앱은 애플 로그인도
+	     함께 제공해야 한다(심사 규칙 4.8). ⚠️ App ID 에도 이 권한을 켜야 기기 서명이 된다. -->
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
 </dict>
 </plist>

@@ -4,8 +4,8 @@ import SwiftUI
 ///
 /// 소셜은 프로바이더마다 "토큰을 받아 오는 방법"만 다르고, 서버에 넘긴 뒤는 전부 같다.
 /// 애플·카카오·네이버를 붙일 때도 메서드 하나가 늘어날 뿐이다.
-/// (애플은 서버 라우트가 이미 있지만 앱에는 없다 — Sign in with Apple 은 유료 멤버십이
-/// 있어야 켤 수 있는 기능이라, 멤버십이 생기면 여기에 `signInWithApple` 이 붙는다.)
+/// (2026-09-01: 애플 로그인이 붙었다 — 제3자 소셜 로그인을 제공하는 앱은 애플 로그인도
+/// 함께 제공해야 한다는 심사 규칙 4.8 때문이다. 유료 멤버십이 생겨 엔타이틀먼트를 켤 수 있었다.)
 protocol AuthService: Sendable {
     /// 이메일 가입. 성공하면 **인증 코드 메일이 자동으로 한 번 발송된다** —
     /// 호출부는 인증코드 입력 화면으로 이어 준다.
@@ -33,6 +33,18 @@ protocol AuthService: Sendable {
     /// 로그아웃. 서버에서 토큰을 폐기하고 이 기기의 계정 바인딩을 끊는다.
     /// 요청이 실패해도 호출부는 기기에서 토큰을 지운다 — 남기면 로그아웃이 되지 않는다.
     func signOut() async throws
+
+    /// 애플 로그인 — 버튼이 준 ID 토큰을 넘긴다(`POST /v1/auth/apple`).
+    ///
+    /// 구글·카카오와 다른 점 하나: **이름을 앱이 보낸다.** 애플 ID 토큰에는 이름이 없고,
+    /// 이름은 **첫 로그인에만** 자격 증명으로 따라온다. 없으면 `nil` — 지어내지 않는다
+    /// (서버가 받은 이름으로 계정 닉네임을 갱신하므로 빈 값은 실제 이름을 덮어쓴다).
+    ///
+    /// ⚠️ 서버가 토큰의 `aud` 를 **번들 ID**(`com.waasegye.moduwa`)로 검증한다 —
+    /// 서버 환경변수 `APPLE_CLIENT_IDS` 에 그 값이 있어야 로그인이 성립한다.
+    func signInWithApple(
+        idToken: String, nickname: String?, accessFeatures: [AccessibilityFeature]?
+    ) async throws -> AuthSession
 
     /// 카카오 로그인 — 앱이 받아 온 **OIDC ID 토큰**을 넘긴다(`POST /v1/auth/kakao`).
     ///
@@ -125,6 +137,14 @@ struct MockAuthService: AuthService {
         if let failure { throw failure }
         return AuthSession(token: "preview", expiresAt: nil,
                            account: account("preview@kakao.com"), created: true)
+    }
+
+    func signInWithApple(
+        idToken: String, nickname: String?, accessFeatures: [AccessibilityFeature]?
+    ) async throws -> AuthSession {
+        if let failure { throw failure }
+        return AuthSession(token: "preview", expiresAt: nil,
+                           account: account("preview@privaterelay.appleid.com"), created: true)
     }
 
     func signOut() async throws {}

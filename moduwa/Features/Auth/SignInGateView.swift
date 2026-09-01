@@ -1,3 +1,4 @@
+import AuthenticationServices
 import SwiftUI
 
 /// 로그인 관문 (시안 868:645 "00. 로그인").
@@ -60,6 +61,8 @@ struct SignInGateView: View {
                         Task { await signIn(with: .google) }
                     } onKakao: {
                         Task { await signIn(with: .kakao) }
+                    } onApple: { result in
+                        Task { await signInWithApple(result) }
                     }
                     .padding(.top, 12)
 
@@ -94,6 +97,28 @@ struct SignInGateView: View {
     }
 
     private enum Provider { case google, kakao }
+
+    /// 애플 로그인. 창을 띄우는 일은 버튼이 이미 했고, 여기는 결과를 서버로 넘긴다.
+    /// 사용자가 창을 닫은 것(`cancelled`)은 오류로 보여 주지 않는다 — 구글·카카오와 같은 규칙.
+    private func signInWithApple(_ result: Result<ASAuthorization, Error>) async {
+        guard !isBusy else { return }
+        isBusy = true
+        errorMessage = nil
+        do {
+            let credential = try AppleSignInFlow.credential(from: result)
+            try await session.signInWithApple(credential)
+            UIAccessibility.post(notification: .announcement, argument: "로그인했어요")
+            onSignedIn()
+        } catch AppleSignInFlow.Failure.cancelled {
+            // 본인이 닫았다. 아무 말도 하지 않는다.
+        } catch {
+            let message = (error as? LocalizedError)?.errorDescription
+                ?? "Apple 로그인에 실패했어요. 잠시 후 다시 시도해 주세요."
+            errorMessage = message
+            UIAccessibility.post(notification: .announcement, argument: message)
+        }
+        isBusy = false
+    }
 
     /// 소셜 로그인. 사용자가 시트를 닫은 것(`cancelled`)은 오류로 보여 주지 않는다.
     private func signIn(with provider: Provider) async {

@@ -1,3 +1,4 @@
+import AuthenticationServices
 import SwiftUI
 
 /// 온보딩·로그인·가입 화면이 공유하는 입력·버튼·오류 줄.
@@ -474,25 +475,40 @@ struct AuthToast: View {
 
 /// 소셜 로그인 버튼 묶음 — 시안 868:645 "00. 로그인" 의 아래쪽 세 줄.
 ///
-/// **애플 버튼은 없다.** Sign in with Apple 은 애플 개발자 프로그램 유료 멤버십이 있어야
-/// 앱에 켤 수 있는 기능이고(엔타이틀먼트), 없는 상태로 버튼만 두면 눌렀을 때
-/// `ASAuthorizationError 1000` 으로 죽는다 — 시안에는 있지만 눌러야 실패를 아는 버튼보다
-/// 없는 편이 정직하다. 서버 라우트(`POST /v1/auth/apple`)는 이미 있으니 멤버십이 생기면
-/// 여기 버튼 하나가 늘어난다.
+/// **애플 버튼이 맨 위에 있다**(2026-09-01 추가). 제3자 소셜 로그인을 제공하는 앱은 애플
+/// 로그인도 함께 제공해야 한다(심사 규칙 4.8) — 없으면 리젝된다. 유료 멤버십이 생겨
+/// 엔타이틀먼트를 켤 수 있게 되면서 막고 있던 이유가 사라졌다.
 ///
-/// ⚠️ **iOS 심사 규칙**: 다른 소셜 로그인을 제공하면 애플 로그인도 함께 제공해야 한다.
-/// 지금 상태로 앱스토어에 내면 리젝된다(공모전 제출에는 영향 없음).
+/// ⚠️ 애플 버튼은 **애플이 주는 컴포넌트**(`SignInWithAppleButton`)를 그대로 쓴다. 다른 버튼처럼
+/// 직접 그리면 브랜드 지침 위반이고, 지침은 "다른 로그인 수단보다 덜 눈에 띄게 두지 말라"고
+/// 요구한다 — 그래서 높이를 다른 버튼과 같게 맞추고 맨 위에 둔다.
 struct SocialSignInSection: View {
     var isBusy = false
     var onGoogle: () -> Void
     var onKakao: () -> Void
+    /// 애플 버튼이 준 결과. 파싱은 `AppleSignInFlow` 가 한다.
+    var onApple: (Result<ASAuthorization, Error>) -> Void
 
+    /// 구글·카카오는 클라이언트 ID 가 없으면 버튼을 그리지 않는다 — 눌러야 실패를 아는
+    /// 버튼보다 없는 편이 정직하다. **애플은 앱 키가 필요 없어 늘 그린다**(엔타이틀먼트만 있으면 된다).
     var body: some View {
-        // 클라이언트 ID 가 없으면 버튼을 아예 그리지 않는다 — 눌러야 실패를 아는 버튼보다,
-        //  없는 편이 정직하다.
-        if GoogleSignInFlow.isConfigured || KakaoSignInFlow.isConfigured {
             VStack(spacing: 10) {
                 divider
+
+                // 애플 버튼. `.signInWithAppleButtonStyle(.black)` 은 시안의 어두운 CTA 톤과
+                //  맞고, 흰 배경에서 대비도 가장 높다.
+                SignInWithAppleButton(.signIn) { request in
+                    // 이름·이메일을 요청한다. **이름은 첫 로그인에만** 돌아온다.
+                    request.requestedScopes = [.fullName, .email]
+                } onCompletion: { result in
+                    onApple(result)
+                }
+                .signInWithAppleButtonStyle(.black)
+                .frame(maxWidth: .infinity)
+                .frame(height: AuthMetrics.buttonHeight)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.card))
+                .disabled(isBusy)
+                .accessibilityLabel("Apple로 시작하기")
 
                 if GoogleSignInFlow.isConfigured {
                     // 라벨은 **화면에 적힌 그대로** 둔다 — 보이는 말과 VoiceOver 가 읽는 말이
@@ -520,7 +536,6 @@ struct SocialSignInSection: View {
                     }
                 }
             }
-        }
     }
 
     private var divider: some View {

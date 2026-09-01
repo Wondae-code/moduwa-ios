@@ -72,6 +72,11 @@ struct ProfileEditView: View {
             .scrollBounceBehavior(.basedOnSize)
         }
         .background(.white)
+        // 로그아웃하면 이 화면에 있을 이유가 없다 — 계정 없이 프로필을 고칠 수는 없고,
+        //  "저장" 이 눌리면 401 이 된다(실측: 로그아웃 뒤에도 화면이 남고 저장이 활성이었다).
+        .onChange(of: session.account == nil) { _, signedOut in
+            if signedOut { dismiss() }
+        }
         .toolbar(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .bottom) { saveBar }
         .navigationDestination(item: $route) { destination($0) }
@@ -269,7 +274,9 @@ struct ProfileEditView: View {
         case .accountInfo:
             AccountInfoView(
                 // 로그아웃했으면 프로필을 고칠 계정이 없다 — 이 화면도 함께 닫는다.
-                onSignedOut: { self.route = nil; dismiss() },
+                // 하위 화면만 닫는다. 이 화면을 닫는 일은 아래 `onChange` 가 한다 —
+                //  둘을 같은 틱에 부르면 부모의 dismiss 가 삼켜져 프로필 편집이 남는다(실측).
+                onSignedOut: { self.route = nil },
                 onVerifyEmail: { self.route = .verifyEmail },
                 onChangePassword: { self.route = .resetPassword }
             )

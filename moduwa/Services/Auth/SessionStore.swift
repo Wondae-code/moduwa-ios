@@ -96,6 +96,18 @@ final class SessionStore {
         return result
     }
 
+    /// 애플 로그인. 창을 띄우는 일은 버튼(`SignInWithAppleButton`)이 하고, 여기는 그 결과만 받는다.
+    /// - Parameter credential: `AppleSignInFlow.credential(from:)` 이 파싱한 값.
+    @discardableResult
+    func signInWithApple(_ credential: AppleSignInFlow.Credential) async throws -> AuthSession {
+        let result = try await service.signInWithApple(
+            idToken: credential.idToken, nickname: credential.nickname,
+            accessFeatures: OnboardingProfileStore.shared.selectionForSignUp)
+        adopt(result)
+        if result.created { OnboardingProfileStore.shared.markHandedToAccount() }
+        return result
+    }
+
     /// 카카오 로그인. 카카오톡이 깔려 있으면 앱으로 전환된다(`KakaoSignInFlow`).
     @discardableResult
     func signInWithKakao() async throws -> AuthSession {
