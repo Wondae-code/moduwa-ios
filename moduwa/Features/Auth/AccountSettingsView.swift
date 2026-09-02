@@ -264,9 +264,26 @@ struct AccountSettingsView: View {
             SettingsRow(title: "접근성") { row = .accessibility }
             SettingsRow(title: "고객센터") { row = .helpCenter }
             SettingsRow(title: "서비스 이용약관", showsDivider: false) { row = .terms }
+
+            dataSource
         }
         .padding(.horizontal, Self.rowInset)
         .padding(.bottom, Spacing.xxl)
+    }
+
+    /// 데이터 출처. **표시 의무다** — 관광공사 TourAPI 는 표출 시 출처 표시를 요구하고,
+    /// 앱스토어 심사(5.2.1)도 콘텐츠에 대한 권리를 본다. 약관 제11조에만 적고 화면에
+    /// 없으면 지킨 것이 아니다.
+    ///
+    /// 자리를 설정 맨 아래로 둔 이유: 데이터가 여러 화면(홈·장소·플랜)에 흩어져 있어
+    /// 화면마다 붙이면 같은 문장이 다섯 번 나온다. 장소 상세에도 한 줄 둔다(그 화면이
+    /// 원본 데이터를 가장 많이 그린다).
+    private var dataSource: some View {
+        Text("관광 정보 출처: 한국관광공사 TourAPI")
+            .font(.notoSans(12, .regular, relativeTo: .caption))
+            .foregroundStyle(.iconGray)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, Spacing.l)
     }
 
     // MARK: - 목적지

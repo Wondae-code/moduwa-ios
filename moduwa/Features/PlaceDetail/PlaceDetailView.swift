@@ -77,6 +77,16 @@ struct PlaceDetailView: View {
                         sectionDivider
                         relatedSection
                     }
+
+                    // 데이터 출처. **이 화면이 원본 데이터를 가장 많이 그린다** — 이름·주소·
+                    //  사진·무장애 28속성이 모두 관광공사 TourAPI 다. 라이선스가 표출 시 출처
+                    //  표시를 요구하므로 데이터가 보이는 자리에 함께 둔다(설정에도 한 줄 있다).
+                    Text("정보 출처: 한국관광공사 TourAPI")
+                        .font(.notoSans(12, .regular, relativeTo: .caption))
+                        .foregroundStyle(.iconGray)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 24)
+                        .padding(.top, 28)
                 }
                 .padding(.bottom, Spacing.xxl)
             }
