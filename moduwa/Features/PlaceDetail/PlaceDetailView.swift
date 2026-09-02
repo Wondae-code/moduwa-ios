@@ -7,6 +7,8 @@ struct PlaceDetailView: View {
     @Environment(\.feedService) private var feedService
     @Environment(SavedPlacesStore.self) private var savedStore
     @Environment(SessionStore.self) private var session
+    @Environment(\.blockService) private var blockService
+    @Environment(\.blockSignal) private var blockSignal
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -313,6 +315,19 @@ struct PlaceDetailView: View {
     /// 저장 상태를 색만으로 알리지 않는다 — 글자가 "저장하기 → 저장됨"으로 바뀐다.
     /// 후기 좋아요 토글. 하트는 누른 즉시 반응해야 해서 화면을 먼저 바꾸고 서버에 보낸다.
     /// 성공하면 서버가 센 값으로 맞추고(그 사이 남이 눌렀을 수 있다), 실패하면 되돌린다.
+    /// 후기 작성자를 차단한다. 거르는 일은 서버가 하므로 후기 목록을 다시 받는다.
+    private func block(_ uuid: String) async {
+        do {
+            try await blockService.block(uuid: uuid)
+            blockSignal.changed()
+            await loadReviews(reset: true)
+            UIAccessibility.post(notification: .announcement, argument: "차단했어요")
+        } catch {
+            UIAccessibility.post(notification: .announcement,
+                                 argument: "차단하지 못했어요. 잠시 후 다시 시도해 주세요.")
+        }
+    }
+
     private func toggleReviewLike(_ review: TravelReview) async {
         // 번들·목 후기는 서버 id 가 없어 좋아요를 붙일 수 없다.
         guard let serverId = review.serverId else { return }
@@ -587,7 +602,10 @@ struct PlaceDetailView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     ForEach(reviews) { review in
                         NavigationLink(value: review) {
-                            PlaceReviewRow(review: review) {
+                            PlaceReviewRow(
+                                onBlock: { uuid in Task { await block(uuid) } },
+                                review: review
+                            ) {
                                 Task { await toggleReviewLike(review) }
                             }
                         }

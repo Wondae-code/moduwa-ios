@@ -12,6 +12,8 @@ struct ReviewDetailView: View {
     /// 후기 작성 화면과 같은 저장소를 공유한다 — 기기에 한 번 정한 표시 이름을 다시 묻지 않는다.
     @AppStorage(ReviewAuthorStore.nicknameKey) private var savedNickname = ""
     @Environment(SessionStore.self) private var session
+    @Environment(\.blockService) private var blockService
+    @Environment(\.blockSignal) private var blockSignal
 
     /// 방문한 장소 미니카드 채우기용 — contentId가 있을 때만 로드
     @State private var visitedDetail: PlaceDetail?
@@ -42,6 +44,8 @@ struct ReviewDetailView: View {
     @State private var isReporting = false
     /// 댓글 신고 대상. 후기 신고와 시트는 같고 대상만 다르다.
     @State private var reportTarget: ReportTarget?
+    /// 차단 결과 안내(되돌릴 수 있는 동작이라 미리 묻지 않는다 — 게시글 상세와 같은 규칙).
+    @State private var blockNotice: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -111,6 +115,13 @@ struct ReviewDetailView: View {
             }
         }
         .sheet(item: $reportTarget) { ReportSheet(target: $0) }
+        .alert("차단", isPresented: .init(
+            get: { blockNotice != nil }, set: { if !$0 { blockNotice = nil } })
+        ) {
+            Button("확인") { blockNotice = nil }
+        } message: {
+            Text(blockNotice ?? "")
+        }
     }
 
     // MARK: - 헤더 (뒤로가기 + 타이틀)
@@ -138,14 +149,19 @@ struct ReviewDetailView: View {
             //  자리**에서 신고할 길이 없으면, 문제를 발견한 사람이 목록으로 되돌아가야 한다.
             //  번들·목 후기(`serverId == nil`)에는 신고를 붙일 대상이 없어 버튼을 아예 두지 않는다.
             if review.serverId != nil {
-                Button { isReporting = true } label: {
+                Menu {
+                    Button("신고", systemImage: "flag") { isReporting = true }
+                    // 작성자 식별자가 없으면(번들 후기) 차단할 대상이 없다.
+                    if let uuid = review.authorUUID {
+                        Button("차단", systemImage: "hand.raised") { Task { await block(uuid) } }
+                    }
+                } label: {
                     Image(systemName: "ellipsis")
                         .font(.system(size: 17, weight: .semibold))
                         .frame(width: 30, height: 40)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("이 후기 신고")
+                .accessibilityLabel("이 후기 관리")
             }
         }
         .foregroundStyle(.textPrimary)
@@ -442,7 +458,8 @@ struct ReviewDetailView: View {
             isMine: comment.isMine,
             edit: { beginEditing(comment) },
             delete: { deletingComment = comment },
-            report: { reportTarget = .reviewComment(id: comment.id) }
+            report: { reportTarget = .reviewComment(id: comment.id) },
+            block: comment.authorUUID.map { uuid in { Task { await block(uuid) } } }
         )
         return HStack(alignment: .top, spacing: 10) {
             avatar(name: comment.author, avatarURL: comment.authorAvatarURL,
@@ -472,6 +489,20 @@ struct ReviewDetailView: View {
         .accessibilityLabel(
             "\(comment.author), \(comment.createdAt.reviewRelative), \(comment.body)")
         .modifier(CommentActions(items: actions))
+    }
+
+    /// 사용자를 차단한다. 거르는 일은 서버가 하고, 앱은 신호를 올려 목록을 든 화면들이
+    /// 다시 받게 한다(게시글 상세와 같은 규칙 — 이 화면은 닫지 않는다).
+    private func block(_ uuid: String) async {
+        do {
+            try await blockService.block(uuid: uuid)
+            blockSignal.changed()
+            blockNotice = "차단했어요. 이 사람의 후기와 댓글이 목록에서 보이지 않아요.\n설정 → 차단한 사용자에서 해제할 수 있어요."
+            UIAccessibility.post(notification: .announcement, argument: "차단했어요")
+        } catch {
+            blockNotice = (error as? LocalizedError)?.errorDescription
+                ?? "차단하지 못했어요. 잠시 후 다시 시도해 주세요."
+        }
     }
 
     private func beginEditing(_ comment: ReviewComment) {

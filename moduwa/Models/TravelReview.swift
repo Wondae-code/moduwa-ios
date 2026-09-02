@@ -66,6 +66,9 @@ struct TravelReview: Identifiable, Hashable, Sendable {
     /// "재방문을 하고 싶어요" 응답. **세 상태를 구분한다** — true/false/미응답(nil).
     /// 미응답을 false로 접으면 "다시 오지 않겠다"는 뜻이 되어 버린다.
     var wouldRevisit: Bool? = nil
+    /// 작성자 식별자(`authorInfo.uuid`) — 차단이 가리킬 값. 닉네임으로 차단하면 동명이인이
+    /// 함께 차단된다. 번들 후기에는 없어 옵셔널이다.
+    var authorUUID: String? = nil
 }
 
 /// 장소별 후기 집계 (`GET /v1/reviews/summary?contentId=`).

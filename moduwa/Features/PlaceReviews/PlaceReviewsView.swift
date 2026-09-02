@@ -17,6 +17,8 @@ struct PlaceReviewsView: View {
     @Environment(\.feedService) private var feedService
     @Environment(\.postService) private var postService
     @Environment(PostInteractionSignal.self) private var postSignal
+    @Environment(\.blockService) private var blockService
+    @Environment(\.blockSignal) private var blockSignal
     @Environment(SessionStore.self) private var session
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -348,6 +350,7 @@ struct PlaceReviewsView: View {
                     }
                     // 팔로우·더보기는 백엔드에 대응 기능이 없다 — 눌리되 "준비 중"을 알린다
                     PlaceReviewRow(
+                        onBlock: { uuid in Task { await block(uuid) } },
                         review: review,
                         onLike: { Task { await toggleReviewLike(review) } },
                         showsAllPhotos: true, showsActionNotices: true)
@@ -518,6 +521,21 @@ struct PlaceReviewsView: View {
 
     /// 후기 좋아요 토글. 하트는 누른 즉시 반응해야 해서 화면을 먼저 바꾸고 서버에 보낸다.
     /// 성공하면 서버가 센 값으로 맞추고(그 사이 남이 눌렀을 수 있다), 실패하면 되돌린다.
+    /// 후기 작성자를 차단한다. 거르는 일은 서버가 하므로 **목록을 다시 받는다** —
+    /// 화면에서 직접 지우면 서버가 준 총계와 어긋난다.
+    private func block(_ uuid: String) async {
+        do {
+            try await blockService.block(uuid: uuid)
+            blockSignal.changed()
+            await load(reset: true, refreshSummary: true)
+            UIAccessibility.post(notification: .announcement, argument: "차단했어요")
+        } catch {
+            // 이 화면에는 오류 문구를 놓을 자리가 없다 — 스크린리더에만 알린다.
+            UIAccessibility.post(notification: .announcement,
+                                 argument: "차단하지 못했어요. 잠시 후 다시 시도해 주세요.")
+        }
+    }
+
     private func toggleReviewLike(_ review: TravelReview) async {
         // 번들·목 후기는 서버 id 가 없어 좋아요를 붙일 수 없다.
         guard let serverId = review.serverId else { return }

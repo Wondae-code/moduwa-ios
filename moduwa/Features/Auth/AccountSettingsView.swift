@@ -22,7 +22,7 @@ struct AccountSettingsView: View {
 
     /// 줄 하나가 미는 화면.
     private enum Row: Hashable, Identifiable {
-        case accessProfile, profileEdit, myPosts, accessibility, helpCenter, terms
+        case accessProfile, profileEdit, myPosts, blockedUsers, accessibility, helpCenter, terms
 
         var id: Self { self }
     }
@@ -258,6 +258,8 @@ struct AccountSettingsView: View {
 
             if session.account != nil {
                 SettingsRow(title: "내 게시글") { row = .myPosts }
+                // 차단은 **해제할 길이 함께 있어야** 성립한다(심사 1.2 도 그렇게 본다).
+                SettingsRow(title: "차단한 사용자") { row = .blockedUsers }
             }
             SettingsRow(title: "접근성") { row = .accessibility }
             SettingsRow(title: "고객센터") { row = .helpCenter }
@@ -281,6 +283,8 @@ struct AccountSettingsView: View {
         // 준비 중 안내는 앱의 기존 틀을 그대로 쓴다 — "{이름}은 준비 중이에요" 한 줄.
         case .myPosts:
             MyPostsView()
+        case .blockedUsers:
+            BlockedUsersView()
         case .accessibility:
             AccessibilitySettingsView()
         case .helpCenter:

@@ -13,6 +13,8 @@ struct PostDetailView: View {
     @Environment(\.postService) private var postService
     @Environment(SessionStore.self) private var session
     @Environment(PostInteractionSignal.self) private var postSignal
+    @Environment(\.blockService) private var blockService
+    @Environment(\.blockSignal) private var blockSignal
     @Environment(\.dismiss) private var dismiss
     @AppStorage(ReviewAuthorStore.nicknameKey) private var savedNickname = ""
 
@@ -40,6 +42,9 @@ struct PostDetailView: View {
     @State private var deletingComment: PostComment?
     /// 신고 시트의 대상. 글이거나 댓글이다 — 시트는 한 벌을 공유한다.
     @State private var reportTarget: ReportTarget?
+    /// 차단 결과 안내. 차단은 **되돌릴 수 있는 동작**이라 미리 묻지 않고, 한 뒤에 어디서
+    /// 풀 수 있는지 알린다(이 코드베이스는 되돌릴 수 없는 일에만 확인을 받는다).
+    @State private var blockNotice: String?
     /// 삭제 확인 창. 되돌릴 수 없는 일이라 한 번 더 묻는다.
     @State private var isConfirmingDelete = false
     @State private var isDeleting = false
@@ -109,6 +114,13 @@ struct PostDetailView: View {
         }
         // 신고 시트. 글이든 댓글이든 대상만 바꿔 같은 시트를 쓴다.
         .sheet(item: $reportTarget) { ReportSheet(target: $0) }
+        .alert("차단", isPresented: .init(
+            get: { blockNotice != nil }, set: { if !$0 { blockNotice = nil } })
+        ) {
+            Button("확인") { blockNotice = nil }
+        } message: {
+            Text(blockNotice ?? "")
+        }
         // 수정은 작성 화면을 그대로 쓴다(`PostComposeView.editing`). 돌아오면 이 화면을 다시
         //  받는다 — 고친 내용이 곧바로 보여야 한다.
         .navigationDestination(isPresented: $isEditing) {
@@ -144,6 +156,21 @@ struct PostDetailView: View {
             Button("확인") { deleteError = nil }
         } message: {
             Text(deleteError ?? "")
+        }
+    }
+
+    /// 사용자를 차단한다. 목록에서 빼는 일은 **서버가 한다** — 앱은 신호를 올려 목록을 든
+    /// 화면들이 다시 받게 한다. **이 화면은 닫지 않는다**: 방금 읽던 글이 스스로 사라지면
+    /// 무엇이 일어났는지 알 수 없다. 대신 어디서 풀 수 있는지 알린다.
+    private func block(_ uuid: String) async {
+        do {
+            try await blockService.block(uuid: uuid)
+            blockSignal.changed()
+            blockNotice = "차단했어요. 이 사람의 글과 댓글이 목록에서 보이지 않아요.\n설정 → 차단한 사용자에서 해제할 수 있어요."
+            UIAccessibility.post(notification: .announcement, argument: "차단했어요")
+        } catch {
+            blockNotice = (error as? LocalizedError)?.errorDescription
+                ?? "차단하지 못했어요. 잠시 후 다시 시도해 주세요."
         }
     }
 
@@ -188,6 +215,9 @@ struct PostDetailView: View {
                     }
                 } else {
                     Button("신고", systemImage: "flag") { reportTarget = .post(id: post.id) }
+                    if let uuid = current.authorUUID {
+                        Button("차단", systemImage: "hand.raised") { Task { await block(uuid) } }
+                    }
                 }
             } label: {
                 Image(systemName: "ellipsis")
@@ -396,7 +426,8 @@ struct PostDetailView: View {
             isMine: comment.isMine,
             edit: { beginEditing(comment) },
             delete: { deletingComment = comment },
-            report: { reportTarget = .postComment(id: comment.id) }
+            report: { reportTarget = .postComment(id: comment.id) },
+            block: comment.authorUUID.map { uuid in { Task { await block(uuid) } } }
         )
         // 이름 줄 오른쪽에 `⋯` 를 둔다 — 본문 옆이 아니라 이름 줄인 이유: 본문은 여러 줄로
         //  늘어나 버튼이 어디 붙을지 정해지지 않는다.

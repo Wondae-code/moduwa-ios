@@ -239,6 +239,8 @@ struct APIPostService: PostService {
     private struct AuthorInfoDTO: Decodable {
         let nickname: String?
         let avatarUrl: String?
+        /// 차단이 가리킬 식별자(서버 048). 구 응답에는 없어 옵셔널이다.
+        let uuid: String?
     }
 
     private struct CommentDTO: Decodable {
@@ -257,7 +259,8 @@ struct APIPostService: PostService {
                 authorAvatarURL: URL(imageAddress: authorInfo?.avatarUrl),
                 body: body ?? "",
                 createdAt: createdAt.flatMap { try? Date($0, strategy: .iso8601) } ?? .now,
-                isMine: isMine ?? false
+                isMine: isMine ?? false,
+                authorUUID: authorInfo?.uuid
             )
         }
     }
@@ -305,7 +308,8 @@ struct APIPostService: PostService {
                 // 목록 정렬은 서버가 하므로 못 읽어도 화면이 어긋나지 않는다.
                 createdAt: createdAt.flatMap { try? Date($0, strategy: .iso8601) } ?? .now,
                 // 없으면 false — 메뉴가 안 보이는 쪽으로 실패한다(남의 글에 보이는 것보다 낫다).
-                isMine: isMine ?? false
+                isMine: isMine ?? false,
+                authorUUID: authorInfo?.uuid
             )
         }
     }

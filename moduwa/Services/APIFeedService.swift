@@ -421,6 +421,8 @@ struct APIFeedService: FeedService {
             let level: Int?
             /// 프로필 사진(042). 서버가 https 로만 내려준다.
             let avatarUrl: String?
+            /// 차단이 가리킬 식별자(048). 구 응답·번들에는 없어 옵셔널이다.
+            let uuid: String?
         }
     }
 
@@ -460,7 +462,8 @@ struct APIFeedService: FeedService {
             authorReviewCount: dto.authorInfo?.reviewCount,
             authorAvatarURL: URL(imageAddress: dto.authorInfo?.avatarUrl),
             tags: (dto.tags ?? []).map(\.tag),
-            wouldRevisit: dto.wouldRevisit
+            wouldRevisit: dto.wouldRevisit,
+            authorUUID: dto.authorInfo?.uuid
         )
     }
 
@@ -636,7 +639,8 @@ struct APIFeedService: FeedService {
                 authorLevel: authorInfo?.level,
                 authorReviewCount: authorInfo?.reviewCount,
                 authorAvatarURL: URL(imageAddress: authorInfo?.avatarUrl),
-                isMine: isMine ?? false
+                isMine: isMine ?? false,
+                authorUUID: authorInfo?.uuid
             )
         }
     }

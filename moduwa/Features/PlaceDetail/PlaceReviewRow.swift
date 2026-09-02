@@ -9,6 +9,10 @@ import SwiftUI
 /// 시안은 절대 좌표로 놓여 있어 값만 옮기면 Dynamic Type에서 겹친다. 세로 흐름
 /// (프로필 → 별점·날짜·태그 → 본문 → 좋아요)으로 재구성하고, 시안의 y 간격을 spacing/padding으로 옮겼다.
 struct PlaceReviewRow: View {
+    /// 작성자 차단 요청. 실제 호출과 목록 갱신은 **목록을 든 화면**이 한다 — 줄마다
+    /// 서비스를 붙이면 같은 요청이 화면마다 다르게 처리된다. nil 이면 차단을 두지 않는다.
+    var onBlock: ((String) -> Void)? = nil
+
     let review: TravelReview
     /// 좋아요를 눌렀을 때. **nil 이면 표시 전용**(번들·목 후기, 또는 좋아요를 안 붙이는 화면).
     var onLike: (() -> Void)? = nil
@@ -164,16 +168,23 @@ struct PlaceReviewRow: View {
     ///
     /// 서버 후기(`serverId`)만 신고할 수 있다 — 번들·목 후기에는 신고를 붙일 대상이 없다.
     private var moreButton: some View {
-        Button {
-            if review.serverId != nil { isReporting = true } else { showsMoreNotice = true }
+        Menu {
+            if review.serverId != nil {
+                Button("신고", systemImage: "flag") { isReporting = true }
+                // 작성자 식별자가 없으면(번들 후기) 차단할 대상이 없다.
+                if let uuid = review.authorUUID {
+                    Button("차단", systemImage: "hand.raised") { onBlock?(uuid) }
+                }
+            } else {
+                Button("이 후기는 신고할 수 없어요") {}.disabled(true)
+            }
         } label: {
             moreDots
                 // 3pt 점 세 개는 44pt 터치 영역에 한참 못 미친다
                 .frame(width: 30, height: 40)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("이 후기 신고")
+        .accessibilityLabel("이 후기 관리")
         .popover(isPresented: $showsMoreNotice) {
             noticeContent("이 후기는 신고할 수 없어요")
         }

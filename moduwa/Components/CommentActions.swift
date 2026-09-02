@@ -10,16 +10,22 @@ struct CommentMenuItems: View {
     let delete: () -> Void
     /// 남의 댓글을 신고한다. nil 이면 신고를 두지 않는다(번들·목 데이터).
     var report: (() -> Void)? = nil
+    /// 남의 댓글 작성자를 차단한다. 작성자 식별자(`authorUUID`)가 없으면 nil 이다 —
+    /// 닉네임으로는 차단할 수 없다(동명이인).
+    var block: (() -> Void)? = nil
 
     /// 띄울 것이 하나라도 있는지. 없으면 호출부가 `⋯` 자체를 두지 않는다.
-    var hasAny: Bool { isMine || report != nil }
+    var hasAny: Bool { isMine || report != nil || block != nil }
 
     var body: some View {
         if isMine {
             Button("수정", systemImage: "pencil", action: edit)
             Button("삭제", systemImage: "trash", role: .destructive, action: delete)
-        } else if let report {
-            Button("신고", systemImage: "flag", action: report)
+        } else {
+            if let report { Button("신고", systemImage: "flag", action: report) }
+            // 신고는 운영자에게 알리는 것이고, 차단은 **내 화면에서 안 보이게** 하는 것이다.
+            //  둘은 다른 일이라 함께 둔다(심사 1.2 도 둘 다 요구한다).
+            if let block { Button("차단", systemImage: "hand.raised", action: block) }
         }
     }
 }
@@ -65,8 +71,9 @@ struct CommentActions: ViewModifier {
                     if items.isMine {
                         Button("수정", action: items.edit)
                         Button("삭제", action: items.delete)
-                    } else if let report = items.report {
-                        Button("신고", action: report)
+                    } else {
+                        if let report = items.report { Button("신고", action: report) }
+                        if let block = items.block { Button("차단", action: block) }
                     }
                 }
         } else {

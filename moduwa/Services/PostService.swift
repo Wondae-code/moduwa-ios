@@ -58,6 +58,9 @@ struct TravelPost: Identifiable, Hashable, Sendable {
     /// 보는 사람이 쓴 글인지(서버 `isMine`). 수정·삭제 메뉴를 띄울 근거다.
     /// `likedByMe` 와 같은 성질의 파생 값이고 비로그인은 false 다.
     var isMine: Bool = false
+    /// 작성자 식별자(`authorInfo.uuid`). **차단이 가리킬 값이다** — 닉네임으로 차단하면
+    /// 동명이인이 함께 차단된다. 구 서버 응답에는 없어 옵셔널이다.
+    var authorUUID: String? = nil
 }
 
 /// 게시글 댓글.
@@ -70,6 +73,8 @@ struct PostComment: Identifiable, Hashable, Sendable {
     var createdAt: Date
     /// 보는 사람이 쓴 댓글인지(서버 `isMine`). 수정·삭제 메뉴를 띄울 근거다.
     var isMine: Bool = false
+    /// 작성자 식별자(`authorInfo.uuid`) — 차단이 가리킬 값.
+    var authorUUID: String? = nil
 }
 
 /// 게시글 데이터 소스 (`/v1/posts`).

@@ -55,6 +55,9 @@ struct moduwaApp: App {
     @State private var inviteCoordinator = InviteCoordinator()
     /// 홈 히어로 CTA → 새 플랜 플로우를 잇는 신호.
     @State private var planCreation = PlanCreationSignal()
+    /// 차단이 일어났다는 신호. 목록을 든 화면들이 이걸 보고 다시 받는다
+    /// (거르는 일은 서버가 한다).
+    @State private var blockSignal = BlockSignal()
     /// 알림을 눌렀을 때 갈 곳. `AppDelegate` 가 담고 탭이 꺼내 쓴다 —
     /// 싱글턴을 그대로 꽂는다(델리게이트는 환경을 볼 수 없다).
     private let pushRouter = PushRouter.shared
@@ -79,6 +82,7 @@ struct moduwaApp: App {
                 .environment(\.inviteCoordinator, inviteCoordinator)
                 .environment(\.planCreation, planCreation)
                 .environment(\.pushRouter, pushRouter)
+                .environment(\.blockSignal, blockSignal)
                 .environment(\.authService, APIAuthService())
         }
     }

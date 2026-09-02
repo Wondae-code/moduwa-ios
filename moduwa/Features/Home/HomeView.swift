@@ -14,6 +14,8 @@ struct HomeView: View {
     @Environment(PostInteractionSignal.self) private var postSignal
     /// 알림(좋아요·댓글)을 눌러 열어야 할 게시글.
     @Environment(\.pushRouter) private var pushRouter
+    /// 차단하면 목록을 다시 받는다 — 거르는 일은 서버가 한다.
+    @Environment(\.blockSignal) private var blockSignal
     @Environment(SessionStore.self) private var session
     /// 홈 히어로 CTA → 새 플랜 플로우(플랜 탭이 연다).
     @Environment(\.planCreation) private var planCreation
@@ -79,6 +81,11 @@ struct HomeView: View {
         // ⚠️ `onChange` 가 아니라 `task(id:)` 다 — 종료 상태에서 알림으로 앱이 열리면 값이
         //  이 뷰보다 먼저 담겨 변화 이벤트가 오지 않는다.
         .task(id: pushRouter.pendingPostID) { await openPushedPost() }
+        // 차단하면 그 사람의 글이 응답에서 빠진다 — 다시 받아야 화면에서도 사라진다.
+        .task(id: blockSignal.revision) {
+            guard blockSignal.revision > 0 else { return }
+            await viewModel.loadPosts(using: postService)
+        }
         .task {
             await viewModel.loadInitial(using: feedService, accessFeatures: session.accessFeatures)
         }

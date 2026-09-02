@@ -13,6 +13,7 @@ struct CollectionView: View {
     @Environment(\.postService) private var postService
     @Environment(SessionStore.self) private var session
     @Environment(PostInteractionSignal.self) private var postSignal
+    @Environment(\.blockSignal) private var blockSignal
 
     @State private var selectedTab: SavedTab = .places
     @State private var selectedCategory: PlaceCategory?
@@ -63,6 +64,10 @@ struct CollectionView: View {
         //  다른 탭에서 누르고 돌아왔을 때 목록이 갱신되지 않던 것을 고친다(A23).
         //  이미 한 번 받아 둔 뒤에만 다시 받는다(첫 진입은 위 task 가 맡는다).
         .task(id: postSignal.likeRevision) {
+            if selectedTab == .liked, didLoadLiked { await loadLiked() }
+        }
+        // 차단하면 좋아요한 글 목록에서도 빠져야 한다(서버가 거르므로 다시 받으면 된다).
+        .task(id: blockSignal.revision) {
             if selectedTab == .liked, didLoadLiked { await loadLiked() }
         }
         // 로그인·로그아웃 직후에도 두 목록이 맞아야 한다. 로그아웃한 기기는 비어야 하고,
