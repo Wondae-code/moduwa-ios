@@ -30,6 +30,15 @@ protocol AuthService: Sendable {
         idToken: String, accessFeatures: [AccessibilityFeature]?
     ) async throws -> AuthSession
 
+    /// 계정 삭제 (`DELETE /v1/auth/me`, 서버 2026-09-02). **되돌릴 수 없다.**
+    ///
+    /// 서버가 하는 일: 애플 토큰 폐기 → 공유 플랜 소유권 이전(남은 편집자 중 가장 먼저 합류한
+    /// 사람, 아무도 없으면 삭제) → 로그인 수단·세션·기기 토큰·개인 기록 삭제 →
+    /// **작성자 익명화**(글·후기·댓글은 남고 이름이 "탈퇴한 사용자" 가 된다).
+    ///
+    /// 성공은 204 라 돌려줄 값이 없다. 호출부는 로컬 세션을 지운다.
+    func deleteAccount() async throws
+
     /// 로그아웃. 서버에서 토큰을 폐기하고 이 기기의 계정 바인딩을 끊는다.
     /// 요청이 실패해도 호출부는 기기에서 토큰을 지운다 — 남기면 로그아웃이 되지 않는다.
     func signOut() async throws
@@ -42,8 +51,11 @@ protocol AuthService: Sendable {
     ///
     /// ⚠️ 서버가 토큰의 `aud` 를 **번들 ID**(`com.waasegye.moduwa`)로 검증한다 —
     /// 서버 환경변수 `APPLE_CLIENT_IDS` 에 그 값이 있어야 로그인이 성립한다.
+    /// - Parameter authorizationCode: 서버가 애플과 교환해 refresh token 을 저장하는 데 쓴다.
+    ///   **회원 탈퇴 시 애플 토큰 폐기에 필요하다** — 없으면 로그인은 되지만 폐기할 수단이 없다.
     func signInWithApple(
-        idToken: String, nickname: String?, accessFeatures: [AccessibilityFeature]?
+        idToken: String, nickname: String?, authorizationCode: String?,
+        accessFeatures: [AccessibilityFeature]?
     ) async throws -> AuthSession
 
     /// 카카오 로그인 — 앱이 받아 온 **OIDC ID 토큰**을 넘긴다(`POST /v1/auth/kakao`).
@@ -140,12 +152,15 @@ struct MockAuthService: AuthService {
     }
 
     func signInWithApple(
-        idToken: String, nickname: String?, accessFeatures: [AccessibilityFeature]?
+        idToken: String, nickname: String?, authorizationCode: String?,
+        accessFeatures: [AccessibilityFeature]?
     ) async throws -> AuthSession {
         if let failure { throw failure }
         return AuthSession(token: "preview", expiresAt: nil,
                            account: account("preview@privaterelay.appleid.com"), created: true)
     }
+
+    func deleteAccount() async throws {}
 
     func signOut() async throws {}
 

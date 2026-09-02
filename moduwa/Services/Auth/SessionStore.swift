@@ -102,6 +102,7 @@ final class SessionStore {
     func signInWithApple(_ credential: AppleSignInFlow.Credential) async throws -> AuthSession {
         let result = try await service.signInWithApple(
             idToken: credential.idToken, nickname: credential.nickname,
+            authorizationCode: credential.authorizationCode,
             accessFeatures: OnboardingProfileStore.shared.selectionForSignUp)
         adopt(result)
         if result.created { OnboardingProfileStore.shared.markHandedToAccount() }
@@ -137,6 +138,19 @@ final class SessionStore {
         //  남겨 두면 로그아웃한 사람의 기기로 알림이 계속 간다(서버가 토큰에 계정을 묶는다).
         await PushRegistrar.shared.unregisterBeforeSignOut()
         try? await service.signOut()
+        SessionTokenStore.shared.clear()
+        account = nil
+        phase = .signedOut
+        mirrorNickname(nil)
+        onSignedOut?()
+    }
+
+    /// 계정 삭제. **되돌릴 수 없다** — 부르기 전에 사용자에게 물어야 한다(`AccountDeleteView`).
+    ///
+    /// 로그아웃과 달리 기기 토큰을 먼저 지우지 않는다 — 서버가 삭제 트랜잭션에서 지운다.
+    /// 성공하면 로그아웃과 **같은 뒷정리**를 한다(토큰·계정·화면 상태).
+    func deleteAccount() async throws {
+        try await service.deleteAccount()
         SessionTokenStore.shared.clear()
         account = nil
         phase = .signedOut

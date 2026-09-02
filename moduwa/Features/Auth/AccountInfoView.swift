@@ -15,6 +15,9 @@ struct AccountInfoView: View {
     /// 어긋나지 않는다(`AccountSettingsView.SubRoute`).
     var onVerifyEmail: () -> Void
     var onChangePassword: () -> Void
+    /// 회원 탈퇴 화면으로. **앱스토어 심사 필수**(5.1.1(v)) — 계정을 만들 수 있는 앱은 앱 안에서
+    /// 계정 삭제도 제공해야 한다. 로그아웃과 같은 자리에 두지만 아래로, 톤도 다르게 둔다.
+    var onDeleteAccount: () -> Void = {}
 
     @Environment(SessionStore.self) private var session
 
@@ -41,6 +44,7 @@ struct AccountInfoView: View {
                     .buttonStyle(.plain)
 
                     signOutSection
+                    deleteAccountLink
                 }
             }
             .padding(.horizontal, AuthMetrics.horizontal)
@@ -50,6 +54,20 @@ struct AccountInfoView: View {
         .background(.white)
         .navigationTitle("회원정보 수정")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// 되돌릴 수 없는 동작이라 **버튼처럼 두지 않는다** — 로그아웃보다 작고 조용한 글자 링크다.
+    /// 실제 설명과 확인은 다음 화면(`AccountDeleteView`)이 한다.
+    private var deleteAccountLink: some View {
+        Button(action: onDeleteAccount) {
+            Text("회원 탈퇴")
+                .font(.notoSans(14, .regular, relativeTo: .subheadline))
+                .foregroundStyle(.iconGray)
+                .underline()
+        }
+        .buttonStyle(.plain)
+        .padding(.top, Spacing.s)
+        .accessibilityHint("계정을 지우는 화면으로 갑니다")
     }
 
     private func identityCard(_ account: Account) -> some View {
@@ -116,7 +134,8 @@ struct AccountInfoView: View {
 
 #Preview("회원정보 수정") {
     NavigationStack {
-        AccountInfoView(onSignedOut: {}, onVerifyEmail: {}, onChangePassword: {})
+        AccountInfoView(onSignedOut: {}, onVerifyEmail: {}, onChangePassword: {},
+                        onDeleteAccount: {})
     }
     .environment(SessionStore(service: MockAuthService()))
 }

@@ -21,7 +21,7 @@ struct ProfileEditView: View {
 
     /// 회원정보 수정으로 들어간 뒤 그 안에서 이어지는 화면들.
     private enum SubRoute: Hashable, Identifiable {
-        case accountInfo, verifyEmail, resetPassword
+        case accountInfo, verifyEmail, resetPassword, deleteAccount
 
         var id: Self { self }
     }
@@ -278,10 +278,16 @@ struct ProfileEditView: View {
                 //  둘을 같은 틱에 부르면 부모의 dismiss 가 삼켜져 프로필 편집이 남는다(실측).
                 onSignedOut: { self.route = nil },
                 onVerifyEmail: { self.route = .verifyEmail },
-                onChangePassword: { self.route = .resetPassword }
+                onChangePassword: { self.route = .resetPassword },
+                onDeleteAccount: { self.route = .deleteAccount }
             )
         case .verifyEmail:
             EmailVerifyCodeView { self.route = .accountInfo }
+        case .deleteAccount:
+            // 탈퇴하면 계정이 없다 — 이 스택 전체가 닫혀야 한다. 하위만 닫으면 프로필 편집이
+            //  남고, 이 화면의 `onChange(of: session.account == nil)` 이 그때 부모를 닫는다.
+            AccountDeleteView { self.route = nil }
+
         case .resetPassword:
             PasswordResetView { _ in
                 // 서버가 모든 세션을 끊었다 — 이 기기도 로그아웃 상태다.

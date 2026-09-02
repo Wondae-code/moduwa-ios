@@ -110,10 +110,16 @@ struct APIAuthService: AuthService {
     }
 
     func signInWithApple(
-        idToken: String, nickname: String?, accessFeatures: [AccessibilityFeature]?
+        idToken: String, nickname: String?, authorizationCode: String?,
+        accessFeatures: [AccessibilityFeature]?
     ) async throws -> AuthSession {
-        try await social("/v1/auth/apple", idToken: idToken,
-                         nickname: nickname, accessFeatures: accessFeatures)
+        try await social("/v1/auth/apple", idToken: idToken, nickname: nickname,
+                         authorizationCode: authorizationCode, accessFeatures: accessFeatures)
+    }
+
+    /// `DELETE /v1/auth/me` — 되돌릴 수 없다. 204 라 본문이 없다.
+    func deleteAccount() async throws {
+        try await sendRaw("DELETE", "/v1/auth/me")
     }
 
     func signInWithKakao(
@@ -126,6 +132,7 @@ struct APIAuthService: AuthService {
     /// 애플·네이버가 붙어도 여기 한 줄이 늘어날 뿐이다.
     private func social(
         _ path: String, idToken: String, nickname: String? = nil,
+        authorizationCode: String? = nil,
         accessFeatures: [AccessibilityFeature]?
     ) async throws -> AuthSession {
         var body: [String: Any] = [
@@ -135,6 +142,11 @@ struct APIAuthService: AuthService {
         // 애플만 보낸다 — 구글·카카오는 토큰에 이름이 들어 있다. 빈 문자열은 넣지 않는다
         //  (서버가 받은 이름으로 닉네임을 갱신하므로 빈 값은 실제 이름을 덮어쓴다).
         if let nickname, !nickname.isEmpty { body["nickname"] = nickname }
+        // 인가 코드도 애플만 보낸다. 서버가 이걸 교환해 refresh token 을 저장해 두고,
+        //  회원 탈퇴 때 그것으로 애플 토큰을 폐기한다(폐기 수단이 없으면 탈퇴가 반쪽이 된다).
+        if let authorizationCode, !authorizationCode.isEmpty {
+            body["authorizationCode"] = authorizationCode
+        }
         // 이메일 가입과 같은 규칙 — 온보딩을 안 했으면 키를 아예 넣지 않는다.
         if let accessFeatures { body["accessFeatures"] = accessFeatures.map(\.rawValue) }
 

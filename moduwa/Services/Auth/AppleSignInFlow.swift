@@ -30,6 +30,15 @@ enum AppleSignInFlow {
         /// 표시 이름. **첫 로그인에만 온다** — 애플은 두 번째부터 이름을 주지 않는다.
         /// 그래서 서버는 이 값이 없으면 기존 닉네임을 쓰거나 기본값을 만든다.
         let nickname: String?
+        /// 인가 코드. 서버가 이걸 애플과 교환해 **refresh token** 을 받아 계정에 저장한다.
+        ///
+        /// **회원 탈퇴 때 필요하다** — 애플 로그인을 제공하는 앱은 계정을 지울 때 애플의 토큰
+        /// 폐기 API 를 불러야 하고, 폐기에는 그 refresh token 이 필요하다. ID 토큰만 보내면
+        /// 로그인은 되지만 탈퇴 때 폐기할 수단이 없다(서버 `auth-routes.ts:398`).
+        ///
+        /// 이 값도 **로그인할 때마다 오는 것이 아니다** — 매번 오지만 짧게 만료되고, 서버는
+        /// 한 번 교환해 저장한 뒤에는 다시 필요하지 않다.
+        let authorizationCode: String?
     }
 
     /// `SignInWithAppleButton` 의 결과를 서버에 보낼 값으로 바꾼다.
@@ -46,7 +55,11 @@ enum AppleSignInFlow {
                   let idToken = String(data: data, encoding: .utf8)
             else { throw Failure.missingIdentityToken }
 
-            return Credential(idToken: idToken, nickname: name(from: credential.fullName))
+            return Credential(
+                idToken: idToken,
+                nickname: name(from: credential.fullName),
+                authorizationCode: credential.authorizationCode
+                    .flatMap { String(data: $0, encoding: .utf8) })
         }
     }
 
