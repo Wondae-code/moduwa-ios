@@ -307,7 +307,7 @@ struct AccountSettingsView: View {
         case .helpCenter:
             comingSoon("고객센터", "questionmark.circle", "고객센터는 준비 중이에요")
         case .terms:
-            comingSoon("서비스 이용약관", "doc.text", "서비스 이용약관은 준비 중이에요")
+            TermsView()
         }
     }
 

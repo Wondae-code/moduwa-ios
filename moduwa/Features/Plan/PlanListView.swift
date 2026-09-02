@@ -357,7 +357,13 @@ private struct PlanCard: View {
             .buttonStyle(.plain)
             // 메뉴 버튼은 카드의 `accessibilityElement(children: .combine)`에 삼켜져 VoiceOver 로는
             // 닿지 않는다. 로터의 동작으로 같은 길을 낸다.
-            .accessibilityAction(named: "삭제", onRequestDelete)
+            //  ⚠️ 삭제는 소유자만 할 수 있다 — 메뉴에서 감춘 것을 로터에는 남겨 두면
+            //  스크린리더 사용자만 "찾을 수 없어요" 를 만난다.
+            .accessibilityActions {
+                if !plan.isSharedWithMe {
+                    Button("삭제", action: onRequestDelete)
+                }
+            }
 
             // 메뉴는 링크의 **형제**다. 카드 안에 넣으면 ⋮ 를 누른 손가락이 상세로도 들어간다.
             menu
@@ -402,8 +408,15 @@ private struct PlanCard: View {
             // 새 플랜 플로우 1/6 에서 고른 동반자 정보를 다시 손보는 자리
             //  (`TravelParty` 주석의 "목록 카드의 '팀 수정'").
             Button("팀 수정", systemImage: "person.2", action: onEditParty)
-            Button("일정에 추가", systemImage: "calendar.badge.plus", action: onAddToSchedule)
-            Button("삭제", systemImage: "trash", role: .destructive, action: onRequestDelete)
+            // ⚠️ **초대받아 함께 쓰는 플랜에는 두지 않는다.** 일정 확정·삭제는 서버가
+            //  소유자 기준으로만 찾아서(`plans.author_id`), 편집자가 누르면 403 이 아니라
+            //  "플랜을 찾을 수 없어요"(404)로 돌아온다 — 사용자에게는 고장으로 보인다.
+            //  일정 내용 편집은 편집자도 동등하게 된다(그쪽은 멤버만 확인한다).
+            //  소유자만 확정한다는 것이 확정된 정책이다(2026-09-02).
+            if !plan.isSharedWithMe {
+                Button("일정에 추가", systemImage: "calendar.badge.plus", action: onAddToSchedule)
+                Button("삭제", systemImage: "trash", role: .destructive, action: onRequestDelete)
+            }
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 16, weight: .bold))

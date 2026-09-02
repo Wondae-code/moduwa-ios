@@ -18,6 +18,10 @@ struct SignUpView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var passwordConfirm = ""
+    /// 약관 동의. **가입의 전제다**(약관 제5조) — 동의 없이는 다음으로 갈 수 없다.
+    @State private var agreedToTerms = false
+    /// 약관 전문을 읽는 화면. 체크만 요구하고 읽을 길을 주지 않으면 동의가 형식이 된다.
+    @State private var isShowingTerms = false
 
     /// 서버 정책(`password.ts`)과 같은 하한. 여기에 "숫자 포함"을 더한 것이 시안의 규칙이다.
     private static let passwordMinimum = 8
@@ -40,7 +44,28 @@ struct SignUpView: View {
         !passwordConfirm.isEmpty && passwordConfirm == password
     }
 
-    private var canSubmit: Bool { isEmailValid && isPasswordValid && isConfirmValid }
+    private var canSubmit: Bool {
+        isEmailValid && isPasswordValid && isConfirmValid && agreedToTerms
+    }
+
+    /// 동의 체크와 **읽을 길**을 한 줄에 둔다. 체크박스만 두면 무엇에 동의하는지 확인할
+    /// 방법이 없고, 링크만 두면 동의한 사실이 어디에도 남지 않는다.
+    ///
+    /// 개인정보 처리방침은 **웹 URL 이 필요해**(앱스토어 메타데이터 필수 항목) 주소가 나오면
+    /// 이 줄에 함께 붙인다 — 지금은 약관만 둔다.
+    private var termsConsent: some View {
+        HStack(spacing: 8) {
+            AuthCheckbox(title: "서비스 이용약관에 동의합니다", isOn: $agreedToTerms)
+
+            Button("보기") { isShowingTerms = true }
+                .font(.notoSans(13, .bold, relativeTo: .footnote))
+                .foregroundStyle(.deepGreen)
+                .accessibilityLabel("서비스 이용약관 보기")
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -87,8 +112,11 @@ struct SignUpView: View {
                     )
                     .padding(.top, 20)
 
+                    termsConsent
+                        .padding(.top, 24)
+
                     AuthPrimaryButton(title: "다음으로", isEnabled: canSubmit, action: submit)
-                        .padding(.top, 32)
+                        .padding(.top, 20)
 
                     Button(action: onSignIn) {
                         Text("이미 계정이 있습니다")
@@ -109,6 +137,19 @@ struct SignUpView: View {
         .background(.white)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        // 시트로 띄운다 — 가입 흐름은 이미 스택 안이고, 약관을 그 위에 밀어 넣으면 뒤로
+        //  나왔을 때 입력이 살아 있는지 확신할 수 없다. 시트는 입력 화면을 그대로 둔다.
+        .sheet(isPresented: $isShowingTerms) {
+            NavigationStack {
+                TermsView()
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button("닫기") { isShowingTerms = false }
+                                .foregroundStyle(.textPrimary)
+                        }
+                    }
+            }
+        }
     }
 
     private func submit() {
