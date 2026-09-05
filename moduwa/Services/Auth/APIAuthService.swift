@@ -278,6 +278,8 @@ struct APIAuthService: AuthService {
         let onboarded: Bool?
         /// 프로필 사진(042). 서버가 https 로만 저장하므로 그대로 쓴다.
         let avatarUrl: String?
+        /// 동의 기록 없이 무장애 항목을 가진 계정인지(050). 구 응답에는 없다 — 없으면 false.
+        let needsSensitiveConsent: Bool?
 
         var account: Account {
             Account(
@@ -287,7 +289,8 @@ struct APIAuthService: AuthService {
                 emailVerified: emailVerified ?? false,
                 accessFeatures: (accessFeatures ?? []).compactMap(AccessibilityFeature.init(rawValue:)),
                 onboarded: onboarded ?? false,
-                avatarURL: URL(imageAddress: avatarUrl)
+                avatarURL: URL(imageAddress: avatarUrl),
+                needsSensitiveConsent: needsSensitiveConsent ?? false
             )
         }
     }

@@ -21,6 +21,17 @@ struct Account: Identifiable, Hashable, Sendable {
     /// 프로필 사진(서버 042). `nil` 이면 사진을 올리지 않은 계정 — 앱이 이니셜 원을 그린다.
     /// 서버는 **https 만** 저장한다(평문 http 는 ATS 가 막아 화면에 안 뜬다).
     var avatarURL: URL? = nil
+    /// 무장애 항목은 있는데 **동의 기록이 없는** 계정인가(서버 050).
+    ///
+    /// 동의 기록이 생기기 전에 가입한 사람들이다. 법은 동의받은 사실을 처리자가 입증하도록
+    /// 하므로, 기록이 없으면 "동의 없이 수집했다" 는 주장에 반증할 수단이 없다.
+    /// 앱은 이 값이 참인 사람에게 **다시 묻는다**(`SensitiveConsentPrompt`) — 동의하면 기록을
+    /// 남기고, 거부하면 항목을 지운다.
+    var needsSensitiveConsent: Bool = false
+
+    /// 이 계정의 무장애 항목이 **동의를 받아 저장된 상태**인가.
+    /// 항목이 없으면 동의도 없다 — 새로 채울 때 물어야 한다.
+    var hasSensitiveConsent: Bool { !accessFeatures.isEmpty && !needsSensitiveConsent }
 
     var id: String { uuid }
 }

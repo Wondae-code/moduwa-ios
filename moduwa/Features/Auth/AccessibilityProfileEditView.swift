@@ -16,8 +16,8 @@ struct AccessibilityProfileEditView: View {
     @State private var selection: [AccessibilityFeature]
     @State private var isBusy = false
     @State private var errorMessage: String?
-    /// 민감정보 동의. 이미 받아 둔 계정이면 켜진 채로 시작하고 줄 자체가 뜨지 않는다.
-    @State private var sensitiveConsent = SensitiveConsentStore.shared.isGranted
+    /// 이번 저장에 대한 민감정보 동의. 이미 동의 기록이 있는 계정이면 줄 자체가 뜨지 않는다.
+    @State private var sensitiveConsent = false
 
     /// 지금 계정에 저장된 값으로 시작한다.
     init(current: [AccessibilityFeature]) {
@@ -30,12 +30,17 @@ struct AccessibilityProfileEditView: View {
         Set(selection) != Set(session.accessFeatures)
     }
 
-    /// 이 저장이 **민감정보를 서버로 보내는가**. 세 가지가 모두 맞을 때만 그렇다:
-    /// 로그인했고(보낼 곳이 있고), 고른 것이 있고(보낼 값이 있고), 아직 동의를 받지 않았다.
+    /// 이 저장이 **동의를 새로 받아야 하는가**. 세 가지가 모두 맞을 때만 그렇다:
+    /// 로그인했고(보낼 곳이 있고), 고른 것이 있고(보낼 값이 있고), 계정에 동의 기록이 없다.
+    ///
+    /// ⚠️ 판단의 근거는 **서버**다(`Account.hasSensitiveConsent`, 050). 기기에 적어 두면
+    /// 기기를 바꿀 때마다 다시 묻고, 무엇보다 "동의를 받았다"의 정본이 두 곳에 생긴다.
     ///
     /// 다 해제하는 저장은 묻지 않는다 — 지우는 데 동의를 요구하는 것은 앞뒤가 맞지 않는다.
+    /// (빈 배열은 서버에서 **철회**로 처리되어 동의 기록도 함께 지워진다)
     private var needsSensitiveConsent: Bool {
-        session.account != nil && !selection.isEmpty && !SensitiveConsentStore.shared.isGranted
+        guard let account = session.account else { return false }
+        return !selection.isEmpty && !account.hasSensitiveConsent
     }
 
     private var canSave: Bool {
@@ -113,9 +118,6 @@ struct AccessibilityProfileEditView: View {
 
     private func save() async {
         guard canSave, !isBusy else { return }
-        // 체크하고 저장을 누른 것이 동의다 — 요청 전에 기록해 두면 실패 후 다시 눌러도
-        //  같은 것을 두 번 묻지 않는다.
-        if needsSensitiveConsent { SensitiveConsentStore.shared.grant() }
         isBusy = true
         errorMessage = nil
         do {

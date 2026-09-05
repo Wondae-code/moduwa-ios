@@ -80,8 +80,11 @@ final class SessionStore {
     @discardableResult
     func signUp(email: String, password: String, nickname: String?,
                 sensitiveConsent: Bool) async throws -> AuthSession {
-        if sensitiveConsent { SensitiveConsentStore.shared.grant() }
-        let features = sensitiveFeaturesForSignUp
+        // 동의는 이 화면에서 방금 받은 것이다 — 기기에 적어 두지 않고 요청에 그대로 싣는다.
+        //  기록은 서버가 남긴다(`sensitive_consent_at`, 050).
+        //  ⚠️ 온보딩을 하지 않았으면 nil 이다 — 빈 배열을 보내면 서버가 "온보딩을 마쳤고
+        //   아무것도 고르지 않았다"로 기록한다(`AuthService` 주석).
+        let features = sensitiveConsent ? OnboardingProfileStore.shared.selectionForSignUp : nil
         let result = try await service.signUp(
             email: email, password: password, nickname: nickname, accessFeatures: features)
         adopt(result)
@@ -89,32 +92,20 @@ final class SessionStore {
         return result
     }
 
-    /// 가입 요청에 실을 무장애 항목. **동의가 없으면 nil** 이다.
-    ///
-    /// 온보딩을 하지 않았을 때도 nil 이다 — 빈 배열을 보내면 서버가 "온보딩을 마쳤고 아무것도
-    /// 고르지 않았다"로 기록한다(`AuthService` 주석).
-    private var sensitiveFeaturesForSignUp: [AccessibilityFeature]? {
-        guard SensitiveConsentStore.shared.isGranted else { return nil }
-        return OnboardingProfileStore.shared.selectionForSignUp
-    }
-
     /// 구글 로그인. 브라우저 시트를 띄워 `id_token` 을 받고 서버에 넘긴다.
     ///
     /// 가입·로그인이 한 길이라 결과의 `created` 로 갈린다 — 새 계정일 때만 온보딩 값을
     /// 계정으로 넘긴 것으로 처리한다(기존 계정이면 서버가 그 값을 무시했다).
     ///
-    /// ⚠️ **소셜 로그인은 동의 화면을 지나지 않는다.** 그래서 `sensitiveFeaturesForSignUp` 이
-    /// 거의 항상 nil 이고, 무장애 항목은 기기에 남는다 — 설정에서 동의를 받은 뒤에 올라간다.
-    /// 여기서 그냥 실어 보내면 **동의 없이 민감정보를 수집하는 것**이 된다.
+    /// ⚠️ **소셜 로그인은 동의 화면을 지나지 않으므로 무장애 항목을 싣지 않는다.**
+    /// 여기서 실어 보내면 동의 없이 민감정보를 수집하는 것이 된다(서버도 400 으로 막는다).
+    /// 항목은 기기에 남았다가 설정에서 동의를 받은 뒤 올라간다(`AccessibilityProfileEditView`).
     @discardableResult
     func signInWithGoogle() async throws -> AuthSession {
         let idToken = try await GoogleSignInFlow().idToken()
         let result = try await service.signInWithGoogle(
-            idToken: idToken, accessFeatures: sensitiveFeaturesForSignUp)
+            idToken: idToken, accessFeatures: nil)
         adopt(result)
-        if result.created, sensitiveFeaturesForSignUp != nil {
-            OnboardingProfileStore.shared.markHandedToAccount()
-        }
         return result
     }
 
@@ -125,11 +116,8 @@ final class SessionStore {
         let result = try await service.signInWithApple(
             idToken: credential.idToken, nickname: credential.nickname,
             authorizationCode: credential.authorizationCode,
-            accessFeatures: sensitiveFeaturesForSignUp)
+            accessFeatures: nil)
         adopt(result)
-        if result.created, sensitiveFeaturesForSignUp != nil {
-            OnboardingProfileStore.shared.markHandedToAccount()
-        }
         return result
     }
 
@@ -138,11 +126,8 @@ final class SessionStore {
     func signInWithKakao() async throws -> AuthSession {
         let idToken = try await KakaoSignInFlow.idToken()
         let result = try await service.signInWithKakao(
-            idToken: idToken, accessFeatures: sensitiveFeaturesForSignUp)
+            idToken: idToken, accessFeatures: nil)
         adopt(result)
-        if result.created, sensitiveFeaturesForSignUp != nil {
-            OnboardingProfileStore.shared.markHandedToAccount()
-        }
         return result
     }
 
@@ -165,8 +150,6 @@ final class SessionStore {
         await PushRegistrar.shared.unregisterBeforeSignOut()
         try? await service.signOut()
         SessionTokenStore.shared.clear()
-        // 동의는 그 계정에 준 것이다 — 다음에 로그인하는 사람의 동의가 아니다.
-        SensitiveConsentStore.shared.clear()
         account = nil
         phase = .signedOut
         mirrorNickname(nil)
@@ -180,7 +163,6 @@ final class SessionStore {
     func deleteAccount() async throws {
         try await service.deleteAccount()
         SessionTokenStore.shared.clear()
-        SensitiveConsentStore.shared.clear()
         account = nil
         phase = .signedOut
         mirrorNickname(nil)

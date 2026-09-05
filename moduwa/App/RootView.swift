@@ -21,6 +21,8 @@ struct RootView: View {
 
     /// 첫 실행 온보딩. 한 번 마치면(건너뛰어도) 다시 띄우지 않는다.
     @State private var isOnboardingPresented = !OnboardingProfileStore.shared.didFinish
+    /// 동의 기록 없이 무장애 항목을 가진 계정에게 다시 묻는 창(서버 050).
+    @State private var isAskingSensitiveConsent = false
 
     var body: some View {
         // `@Environment` 는 바인딩을 내주지 않는다. 시트의 `item:` 이 쓸 수 있게 감싼다.
@@ -34,6 +36,27 @@ struct RootView: View {
         //  네 탭 헤더의 `AccountMenuButton` 이 자기 스택에서 직접 민다. 그래서 여기서 오버레이로
         //  얹을 것이 없다.
         return tabs
+        // ⚠️ **시트를 `tabs` 에 붙인다.** 바깥에는 로그인 시트(`session.prompt`)가 이미 있고,
+        //  한 뷰에 `.sheet` 를 둘 붙이면 뒤엣것이 뜨지 않는다(이 파일의 온보딩 주석과 같은 함정).
+        //  세션 만료로 로그인 시트가 뜬 상황과 겹칠 수 있어서 자리를 나눠 둔다.
+        .sheet(isPresented: $isAskingSensitiveConsent) {
+            SensitiveConsentPrompt(
+                features: session.account?.accessFeatures ?? [],
+                onAgree: {
+                    // 같은 값을 동의와 함께 다시 저장한다 — 서버가 그때 기록을 남긴다.
+                    guard let features = session.account?.accessFeatures else { return false }
+                    return await save(features)
+                },
+                onDecline: { await save([]) }   // 빈 배열이 철회다(서버가 기록도 지운다).
+            )
+        }
+        // 계정을 받아 온 뒤에 판단한다. `task(id:)` 인 이유는 알림 라우팅과 같다 —
+        //  값이 이 뷰보다 먼저 담기면 변화 이벤트가 오지 않는다.
+        .task(id: session.account?.needsSensitiveConsent) {
+            // 온보딩 중에는 띄우지 않는다(전체화면과 겹친다).
+            guard !isOnboardingPresented else { return }
+            isAskingSensitiveConsent = session.account?.needsSensitiveConsent == true
+        }
         .applyTextScale(textScale)
         .tint(.deepGreen)
         // 저장해 둔 토큰이 아직 쓸 수 있는지 한 번 확인한다. 실패를 로그아웃으로 단정하지
@@ -127,6 +150,16 @@ struct RootView: View {
 
     private func tabLabel(_ title: String, icon: String, tab: Tab) -> some View {
         Label(title, image: selection == tab ? "\(icon)_fill" : icon)
+    }
+
+    /// 동의/철회를 서버에 반영한다. 성공했으면 `needsSensitiveConsent` 가 꺼져 창이 닫힌다.
+    private func save(_ features: [AccessibilityFeature]) async -> Bool {
+        do {
+            try await session.updateAccessFeatures(features)
+            return true
+        } catch {
+            return false
+        }
     }
 
     /// 우리 링크가 도착했다. **유니버설 링크와 커스텀 스킴이 같은 길로 흐른다** —
