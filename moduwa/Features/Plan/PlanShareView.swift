@@ -96,6 +96,9 @@ struct PlanShareView: View {
                 }
                 .disabled(isWorking)
 
+                seatsLine(remaining: invite.remainingSeats, cap: invite.memberCap,
+                          count: invite.memberCount)
+
                 Text("\(invite.expiresInMinutes)분 후 만료돼요. 링크 하나로 여러 명이 들어올 수 있어요. 다시 만들면 이전 링크는 끊겨요.")
                     .font(.notoSans(13))
                     .foregroundStyle(.textSecondary)
@@ -107,13 +110,38 @@ struct PlanShareView: View {
                 .buttonStyle(.plain)
                 .disabled(isWorking)
 
-                // ⚠️ 정원 숫자를 적지 않는다 — 서버 설정값이고 실제로 10 에서 6 으로 바뀌었다.
-                //  응답에 `memberCap` 이 실리면 "N/6" 으로 바꾼다(서버에 요청해 둔 항목).
-                Text("링크를 공유하면 받은 사람이 이 플랜을 함께 편집할 수 있어요. 정원이 차면 더 들어올 수 없어요.")
+                seatsLine(remaining: plan.remainingSeats, cap: plan.memberCap,
+                          count: plan.memberCount ?? plan.members.count)
+
+                Text("링크를 공유하면 받은 사람이 이 플랜을 함께 편집할 수 있어요.")
                     .font(.notoSans(13))
                     .foregroundStyle(.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
+
+    /// 남은 자리. **링크를 뿌리는 사람이 언제 그만 보낼지 아는 것**이 이 줄의 값이다 —
+    /// 없으면 일곱 번째 사람이 눌러 본 뒤에야 알게 되고, 거절당하는 쪽은 그 사람이다.
+    ///
+    /// ⚠️ 정원을 모르는 응답(구버전·목)에서는 **아무 말도 하지 않는다.** 숫자를 지어내거나
+    /// 앱에 적어 두면 서버가 정원을 바꿀 때 그대로 거짓말이 된다(10 → 6 으로 바뀐 적 있다).
+    @ViewBuilder
+    private func seatsLine(remaining: Int?, cap: Int?, count: Int?) -> some View {
+        if let remaining, let cap, let count {
+            HStack(spacing: 6) {
+                Image(systemName: "person.2.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .accessibilityHidden(true)
+                Text(remaining > 0
+                     ? "\(cap)명 중 \(count)명 참여 중 · 앞으로 \(remaining)명 더 받을 수 있어요"
+                     : "정원이 가득 찼어요 (\(cap)명). 더 들어올 수 없어요.")
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .font(.notoSans(13, .medium))
+            // 자리가 없다는 것은 색만으로 알릴 일이 아니다 — 문장이 이미 그렇게 말한다.
+            .foregroundStyle(remaining > 0 ? Color.textSecondary : .errorRed)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -277,7 +305,10 @@ struct PlanShareView: View {
         members: [
             PlanMember(uuid: "me", nickname: "대원", role: .owner),
             PlanMember(uuid: "b", nickname: "지현", role: .editor),
-        ]
+        ],
+        // 서버가 주는 값(053). 미리보기에서도 남은 자리 줄이 보이게 채워 둔다.
+        memberCap: 6,
+        memberCount: 2
     ))
     .environment(SessionStore(service: MockAuthService()))
     .environment(\.planService, MockPlanService())

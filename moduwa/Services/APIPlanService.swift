@@ -175,7 +175,9 @@ struct APIPlanService: PlanService {
             code: dto.code,
             inviteURL: inviteURL,
             expiresAt: PlanWireDate.optionalTimestamp(from: dto.expiresAt) ?? Date(),
-            expiresInMinutes: dto.expiresInMinutes ?? 30
+            expiresInMinutes: dto.expiresInMinutes ?? 30,
+            memberCount: dto.memberCount,
+            memberCap: dto.memberCap
         )
     }
 
@@ -216,6 +218,9 @@ struct APIPlanService: PlanService {
         let inviteUrl: String
         let expiresAt: String?
         let expiresInMinutes: Int?
+        /// 남은 자리(053). 구버전 응답에는 없다.
+        let memberCount: Int?
+        let memberCap: Int?
     }
 
     private struct AcceptanceDTO: Decodable {
@@ -351,6 +356,9 @@ struct APIPlanService: PlanService {
         let version: Int?
         let myRole: String?
         let members: [MemberDTO]?
+        /// 정원과 지금 인원(053, 둘 다 소유자 포함). `memberCount == members.length` 다.
+        let memberCap: Int?
+        let memberCount: Int?
 
         var plan: Plan {
             Plan(
@@ -377,7 +385,9 @@ struct APIPlanService: PlanService {
                 version: version,
                 // 앱이 모르는 역할이 오면 nil — 없는 권한을 있는 것처럼 그리지 않는다.
                 myRole: myRole.flatMap(PlanRole.init(rawValue:)),
-                members: (members ?? []).map(\.member)
+                members: (members ?? []).map(\.member),
+                memberCap: memberCap,
+                memberCount: memberCount
             )
         }
     }

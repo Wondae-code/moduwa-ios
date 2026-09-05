@@ -14,6 +14,18 @@ struct PlanInvite: Sendable, Hashable {
     let expiresAt: Date
     /// 서버가 계산해 준 남은 분(대개 30). 문구에 그대로 쓴다 — 앱이 시계로 다시 재지 않는다.
     let expiresInMinutes: Int
+    /// 지금 인원과 정원(둘 다 소유자 포함). 구버전 응답에는 없어 `nil` 이다.
+    ///
+    /// **링크를 막 만든 그 순간이 "몇 명 더 받을 수 있는지" 를 알아야 하는 때다** —
+    /// 그래서 플랜 상세를 다시 부르지 않고 이 응답으로 바로 띄운다(서버팀 제안).
+    var memberCount: Int? = nil
+    var memberCap: Int? = nil
+
+    /// 앞으로 몇 명 더 받을 수 있는지. 정원을 모르는 응답에서는 `nil`.
+    var remainingSeats: Int? {
+        guard let memberCap, let memberCount else { return nil }
+        return max(0, memberCap - memberCount)
+    }
 }
 
 /// 초대 수락 결과 (`POST /v1/plan-invites/accept`).

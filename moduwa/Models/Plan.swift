@@ -257,8 +257,20 @@ struct Plan: Identifiable, Hashable, Sendable, Codable {
     var myRole: PlanRole?
 
     /// 함께 편집하는 멤버들(소유자 포함). 목록·구버전 응답에는 없어 빈 배열이다.
-    /// 정원은 서버가 정하고 앱은 모른다 — 넘으면 409 `member_limit` 이 온다.
     var members: [PlanMember]
+    /// 정원(소유자 포함). 서버 설정값이라 **앱에 숫자를 적지 않는다** — 실제로 10 에서 6 으로
+    /// 바뀐 적이 있다. 목록·구버전 응답에는 없어 `nil` 이고, 그때는 남은 자리를 말하지 않는다.
+    var memberCap: Int?
+    /// 지금 인원(소유자 포함). 서버가 `members.length` 와 같은 값을 준다 —
+    /// 기준이 어긋나면 앱이 한 자리를 더 있는 것으로 표시하고, 링크를 뿌린 사람은
+    /// 마지막 한 명이 거절당한 뒤에야 알게 된다.
+    var memberCount: Int?
+
+    /// 앞으로 몇 명 더 받을 수 있는지. 정원을 모르는 응답에서는 `nil` 이다.
+    var remainingSeats: Int? {
+        guard let memberCap else { return nil }
+        return max(0, memberCap - (memberCount ?? members.count))
+    }
 
     init(
         id: UUID = UUID(),
@@ -279,7 +291,9 @@ struct Plan: Identifiable, Hashable, Sendable, Codable {
         updatedAt: Date = .now,
         version: Int? = nil,
         myRole: PlanRole? = nil,
-        members: [PlanMember] = []
+        members: [PlanMember] = [],
+        memberCap: Int? = nil,
+        memberCount: Int? = nil
     ) {
         self.id = id
         self.title = title
@@ -300,6 +314,8 @@ struct Plan: Identifiable, Hashable, Sendable, Codable {
         self.version = version
         self.myRole = myRole
         self.members = members
+        self.memberCap = memberCap
+        self.memberCount = memberCount
     }
 }
 
