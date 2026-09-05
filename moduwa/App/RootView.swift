@@ -13,6 +13,7 @@ struct RootView: View {
     @Environment(SavedPlacesStore.self) private var savedPlacesStore
     /// 초대 링크가 도착하면 코드를 여기 담고 플랜 탭으로 보낸다 — 수락은 `PlanView` 가 한다.
     @Environment(\.inviteCoordinator) private var inviteCoordinator
+    @Environment(\.placeLinkRouter) private var placeLinkRouter
     /// 홈에서 "새 플랜"을 요청하면 플랜 탭으로 옮긴다 — 플로우는 그 탭이 연다.
     @Environment(\.planCreation) private var planCreation
     /// 알림을 눌러 열린 경우 갈 곳. 탭만 여기서 옮기고 상세는 그 탭이 민다.
@@ -51,19 +52,13 @@ struct RootView: View {
         .onAppear {
             session.onSignedOut = { savedPlacesStore.clear() }
         }
-        // 유니버설 링크(https://moduwa.app/i/{코드})로 앱이 열리면 코드를 우편함에 담고 플랜
-        //  탭으로 보낸다 — 실제 수락은 `PlanView` 가 로그인 여부까지 보고 처리한다. 유니버설
-        //  링크는 커스텀 스킴(onOpenURL)이 아니라 NSUserActivity 로 도착한다.
+        // 유니버설 링크(https://moduwa.app/…)로 앱이 열렸다. 초대와 장소 둘 다 이리로 오고
+        //  `open(_:)` 이 갈라 준다. 유니버설 링크는 커스텀 스킴(onOpenURL)이 아니라
+        //  NSUserActivity 로 도착한다.
         .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
-            guard let url = activity.webpageURL, let code = InviteCoordinator.code(from: url) else { return }
-            inviteCoordinator.pendingCode = code
-            selection = .plan
+            guard let url = activity.webpageURL else { return }
+            open(url)
         }
-        // 커스텀 스킴으로 앱이 열리는 두 경우를 한곳에서 가른다:
-        //  ① 카카오 로그인 콜백 — SDK 가 처리한다(맞으면 true 를 돌려주고 여기서 끝낸다).
-        //  ② 초대 폴백 `moduwa://i/{코드}` — 카톡 인앱 웹뷰의 대체 페이지 "앱에서 열기" 버튼이
-        //     이 스킴으로 앱을 연다(유니버설 링크가 웹뷰에서 막힐 때). 유니버설 링크와 같은
-        //     우편함으로 흘려보내 플랜 탭에서 수락까지 이어진다.
         // 홈 히어로 CTA가 새 플랜을 요청했다 — 플로우를 쥔 플랜 탭으로 옮긴다.
         //  플로우를 여는 것은 그 탭(`PlanListView`)이 하고, 요청도 거기서 내린다.
         .onChange(of: planCreation.isRequested) { _, requested in
@@ -80,12 +75,14 @@ struct RootView: View {
         .task(id: pushRouter.pendingPlanID) {
             if pushRouter.pendingPlanID != nil { selection = .plan }
         }
+        // 커스텀 스킴으로 앱이 열리는 두 경우를 한곳에서 가른다:
+        //  ① 카카오 로그인 콜백 — SDK 가 처리한다(맞으면 true 를 돌려주고 여기서 끝낸다).
+        //  ② 링크 폴백 `moduwa://i/{코드}`·`moduwa://p/{contentId}` — 카톡 인앱 웹뷰의 대체
+        //     페이지 "앱에서 열기" 버튼이 이 스킴으로 앱을 연다(유니버설 링크가 웹뷰에서
+        //     막힐 때). 유니버설 링크와 같은 우편함으로 흘려보낸다.
         .onOpenURL { url in
             if KakaoSignInFlow.handle(url) { return }
-            if let code = InviteCoordinator.code(from: url) {
-                inviteCoordinator.pendingCode = code
-                selection = .plan
-            }
+            open(url)
         }
         // 쓰기 진입점이 비로그인이면 이 시트가 뜬다(`SessionStore.requireSignIn`).
         //  세션이 만료돼 쫓겨난 경우도 같은 자리로 온다.
@@ -130,6 +127,24 @@ struct RootView: View {
 
     private func tabLabel(_ title: String, icon: String, tab: Tab) -> some View {
         Label(title, image: selection == tab ? "\(icon)_fill" : icon)
+    }
+
+    /// 우리 링크가 도착했다. **유니버설 링크와 커스텀 스킴이 같은 길로 흐른다** —
+    /// 앞의 것은 `NSUserActivity` 로, 뒤의 것은 `onOpenURL` 로 오지만 규칙은 하나다.
+    ///
+    /// 두 종류가 있고 가는 탭이 다르다:
+    /// - `/i/{코드}` 초대 → 플랜 탭이 수락한다.
+    /// - `/p/{contentId}` 장소 → 홈 탭이 상세를 민다.
+    private func open(_ url: URL) {
+        if let code = InviteCoordinator.code(from: url) {
+            inviteCoordinator.pendingCode = code
+            selection = .plan
+            return
+        }
+        if let contentId = PlaceLink.contentId(from: url) {
+            placeLinkRouter.pendingContentId = contentId
+            selection = .home
+        }
     }
 }
 

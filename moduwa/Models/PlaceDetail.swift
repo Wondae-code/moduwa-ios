@@ -55,3 +55,55 @@ struct PlaceDetail: Sendable {
         return URL(string: "https://map.kakao.com/link/map/\(encoded),\(latitude),\(longitude)")
     }
 }
+
+/// 장소를 남에게 보낼 때의 글.
+///
+/// **링크만 보내지 않는다.** 링크를 받은 사람이 앱을 깔지 않았다면 웹 안내 페이지로 가는데,
+/// 카카오톡 대화창에서 눈으로 스치는 것은 이 글이다 — 무장애 항목이 여기 없으면 우리가
+/// 보여 주려던 것이 한 번 더 눌러야 보이는 곳으로 밀려난다.
+///
+/// 상세를 아직 못 받았을 때는 목록 정보(`Place`)로도 만들 수 있어야 해서 모델 밖에 둔다 —
+/// 화면은 이름조차 두 곳(`detail?.name ?? place.name`)에서 가져온다.
+enum PlaceShareText {
+    static func make(
+        name: String, address: String, features: [AccessibilityFeature], url: URL?
+    ) -> String {
+        var lines = [name]
+        if !address.isEmpty { lines.append(address) }
+        if !features.isEmpty {
+            lines.append("무장애: " + features.map(\.label).joined(separator: ", "))
+        }
+        if let url {
+            lines.append("")
+            lines.append(url.absoluteString)
+        }
+        lines.append("")
+        // 출처 표기는 무장애 정보를 실었을 때만 붙인다 — 이름·주소만 보낼 때까지
+        //  관광공사를 적으면 사실과 다르다(그 두 줄은 화면에 보이는 값이다).
+        lines.append(features.isEmpty
+            ? "모두와에서 공유했어요"
+            : "모두와에서 공유했어요 · 무장애 정보 출처: 한국관광공사 TourAPI")
+        return lines.joined(separator: "\n")
+    }
+}
+
+extension Place {
+    /// 공유 링크로 들어와 **목록 정보가 없을 때** 상세로 만드는 최소 요약.
+    ///
+    /// ⚠️ `category` 는 상세 응답에 없다(`contentTypeId` 를 안 준다). 장소 상세 화면은 이 값을
+    /// 쓰지 않아서 기본값을 넣어 둔다 — 이 값을 읽는 화면이 생기면 서버에 필드를 요청해야 한다.
+    init(linkedFrom detail: PlaceDetail) {
+        self.init(
+            id: detail.id,
+            name: detail.name,
+            region: detail.address,
+            rating: detail.rating,
+            accessibilityNote: detail.accessibilityNotes.first ?? "",
+            feature: detail.accessibilityFeatures.first ?? .wheelchairAccessible,
+            category: .attraction,
+            imageURL: detail.imageURL,
+            latitude: detail.latitude,
+            longitude: detail.longitude
+        )
+    }
+}

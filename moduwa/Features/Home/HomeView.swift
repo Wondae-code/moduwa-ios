@@ -14,6 +14,8 @@ struct HomeView: View {
     @Environment(PostInteractionSignal.self) private var postSignal
     /// 알림(좋아요·댓글)을 눌러 열어야 할 게시글.
     @Environment(\.pushRouter) private var pushRouter
+    /// 공유 링크로 열어야 할 장소.
+    @Environment(\.placeLinkRouter) private var placeLinkRouter
     /// 차단하면 목록을 다시 받는다 — 거르는 일은 서버가 한다.
     @Environment(\.blockSignal) private var blockSignal
     @Environment(SessionStore.self) private var session
@@ -24,6 +26,9 @@ struct HomeView: View {
     /// 알림에서 온 게시글 상세. 목록에 없는 글일 수도 있어(다른 사람이 스크롤 밖의 글에
     /// 댓글을 달았다) 아이디로 받아 와 직접 민다.
     @State private var pushedPost: TravelPost?
+    /// 공유 링크(`https://moduwa.app/p/…`)로 들어온 장소. 같은 이유로 직접 민다 —
+    /// 링크로 오는 곳은 목록에 없을 때가 대부분이다.
+    @State private var linkedPlace: Place?
 
     private let gridColumns = [
         GridItem(.flexible(), spacing: 14),
@@ -77,10 +82,22 @@ struct HomeView: View {
             .navigationDestination(item: $pushedPost) { post in
                 PostDetailView(post: post)
             }
+            // 공유 링크에서 온 장소.
+            .navigationDestination(item: $linkedPlace) { place in
+                PlaceDetailView(place: place)
+            }
         }
         // ⚠️ `onChange` 가 아니라 `task(id:)` 다 — 종료 상태에서 알림으로 앱이 열리면 값이
         //  이 뷰보다 먼저 담겨 변화 이벤트가 오지 않는다.
         .task(id: pushRouter.pendingPostID) { await openPushedPost() }
+        .task(id: placeLinkRouter.pendingContentId) { await openLinkedPlace() }
+        // 링크가 가리킨 장소를 못 열었다. 조용히 홈에 떨어뜨리면 링크가 고장 난 것인지
+        //  앱이 고장 난 것인지 알 수 없다.
+        .alert("장소를 열지 못했어요", isPresented: linkNoticeBinding) {
+            Button("확인") { placeLinkRouter.notice = nil }
+        } message: {
+            Text(placeLinkRouter.notice ?? "")
+        }
         // 차단하면 그 사람의 글이 응답에서 빠진다 — 다시 받아야 화면에서도 사라진다.
         .task(id: blockSignal.revision) {
             guard blockSignal.revision > 0 else { return }
@@ -106,6 +123,29 @@ struct HomeView: View {
     ///
     /// 실패하면 **조용히 넘긴다** — 대개 그 사이에 지워진 글이고, 알림을 눌렀더니 오류창이
     /// 뜨는 것보다 아무 일도 없는 편이 낫다(알림 자체는 이미 읽혔다).
+    private var linkNoticeBinding: Binding<Bool> {
+        Binding(get: { placeLinkRouter.notice != nil },
+                set: { if !$0 { placeLinkRouter.notice = nil } })
+    }
+
+    /// 공유 링크로 도착한 장소를 연다.
+    ///
+    /// 링크에는 contentId 만 있어서 상세를 먼저 받아 목록용 요약(`Place`)을 만든다 —
+    /// 상세 화면이 그 요약을 받아 다시 상세를 받는 왕복 한 번이 더 생기지만, 링크로 온
+    /// 사람에게 빈 화면을 먼저 보여 주지 않는 편이 낫다.
+    ///
+    /// ⚠️ **값을 먼저 비우지 않는다** — `openPushedPost` 와 같은 이유다(`task(id:)` 취소).
+    private func openLinkedPlace() async {
+        guard let id = placeLinkRouter.pendingContentId else { return }
+        let detail = try? await feedService.fetchPlaceDetail(contentId: id)
+        placeLinkRouter.pendingContentId = nil
+        guard let detail else {
+            placeLinkRouter.notice = "링크가 가리키는 장소를 찾을 수 없어요. 주소가 바뀌었거나 지워진 곳일 수 있어요."
+            return
+        }
+        linkedPlace = Place(linkedFrom: detail)
+    }
+
     private func openPushedPost() async {
         guard let id = pushRouter.pendingPostID else { return }
         // ⚠️ **값을 먼저 비우지 않는다.** `task(id:)` 는 id 가 바뀌면 돌던 작업을 취소하는데,

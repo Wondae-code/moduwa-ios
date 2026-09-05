@@ -53,6 +53,8 @@ struct moduwaApp: App {
     @State private var postSignal = PostInteractionSignal()
     /// 초대 링크·코드 수락을 잇는 우편함. 링크는 RootView 가 받고 수락은 플랜 탭이 한다.
     @State private var inviteCoordinator = InviteCoordinator()
+    /// 장소 링크(`https://moduwa.app/p/…`)로 들어온 장소를 홈 탭까지 옮기는 우편함.
+    @State private var placeLinkRouter = PlaceLinkRouter()
     /// 홈 히어로 CTA → 새 플랜 플로우를 잇는 신호.
     @State private var planCreation = PlanCreationSignal()
     /// 차단이 일어났다는 신호. 목록을 든 화면들이 이걸 보고 다시 받는다
@@ -80,6 +82,7 @@ struct moduwaApp: App {
                 .environment(sessionStore)
                 .environment(postSignal)
                 .environment(\.inviteCoordinator, inviteCoordinator)
+                .environment(\.placeLinkRouter, placeLinkRouter)
                 .environment(\.planCreation, planCreation)
                 .environment(\.pushRouter, pushRouter)
                 .environment(\.blockSignal, blockSignal)
