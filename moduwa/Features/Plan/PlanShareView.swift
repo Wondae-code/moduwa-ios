@@ -107,7 +107,9 @@ struct PlanShareView: View {
                 .buttonStyle(.plain)
                 .disabled(isWorking)
 
-                Text("링크를 공유하면 받은 사람이 이 플랜을 함께 편집할 수 있어요. 소유자 포함 최대 10명.")
+                // ⚠️ 정원 숫자를 적지 않는다 — 서버 설정값이고 실제로 10 에서 6 으로 바뀌었다.
+                //  응답에 `memberCap` 이 실리면 "N/6" 으로 바꾼다(서버에 요청해 둔 항목).
+                Text("링크를 공유하면 받은 사람이 이 플랜을 함께 편집할 수 있어요. 정원이 차면 더 들어올 수 없어요.")
                     .font(.notoSans(13))
                     .foregroundStyle(.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)

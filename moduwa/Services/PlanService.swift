@@ -31,8 +31,9 @@ enum PlanServiceError: LocalizedError {
     case invalidCode
     /// 400 `invite_expired` — 만료된 초대(30분). 새 코드를 요청하게 안내한다.
     case inviteExpired
-    /// 409 `member_limit` — 정원(소유자 포함 10명) 초과.
-    case memberLimit
+    /// 409 `member_limit` — 정원 초과. **숫자는 서버 문구를 그대로 쓴다** —
+    /// 정원은 서버 설정값이라 앱에 적어 두면 바뀔 때마다 거짓말이 된다(10 → 6 으로 바뀐 적 있다).
+    case memberLimit(message: String?)
     /// 400 `owner_cannot_leave` — 소유자는 나갈 수 없다(삭제로만 정리된다).
     case ownerCannotLeave
 
@@ -49,7 +50,7 @@ enum PlanServiceError: LocalizedError {
         case .ownerOnly: "플랜을 만든 사람만 할 수 있어요."
         case .invalidCode: "초대 코드가 올바르지 않아요. 다시 확인해 주세요."
         case .inviteExpired: "초대가 만료됐어요. 초대한 분에게 새 코드를 요청하세요."
-        case .memberLimit: "정원이 가득 찼어요. 한 플랜에는 10명까지 함께할 수 있어요."
+        case .memberLimit(let message): message ?? "정원이 가득 찼어요. 더 초대할 수 없어요."
         case .ownerCannotLeave: "플랜을 만든 사람은 나갈 수 없어요. 플랜을 삭제하면 정리돼요."
         }
     }

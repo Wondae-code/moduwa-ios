@@ -67,7 +67,8 @@ struct APIPlanService: PlanService {
             switch failure?.error {
             case "invalid_code": throw PlanServiceError.invalidCode
             case "invite_expired": throw PlanServiceError.inviteExpired
-            case "member_limit": throw PlanServiceError.memberLimit
+            // 정원 숫자는 서버 문구에만 있다(설정값) — 그대로 전달한다.
+            case "member_limit": throw PlanServiceError.memberLimit(message: failure?.message)
             case "owner_cannot_leave": throw PlanServiceError.ownerCannotLeave
             default: break
             }

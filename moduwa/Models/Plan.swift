@@ -256,7 +256,8 @@ struct Plan: Identifiable, Hashable, Sendable, Codable {
     /// `nil` 은 역할을 모르는 응답(구버전·목·아직 상세를 안 받음).
     var myRole: PlanRole?
 
-    /// 함께 편집하는 멤버들(소유자 포함, 정원 10명). 목록·구버전 응답에는 없어 빈 배열이다.
+    /// 함께 편집하는 멤버들(소유자 포함). 목록·구버전 응답에는 없어 빈 배열이다.
+    /// 정원은 서버가 정하고 앱은 모른다 — 넘으면 409 `member_limit` 이 온다.
     var members: [PlanMember]
 
     init(
