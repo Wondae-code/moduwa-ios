@@ -255,7 +255,11 @@ struct AuthSecondaryButton: View {
                 .fill(.white)
                 .overlay(RoundedRectangle(cornerRadius: Radius.card).stroke(Color.deepGreen, lineWidth: 1))
         case .capsule:
-            Capsule().fill(.white).overlay(Capsule().stroke(Color.deepGreen, lineWidth: 1))
+            // 시안 868:783 "둘러보기" — 테두리가 **라임**이다(딥그린이 아니다).
+            //  ⚠️ 흰 바탕의 라임 테두리는 명암비 1.6:1 이라 경계선만으로는 약하다.
+            //   글자(#0B2A1C)가 뜻을 지고 있고 바로 아래 라임 채움 버튼과 짝이라 알아볼 수는
+            //   있지만, 테두리만 놓고 보면 WCAG 1.4.11(3:1) 아래다 — 디자이너 확인 대기.
+            Capsule().fill(.white).overlay(Capsule().stroke(Color.moduwaGreen, lineWidth: 1))
         }
     }
 }
