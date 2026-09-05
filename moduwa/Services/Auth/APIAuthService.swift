@@ -88,7 +88,15 @@ struct APIAuthService: AuthService {
         if let nickname, !nickname.isEmpty { body["nickname"] = nickname }
         // ⚠️ 온보딩을 하지 않았으면 **키를 아예 넣지 않는다.** 빈 배열을 보내면 서버가
         //  "온보딩을 마쳤고 아무것도 고르지 않았다"로 기록해 온보딩을 다시 띄울 수 없게 된다.
-        if let accessFeatures { body["accessFeatures"] = accessFeatures.map(\.rawValue) }
+        if let accessFeatures {
+            body["accessFeatures"] = accessFeatures.map(\.rawValue)
+            // ⚠️ **값과 동의를 함께 보낸다.** 서버는 항목이 실려 있는데 이 플래그가 없으면
+            //  400 `sensitive_consent_required` 를 낸다(서버 050) — 민감정보라 동의받은
+            //  사실을 서버가 입증할 수 있어야 한다. 앱은 애초에 동의가 있을 때만 항목을
+            //  실으므로(`SessionStore.sensitiveFeaturesForSignUp`) 여기서는 늘 true 다.
+            //  빈 배열은 철회라서 동의를 요구하지 않는다.
+            if !accessFeatures.isEmpty { body["sensitiveConsent"] = true }
+        }
 
         let dto: SessionDTO = try await send("POST", "/v1/auth/email/sign-up", body: body)
         return dto.session
@@ -148,7 +156,15 @@ struct APIAuthService: AuthService {
             body["authorizationCode"] = authorizationCode
         }
         // 이메일 가입과 같은 규칙 — 온보딩을 안 했으면 키를 아예 넣지 않는다.
-        if let accessFeatures { body["accessFeatures"] = accessFeatures.map(\.rawValue) }
+        if let accessFeatures {
+            body["accessFeatures"] = accessFeatures.map(\.rawValue)
+            // ⚠️ **값과 동의를 함께 보낸다.** 서버는 항목이 실려 있는데 이 플래그가 없으면
+            //  400 `sensitive_consent_required` 를 낸다(서버 050) — 민감정보라 동의받은
+            //  사실을 서버가 입증할 수 있어야 한다. 앱은 애초에 동의가 있을 때만 항목을
+            //  실으므로(`SessionStore.sensitiveFeaturesForSignUp`) 여기서는 늘 true 다.
+            //  빈 배열은 철회라서 동의를 요구하지 않는다.
+            if !accessFeatures.isEmpty { body["sensitiveConsent"] = true }
+        }
 
         // 서버는 새 계정이면 201, 기존 계정이면 200 을 준다. 응답 모양은 같다.
         let dto: SessionDTO = try await send("POST", path, body: body)
@@ -164,9 +180,12 @@ struct APIAuthService: AuthService {
     func updateAccessFeatures(_ features: [AccessibilityFeature]) async throws -> Account {
         // 빈 배열도 보낸다 — "아무것도 필요 없다"는 선택이고, 서버는 키가 없을 때만
         //  "바꿀 것이 없다"로 본다(400 nothing_to_update).
-        let dto: AuthorDTO = try await send("PATCH", "/v1/auth/me", body: [
-            "accessFeatures": features.map(\.rawValue),
-        ])
+        var body: [String: Any] = ["accessFeatures": features.map(\.rawValue)]
+        // ⚠️ 값을 채울 때는 동의를 함께 보낸다 — 없으면 400 `sensitive_consent_required` 다.
+        //  화면이 동의를 받은 뒤에만 여기 오고(`SensitiveConsentGate`), 빈 배열은 철회라서
+        //  서버가 동의 기록을 지운다(요구하지도 않는다).
+        if !features.isEmpty { body["sensitiveConsent"] = true }
+        let dto: AuthorDTO = try await send("PATCH", "/v1/auth/me", body: body)
         return dto.account
     }
 
