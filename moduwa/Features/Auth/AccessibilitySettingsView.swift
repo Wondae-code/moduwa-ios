@@ -10,17 +10,19 @@ import SwiftUI
 /// 글자·경계선이 짙어진다. 무엇이 바뀌는지 눈으로 확인하고 정하게 하려는 것이다.
 struct AccessibilitySettingsView: View {
     @Bindable private var settings = AccessibilitySettings.shared
+    @State private var reader = SpeechReader.shared
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Spacing.xl) {
                 AuthHeader(
                     title: "접근성",
-                    subtitle: "글자 크기와 대비를 앱에서 직접 조절해요. 시스템 손쉬운 사용 설정과 별개로 저장돼요."
+                    subtitle: "글자 크기·대비·읽어주기 속도를 앱에서 직접 조절해요. 시스템 손쉬운 사용 설정과 별개로 저장돼요."
                 )
 
                 textSizeSection
                 highContrastSection
+                speechSection
                 previewSection
             }
             .padding(.horizontal, 24)
@@ -103,6 +105,72 @@ struct AccessibilitySettingsView: View {
         .onChange(of: settings.highContrast) { _, on in
             UIAccessibility.post(notification: .announcement, argument: on ? "고대비 켬" : "고대비 끔")
         }
+    }
+
+    // MARK: - 읽어주기
+
+    private var rateBinding: Binding<Double> {
+        Binding(
+            get: { Double(settings.speechRate.rawValue) },
+            set: { settings.speechRate = SpeechRate(rawValue: Int($0.rounded())) ?? .normal }
+        )
+    }
+
+    private var speechSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.m) {
+            HStack {
+                sectionLabel("읽어주기 속도")
+                Spacer()
+                Text(settings.speechRate.label)
+                    .font(.notoSans(14, .medium))
+                    .foregroundStyle(.deepGreen)
+            }
+
+            HStack(spacing: Spacing.m) {
+                Image(systemName: "tortoise.fill")
+                    .foregroundStyle(.textSecondary)
+                    .accessibilityHidden(true)
+                Slider(
+                    value: rateBinding,
+                    in: 0...Double(SpeechRate.allCases.count - 1),
+                    step: 1
+                )
+                .tint(.deepGreen)
+                .accessibilityLabel("읽어주기 속도")
+                .accessibilityValue(settings.speechRate.label)
+                Image(systemName: "hare.fill")
+                    .foregroundStyle(.textSecondary)
+                    .accessibilityHidden(true)
+            }
+
+            // 속도는 **들어 봐야** 안다. 숫자나 라벨만으로는 고를 수 없다.
+            Button {
+                let id = "settings-preview"
+                if reader.isReading(id) {
+                    reader.stop()
+                } else {
+                    reader.speak(["바뀐 속도로 이렇게 읽어드려요. 장소 상세에서 읽어주기를 누르면 무장애 정보부터 읽어드립니다."],
+                                 id: id)
+                }
+            } label: {
+                Label(reader.isReading("settings-preview") ? "멈추기" : "들어보기",
+                      systemImage: reader.isReading("settings-preview") ? "stop.fill" : "play.fill")
+                    .font(.notoSans(14, .bold))
+                    .foregroundStyle(.deepGreen)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 10)
+                    .background(Capsule().stroke(Color.deepGreen, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+
+            Text("장소 상세의 ‘읽어주기’가 이 속도로 읽어드려요. 아이폰 설정 → 손쉬운 사용 → 음성 콘텐츠에서 더 자연스러운 한국어 음성을 받으면 함께 좋아져요.")
+                .font(.notoSans(13))
+                .foregroundStyle(.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        // 속도를 바꾸면 듣던 것을 멈춘다 — 이미 만들어진 발화는 옛 속도로 끝까지 읽는다.
+        .onChange(of: settings.speechRate) { _, _ in reader.stop() }
+        .onDisappear { reader.stop(ifReading: "settings-preview") }
     }
 
     // MARK: - 미리보기

@@ -12,6 +12,7 @@ struct PlaceDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var reader = SpeechReader.shared
     @State private var detail: PlaceDetail?
     @State private var isOverviewExpanded = false
     /// 사진 위 원형 뱃지 중 선택된 유형 — 선택 시에만 안내 칩을 띄운다
@@ -95,6 +96,9 @@ struct PlaceDetailView: View {
         .toolbar(.hidden, for: .navigationBar)
         // 상세·후기·추천은 서로를 기다릴 이유가 없어 별도 task로 동시에 받는다.
         .task { detail = try? await feedService.fetchPlaceDetail(contentId: place.id) }
+        // 화면을 떠나면 낭독을 멈춘다. **다른 화면이 읽고 있으면 건드리지 않는다** —
+        //  뒤로 갔다가 다른 장소를 열어도 앞의 소리가 이어지면 어느 글을 듣는지 알 수 없다.
+        .onDisappear { reader.stop(ifReading: place.id) }
         .task { await loadReviews(reset: true) }
         .task {
             relatedPlaces = (try? await feedService.fetchRelatedPlaces(contentId: place.id, limit: 10)) ?? []
@@ -230,8 +234,10 @@ struct PlaceDetailView: View {
                     // 선택된 뱃지의 안내만 칩으로 표시
                     if let group = detail?.accessibilityGroups.first(where: { $0.feature == selectedFeature }),
                        let note = group.notes.first {
-                        Text("• \(note)")
+                        // 시안 249:760 — 글머리표 없이 문장만, 15 Medium.
+                        Text(note)
                             .font(.notoSans(15, .medium))
+                            .tracking(-0.4)
                             .foregroundStyle(.textPrimary)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
@@ -273,11 +279,14 @@ struct PlaceDetailView: View {
     /// - `.inverted`: 흰 원 + 딥그린 아이콘 (사진 위 — 사진과 대비 위해 옅은 그림자)
     private enum BadgeStyle { case filled, inverted }
 
-    private func photoBadge(_ feature: AccessibilityFeature, style: BadgeStyle = .filled) -> some View {
-        let iconSize = feature.iconSize(inBadgeDiameter: 34)
+    /// - Parameter diameter: 시안이 자리마다 다르다 — 사진 위는 34(249:690), 추가정보는 28(249:804).
+    private func photoBadge(
+        _ feature: AccessibilityFeature, style: BadgeStyle = .filled, diameter: CGFloat = 34
+    ) -> some View {
+        let iconSize = feature.iconSize(inBadgeDiameter: diameter)
         return Circle()
             .fill(style == .filled ? Color.deepGreen : .white)
-            .frame(width: 34, height: 34)
+            .frame(width: diameter, height: diameter)
             .overlay {
                 Image(feature.iconName)
                     .renderingMode(.template)
@@ -316,7 +325,17 @@ struct PlaceDetailView: View {
                 guard session.requireSignIn(.writeReview) else { return }
                 isComposingReview = true
             }
-            actionButton(title: "공유하기", icon: "detail_share") {}
+            // 공유는 로그인이 필요 없다 — 계정 없이도 남에게 보낼 수 있어야 한다.
+            //  `Button` 이 아니라 `ShareLink` 라서 라벨만 같은 모양으로 맞춘다.
+            // ⚠️ `preview:` 를 두지 않는다. 넣으면 공유 시트 머리에 장소 이름이 뜨는 대신
+            //  **"복사" 동작이 사라진다**(실측 — 같은 화면에서 그 한 줄만 넣고 뺐다).
+            //  머리글은 꾸밈이고 복사는 기능이라, 복사를 남긴다.
+            //  아이콘도 시도했다가 뺐다: 정사각으로 잘려 가로로 긴 로고는 가운데만("두오")
+            //  남았고, SF 심볼은 흰 바탕에 흰색으로 사라졌다.
+            ShareLink(item: shareText, subject: Text(shareTitle)) {
+                actionLabel(title: "공유하기", icon: "detail_share")
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 14)
@@ -368,28 +387,149 @@ struct PlaceDetailView: View {
     }
 
     private func actionButton(
-        title: String, icon: String, isOn: Bool = false, action: @escaping () -> Void
+        title: String, icon: String? = nil, systemIcon: String? = nil,
+        isOn: Bool = false, action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            VStack(spacing: 3) {
-                Image(icon)
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 22, height: 22)
-                    .foregroundStyle(.deepGreen)
-                    // 켜진 상태를 글자만으로 두지 않는다 — 아이콘도 함께 진해진다.
-                    .opacity(isOn ? 1 : 0.65)
-                Text(title)
-                    .font(.notoSans(13, isOn ? .bold : .semiBold))
-                    .foregroundStyle(.textPrimary)
-                    .lineLimit(1)
-            }
-            .padding(.vertical, 11)
-            .frame(maxWidth: .infinity)
-            .overlay(Rectangle().stroke(Color.cardStroke, lineWidth: 1))
+            actionLabel(title: title, icon: icon, systemIcon: systemIcon, isOn: isOn)
         }
         .buttonStyle(.plain)
+    }
+
+    /// 다섯 버튼의 겉모습(시안 249:770 — 셀 88×67, 아이콘 22, 라벨 13).
+    /// 공유만 `ShareLink` 라서 라벨을 따로 뽑아 둔다 — 모양을 두 번 적으면 한쪽만 바뀐다.
+    ///
+    /// `systemIcon` 은 시안 에셋이 아직 없는 읽어주기용이다. 22pt 로 맞춰 다른 넷과 같은
+    /// 자리에 서게 한다.
+    private func actionLabel(
+        title: String, icon: String? = nil, systemIcon: String? = nil, isOn: Bool = false
+    ) -> some View {
+        VStack(spacing: 3) {
+            Group {
+                if let icon {
+                    Image(icon)
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                } else if let systemIcon {
+                    Image(systemName: systemIcon)
+                        .resizable()
+                        .scaledToFit()
+                }
+            }
+                .frame(width: 22, height: 22)
+                .foregroundStyle(.deepGreen)
+                // 켜진 상태를 글자만으로 두지 않는다 — 아이콘도 함께 진해진다.
+                .opacity(isOn ? 1 : 0.65)
+            // 시안 249:773 — 13 Medium, 자간 -0.4. 켜진 상태만 굵게 한다.
+            Text(title)
+                .font(.notoSans(13, isOn ? .bold : .medium))
+                .tracking(-0.4)
+                .foregroundStyle(.textPrimary)
+                .lineLimit(1)
+        }
+        .padding(.vertical, 11)
+        .frame(maxWidth: .infinity)
+        .overlay(Rectangle().stroke(Color.cardStroke, lineWidth: 1))
+    }
+
+    /// 메일 제목처럼 **제목 자리가 따로 있는 앱**이 쓰는 이름(`subject`).
+    /// 상세를 아직 못 받았어도 목록에서 넘어온 이름이 있다.
+    private var shareTitle: String { detail?.name ?? place.name }
+
+    /// 보낼 글.
+    ///
+    /// 링크는 **우리 앱 링크**다(`PlaceLink`) — 앱이 깔려 있으면 이 화면으로 곧장 열린다.
+    /// contentId 만 있으면 만들 수 있어서 상세가 오기 전에 눌러도 링크는 온전하다.
+    /// 관광공사 contentId 가 아닌 곳(번들·목 데이터)만 카카오맵 링크로 물러난다.
+    private var shareText: String {
+        PlaceShareText.make(
+            name: shareTitle,
+            address: detail?.address ?? place.region,
+            features: detail?.accessibilityFeatures ?? [place.feature],
+            url: PlaceLink.url(contentId: place.id) ?? detail?.kakaoMapURL
+        )
+    }
+
+    // MARK: - 읽어주기
+
+    /// 시안이 정한 자리 — **섹션 제목 오른쪽의 헤드폰**(1081:208 기본정보 / 1081:217 추가정보).
+    ///
+    /// 화면 전체를 읽지 않고 **그 섹션만** 읽는다. iOS 의 "화면 읽어주기"는 탭 바와 버튼
+    /// 라벨까지 순서대로 훑지만, 여기서는 사용자가 지금 보고 있는 덩어리 하나만 들려준다.
+    /// 보이는 버튼이라야 닿는다 — 이 기능이 겨냥하는 사람(VoiceOver 를 켜지 않는 저시력·
+    /// 고령·난독 사용자)은 두 손가락 제스처를 모른다.
+    private enum SpeechSection: String {
+        case info, access
+        var title: String { self == .info ? "기본정보" : "추가정보" }
+    }
+
+    private func speechID(_ section: SpeechSection) -> String { "\(place.id)#\(section.rawValue)" }
+
+    /// 기본정보에서 읽을 줄들.
+    ///
+    /// ⚠️ 홈페이지처럼 **주소를 값으로 가진 줄은 빈 문자열로 둔다** — 소리로 읽으면
+    /// "에이치티티피 콜론 슬래시 슬래시…" 가 된다. 낭독기가 빈 조각을 건너뛰면서도
+    /// 번호는 그대로 두므로(`SpeechReader.utterances`), 아래 강조가 줄과 어긋나지 않는다.
+    private var infoSpeech: [String] {
+        (detail?.info ?? []).map { $0.isLink ? "" : "\($0.label). \($0.value)" }
+    }
+
+    /// 추가정보에서 읽을 줄들 — 무장애 안내 문장 그대로, 주의 태그는 마지막 한 줄로.
+    private var accessSpeech: [String] {
+        var lines = detail?.accessibilityNotes ?? []
+        if let tags = detail?.cautionTags, !tags.isEmpty {
+            lines.append("주의. " + tags.joined(separator: ", "))
+        }
+        return lines
+    }
+
+    /// 지금 읽고 있는 줄인가. 글자 단위가 아니라 **줄 단위로 짚는다** —
+    /// 섹션의 각 줄이 조각 하나라서 이 편이 눈으로 따라가기 쉽다.
+    private func isSpeaking(_ section: SpeechSection, line index: Int) -> Bool {
+        reader.isReading(speechID(section)) && reader.segment == index
+    }
+
+    /// 섹션 제목 + 읽어주기(시안 26×26 프레임에 22×22 아이콘).
+    ///
+    /// 읽는 중에는 딥그린 원을 채우고 아이콘을 희게 뒤집는다 — 시안에 "읽는 중" 상태가
+    /// 없어서, 같은 화면의 추가정보 뱃지(딥그린 원 + 흰 픽토그램)와 같은 말을 쓴다.
+    private func sectionHeader(_ section: SpeechSection, segments: [String]) -> some View {
+        let id = speechID(section)
+        let isReading = reader.isReading(id)
+        return HStack(spacing: 8) {
+            Text(section.title)
+                .font(.sectionTitle)
+                .tracking(-0.4)
+                .foregroundStyle(.textPrimary)
+                .accessibilityAddTraits(.isHeader)
+
+            if !segments.contains(where: { !$0.isEmpty }) {
+                EmptyView()
+            } else {
+                Button {
+                    reader.toggle(segments, id: id)
+                } label: {
+                    Image("detail_tts")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 22, height: 22)
+                        .foregroundStyle(isReading ? .white : .textPrimary)
+                        .frame(width: 26, height: 26)
+                        .background {
+                            if isReading { Circle().fill(Color.deepGreen) }
+                        }
+                        // 26pt 글리프는 44pt 터치 영역에 못 미친다 — 영역만 넓힌다.
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isReading ? "읽기 멈추기" : "\(section.title) 읽어주기")
+            }
+
+            Spacer(minLength: 0)
+        }
     }
 
     // MARK: - 이름·주소·별점
@@ -397,13 +537,16 @@ struct PlaceDetailView: View {
     private var titleRow: some View {
         // Figma "추천장소": 이름 아래로 주소가 오는 세로 배치 (이전엔 이름 오른쪽 가로 배치였음)
         VStack(alignment: .leading, spacing: 8) {
+            // 시안 249:688 — 24 Bold, 자간 -0.4.
             Text(detail?.name ?? place.name)
-                .font(.notoSans(22, .bold))
+                .font(.notoSans(24, .bold))
+                .tracking(-0.4)
                 .foregroundStyle(.textPrimary)
                 .lineLimit(1)
                 .accessibilityAddTraits(.isHeader)
             Text(detail?.address ?? place.region)
                 .font(.notoSans(14))
+                .tracking(-0.4)
                 .foregroundStyle(.textPrimary)
                 .lineLimit(1)
         }
@@ -436,7 +579,8 @@ struct PlaceDetailView: View {
                 text: overview,
                 font: UIFont(name: NotoSans.regular.rawValue, size: 14) ?? .systemFont(ofSize: 14),
                 textColor: UIColor(Color.textSecondary),
-                lineSpacing: 5,
+                // 시안 lineHeight 23 (14pt 본문). 5 는 그보다 성겼다.
+                lineSpacing: 3,
                 lineLimit: isOverviewExpanded ? nil : 6
             )
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -459,13 +603,10 @@ struct PlaceDetailView: View {
 
     private var basicInfoSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("기본정보")
-                .font(.sectionTitle)
-                .foregroundStyle(.textPrimary)
-                .accessibilityAddTraits(.isHeader)
+            sectionHeader(.info, segments: infoSpeech)
 
             VStack(alignment: .leading, spacing: 8) {
-                ForEach(detail?.info ?? []) { row in
+                ForEach(Array((detail?.info ?? []).enumerated()), id: \.element.id) { index, row in
                     HStack(alignment: .firstTextBaseline, spacing: 0) {
                         Text("•  \(row.label)")
                             .font(.notoSans(16, .semiBold))
@@ -483,6 +624,7 @@ struct PlaceDetailView: View {
                                 .foregroundStyle(.textSecondary)
                         }
                     }
+                    .speakingLine(isSpeaking(.info, line: index))
                 }
             }
         }
@@ -529,38 +671,41 @@ struct PlaceDetailView: View {
 
     private var extraInfoSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("추가정보")
-                .font(.sectionTitle)
-                .foregroundStyle(.textPrimary)
-                .accessibilityAddTraits(.isHeader)
+            sectionHeader(.access, segments: accessSpeech)
 
             HStack(spacing: 9) {
                 ForEach(detail?.accessibilityFeatures ?? [], id: \.self) { feature in
-                    photoBadge(feature)
+                    photoBadge(feature, diameter: 28)
                 }
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                ForEach(detail?.accessibilityNotes ?? [], id: \.self) { note in
+                // 시안 249:810 — 15 Regular, 보조색(#4D4D4D), lineHeight 26.
+                ForEach(Array((detail?.accessibilityNotes ?? []).enumerated()), id: \.element) { index, note in
                     Text("•  \(note)")
-                        .font(.notoSans(15, .medium))
-                        .foregroundStyle(.textPrimary)
+                        .font(.notoSans(15))
+                        .tracking(-0.4)
+                        .foregroundStyle(.textSecondary)
                         .lineSpacing(4)
+                        .speakingLine(isSpeaking(.access, line: index))
                 }
             }
 
             if let tags = detail?.cautionTags, !tags.isEmpty {
                 HStack(spacing: 10) {
+                    // 시안 249:756 — 채움이 아니라 **테두리**다(딥그린 보더 + 딥그린 글자).
                     ForEach(tags, id: \.self) { tag in
                         Text(tag)
                             .font(.notoSans(14, .semiBold))
-                            .foregroundStyle(.textPrimary)
+                            .tracking(-0.4)
+                            .foregroundStyle(.deepGreen)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
-                            .background(Capsule().fill(Color.moduwaGreen))
+                            .background(Capsule().stroke(Color.deepGreen, lineWidth: 1))
                     }
                 }
                 .padding(.top, 8)
+                .speakingLine(isSpeaking(.access, line: (detail?.accessibilityNotes ?? []).count))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -943,4 +1088,23 @@ private struct EmptyReviewPreviewService: FeedService {
         )
     }
     // 나머지(집계·목록·추천)는 프로토콜 기본 구현 = "이 소스에는 데이터 없음"
+}
+
+/// 지금 소리로 읽고 있는 줄을 짚어 준다.
+///
+/// 글자 단위가 아니라 **줄 단위**다 — 섹션의 각 줄이 낭독 조각 하나라서, 눈으로 따라가기에는
+/// 이 편이 낫다. 색만으로 알리지 않도록 배경과 함께 좌우 여백을 줘 자리 자체가 움직여 보인다.
+private extension View {
+    @ViewBuilder
+    func speakingLine(_ isOn: Bool) -> some View {
+        if isOn {
+            padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(RoundedRectangle(cornerRadius: 6).fill(Color.moduwaGreen.opacity(0.35)))
+                .padding(.horizontal, -6)
+                .padding(.vertical, -2)
+        } else {
+            self
+        }
+    }
 }

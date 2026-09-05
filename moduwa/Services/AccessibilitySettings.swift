@@ -15,6 +15,7 @@ final class AccessibilitySettings {
 
     private static let textScaleKey = "a11yTextScale"
     private static let highContrastKey = "a11yHighContrast"
+    private static let speechRateKey = "a11ySpeechRate"
 
     /// 앱 글자 크기. `RootView` 가 이 값으로 화면 전체의 Dynamic Type 을 정한다.
     var textScale: TextScale {
@@ -27,10 +28,20 @@ final class AccessibilitySettings {
         didSet { UserDefaults.standard.set(highContrast, forKey: Self.highContrastKey) }
     }
 
+    /// 읽어주기 속도(`SpeechReader`). 듣는 속도는 사람마다 크게 갈린다 —
+    /// 처음 듣는 사람은 느리게, 늘 듣는 사람은 화면 읽는 것보다 빠르게 듣는다.
+    var speechRate: SpeechRate {
+        didSet { UserDefaults.standard.set(speechRate.rawValue, forKey: Self.speechRateKey) }
+    }
+
     private init() {
         let defaults = UserDefaults.standard
         textScale = TextScale(rawValue: defaults.integer(forKey: Self.textScaleKey)) ?? .system
         highContrast = defaults.bool(forKey: Self.highContrastKey)
+        // 저장된 적이 없으면 `integer(forKey:)` 가 0 을 준다 — 그 자리에 '보통'이 오도록
+        //  rawValue 를 1 부터 시작하지 않고, 없을 때만 기본값으로 돌린다.
+        speechRate = SpeechRate(rawValue: defaults.object(forKey: Self.speechRateKey) as? Int ?? -1)
+            ?? .normal
     }
 }
 
@@ -72,6 +83,34 @@ extension View {
             dynamicTypeSize(size)
         } else {
             self
+        }
+    }
+}
+
+/// 읽어주기 속도 단계.
+///
+/// 값은 `AVSpeechUtterance` 의 rate 다(기본값 0.5). 0…1 을 다 열어 두지 않는 이유:
+/// 양 끝은 한국어에서 알아들을 수 없는 소리가 된다 — 쓸 수 있는 구간만 네 단계로 나눈다.
+enum SpeechRate: Int, CaseIterable, Identifiable {
+    case slow = 0, normal, fast, fastest
+
+    var id: Int { rawValue }
+
+    var value: Float {
+        switch self {
+        case .slow: 0.42
+        case .normal: 0.50   // AVSpeechUtteranceDefaultSpeechRate
+        case .fast: 0.58
+        case .fastest: 0.66
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .slow: "느리게"
+        case .normal: "보통"
+        case .fast: "빠르게"
+        case .fastest: "아주 빠르게"
         }
     }
 }
