@@ -66,6 +66,11 @@ struct SignInGateView: View {
                     }
                     .padding(.top, 12)
 
+                    // 소셜 버튼은 눌리자마자 계정을 만든다 — 동의를 물을 화면이 중간에 없다.
+                    //  약관·처리방침은 이 고지로 받고, 민감정보는 받지 않는다(주석 참고).
+                    SocialSignInConsentNotice()
+                        .padding(.top, 10)
+
                     AuthErrorLine(message: errorMessage)
                         .padding(.top, 16)
                 }

@@ -70,29 +70,51 @@ final class SessionStore {
 
     // MARK: - 가입 · 로그인 · 로그아웃
 
-    /// 가입. 성공하면 온보딩 로컬 프로필은 계정으로 옮겨졌으니 지운다.
+    /// 가입. 무장애 항목을 계정으로 옮겼으면 기기에 있던 온보딩 값을 지운다.
+    ///
+    /// - Parameter sensitiveConsent: 무장애 항목을 계정에 저장해도 되는지(`AuthConsent.sensitive`).
+    ///   **동의가 없으면 요청에 싣지 않는다** — 무장애 항목은 건강·장애 상태를 드러내는
+    ///   민감정보라서 개인정보 동의로 갈음할 수 없고, 별도 동의가 있어야 보낼 수 있다.
+    ///   거부한 값은 기기에 남아 있다가 나중에 동의를 받으면 올라간다
+    ///   (`AccessibilityProfileEditView` 의 `SensitiveConsentGate`).
     @discardableResult
-    func signUp(email: String, password: String, nickname: String?) async throws -> AuthSession {
-        // 온보딩을 하지 않았으면 nil 을 넘긴다 — 빈 배열과 다른 뜻이다(`AuthService` 주석 참고).
-        let features = OnboardingProfileStore.shared.selectionForSignUp
+    func signUp(email: String, password: String, nickname: String?,
+                sensitiveConsent: Bool) async throws -> AuthSession {
+        if sensitiveConsent { SensitiveConsentStore.shared.grant() }
+        let features = sensitiveFeaturesForSignUp
         let result = try await service.signUp(
             email: email, password: password, nickname: nickname, accessFeatures: features)
         adopt(result)
-        OnboardingProfileStore.shared.markHandedToAccount()
+        if features != nil { OnboardingProfileStore.shared.markHandedToAccount() }
         return result
+    }
+
+    /// 가입 요청에 실을 무장애 항목. **동의가 없으면 nil** 이다.
+    ///
+    /// 온보딩을 하지 않았을 때도 nil 이다 — 빈 배열을 보내면 서버가 "온보딩을 마쳤고 아무것도
+    /// 고르지 않았다"로 기록한다(`AuthService` 주석).
+    private var sensitiveFeaturesForSignUp: [AccessibilityFeature]? {
+        guard SensitiveConsentStore.shared.isGranted else { return nil }
+        return OnboardingProfileStore.shared.selectionForSignUp
     }
 
     /// 구글 로그인. 브라우저 시트를 띄워 `id_token` 을 받고 서버에 넘긴다.
     ///
     /// 가입·로그인이 한 길이라 결과의 `created` 로 갈린다 — 새 계정일 때만 온보딩 값을
     /// 계정으로 넘긴 것으로 처리한다(기존 계정이면 서버가 그 값을 무시했다).
+    ///
+    /// ⚠️ **소셜 로그인은 동의 화면을 지나지 않는다.** 그래서 `sensitiveFeaturesForSignUp` 이
+    /// 거의 항상 nil 이고, 무장애 항목은 기기에 남는다 — 설정에서 동의를 받은 뒤에 올라간다.
+    /// 여기서 그냥 실어 보내면 **동의 없이 민감정보를 수집하는 것**이 된다.
     @discardableResult
     func signInWithGoogle() async throws -> AuthSession {
         let idToken = try await GoogleSignInFlow().idToken()
         let result = try await service.signInWithGoogle(
-            idToken: idToken, accessFeatures: OnboardingProfileStore.shared.selectionForSignUp)
+            idToken: idToken, accessFeatures: sensitiveFeaturesForSignUp)
         adopt(result)
-        if result.created { OnboardingProfileStore.shared.markHandedToAccount() }
+        if result.created, sensitiveFeaturesForSignUp != nil {
+            OnboardingProfileStore.shared.markHandedToAccount()
+        }
         return result
     }
 
@@ -103,9 +125,11 @@ final class SessionStore {
         let result = try await service.signInWithApple(
             idToken: credential.idToken, nickname: credential.nickname,
             authorizationCode: credential.authorizationCode,
-            accessFeatures: OnboardingProfileStore.shared.selectionForSignUp)
+            accessFeatures: sensitiveFeaturesForSignUp)
         adopt(result)
-        if result.created { OnboardingProfileStore.shared.markHandedToAccount() }
+        if result.created, sensitiveFeaturesForSignUp != nil {
+            OnboardingProfileStore.shared.markHandedToAccount()
+        }
         return result
     }
 
@@ -114,9 +138,11 @@ final class SessionStore {
     func signInWithKakao() async throws -> AuthSession {
         let idToken = try await KakaoSignInFlow.idToken()
         let result = try await service.signInWithKakao(
-            idToken: idToken, accessFeatures: OnboardingProfileStore.shared.selectionForSignUp)
+            idToken: idToken, accessFeatures: sensitiveFeaturesForSignUp)
         adopt(result)
-        if result.created { OnboardingProfileStore.shared.markHandedToAccount() }
+        if result.created, sensitiveFeaturesForSignUp != nil {
+            OnboardingProfileStore.shared.markHandedToAccount()
+        }
         return result
     }
 
@@ -139,6 +165,8 @@ final class SessionStore {
         await PushRegistrar.shared.unregisterBeforeSignOut()
         try? await service.signOut()
         SessionTokenStore.shared.clear()
+        // 동의는 그 계정에 준 것이다 — 다음에 로그인하는 사람의 동의가 아니다.
+        SensitiveConsentStore.shared.clear()
         account = nil
         phase = .signedOut
         mirrorNickname(nil)
@@ -152,6 +180,7 @@ final class SessionStore {
     func deleteAccount() async throws {
         try await service.deleteAccount()
         SessionTokenStore.shared.clear()
+        SensitiveConsentStore.shared.clear()
         account = nil
         phase = .signedOut
         mirrorNickname(nil)
@@ -181,8 +210,13 @@ final class SessionStore {
     /// 이유: 화면마다 `account?.accessFeatures ?? []` 를 쓰면 비로그인 사용자가 온보딩에서 고른
     /// 것이 **아무 데도 반영되지 않는다** — 실제로 그랬다. 고르라고 해 놓고 쓰지 않는 것은
     /// 무장애 앱에서 특히 나쁜 배신이다.
+    /// ⚠️ 계정이 **빈 값**일 때도 기기 값을 본다. 소셜 로그인으로 만든 계정에는 무장애 항목이
+    /// 올라가지 않으므로(민감정보 동의 전), 계정 값만 보면 온보딩에서 고른 것이 로그인하는
+    /// 순간 사라진다. 계정에 저장에 성공하면 기기 값을 비우니(`updateAccessFeatures`)
+    /// "다 해제했는데 옛 값이 돌아온다"는 일은 생기지 않는다.
     var accessFeatures: [AccessibilityFeature] {
-        account?.accessFeatures ?? OnboardingProfileStore.shared.features
+        if let mine = account?.accessFeatures, !mine.isEmpty { return mine }
+        return OnboardingProfileStore.shared.features
     }
 
     /// 무장애 요소를 바꾼다. **로그인하지 않아도 된다.**
@@ -196,6 +230,8 @@ final class SessionStore {
             return
         }
         account = try await service.updateAccessFeatures(features)
+        // 계정이 정본이 됐다 — 기기에 남은 온보딩 값은 지운다(`accessFeatures` 주석).
+        OnboardingProfileStore.shared.markHandedToAccount()
     }
 
     // MARK: - 프로필

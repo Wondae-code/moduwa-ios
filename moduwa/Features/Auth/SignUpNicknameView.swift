@@ -15,6 +15,9 @@ import SwiftUI
 struct SignUpNicknameView: View {
     let email: String
     let password: String
+    /// 민감정보(무장애 항목) 저장 동의. **거부하면 가입 요청에 그 값을 싣지 않는다** —
+    /// 화면에서만 회색으로 만드는 것은 동의를 받지 않고 보내는 것과 같다.
+    let sensitiveConsent: Bool
     /// 가입 성공 — 이메일 인증 안내로 이어 준다(메일은 가입과 동시에 이미 발송됐다).
     var onSignedUp: () -> Void
 
@@ -92,7 +95,8 @@ struct SignUpNicknameView: View {
         isBusy = true
         errorMessage = nil
         do {
-            try await session.signUp(email: email, password: password, nickname: trimmed)
+            try await session.signUp(email: email, password: password, nickname: trimmed,
+                                     sensitiveConsent: sensitiveConsent)
             UIAccessibility.post(notification: .announcement, argument: "가입했어요")
             onSignedUp()
         } catch AuthError.emailTaken {
@@ -112,7 +116,8 @@ struct SignUpNicknameView: View {
 
 #Preview("가입 — 닉네임") {
     NavigationStack {
-        SignUpNicknameView(email: "moduwa@gmail.com", password: "moduwa08", onSignedUp: {})
+        SignUpNicknameView(email: "moduwa@gmail.com", password: "moduwa08",
+                           sensitiveConsent: true, onSignedUp: {})
     }
     .environment(SessionStore(service: MockAuthService()))
 }

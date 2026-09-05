@@ -11,6 +11,8 @@ import SwiftUI
 struct TermsView: View {
     /// 번들 파일 이름(확장자 제외).
     var resource = "Terms"
+    /// 화면 제목. 같은 화면이 약관과 민감정보 안내를 모두 띄우므로 제목도 함께 받는다.
+    var title = "서비스 이용약관"
 
     @State private var text: String?
 
@@ -28,14 +30,14 @@ struct TermsView: View {
                     .padding(.vertical, 20)
             } else {
                 // 번들에서 못 읽는 경우(파일 누락). 빈 화면보다 사실을 말한다.
-                Text("약관을 불러오지 못했어요. 앱을 다시 실행해 주세요.")
+                Text("문서를 불러오지 못했어요. 앱을 다시 실행해 주세요.")
                     .font(.notoSans(14, relativeTo: .subheadline))
                     .foregroundStyle(.textSecondary)
                     .padding(24)
             }
         }
         .background(.white)
-        .navigationTitle("서비스 이용약관")
+        .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .task {
             guard text == nil else { return }

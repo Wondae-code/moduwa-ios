@@ -17,7 +17,9 @@ struct AuthFlowView: View {
     private enum Route: Hashable {
         case signIn
         case signUp
-        case nickname(email: String, password: String)
+        /// `sensitiveConsent`: 무장애 항목(민감정보)을 계정에 저장해도 되는지.
+        /// 가입 요청이 나가는 화면까지 들고 가야 해서 경로에 싣는다.
+        case nickname(email: String, password: String, sensitiveConsent: Bool)
         case verifyIntro
         case verifyCode
         case resetPassword
@@ -56,17 +58,19 @@ struct AuthFlowView: View {
 
         case .signUp:
             SignUpView(
-                onNext: { email, password in
-                    path.append(.nickname(email: email, password: password))
+                onNext: { email, password, consent in
+                    path.append(.nickname(email: email, password: password,
+                                          sensitiveConsent: consent.sensitive))
                 },
                 // "이미 계정이 있습니다" — 로그인 화면 하나만 남긴다.
                 onSignIn: { path = [.signIn] }
             )
 
-        case .nickname(let email, let password):
+        case .nickname(let email, let password, let sensitiveConsent):
             // 가입 요청이 여기서 나간다. 성공하면 경로를 **치운다** —
             //  이미 가입한 사람이 뒤로 가서 다시 가입할 자리는 없다.
-            SignUpNicknameView(email: email, password: password) {
+            SignUpNicknameView(email: email, password: password,
+                               sensitiveConsent: sensitiveConsent) {
                 path = [.verifyIntro]
             }
 

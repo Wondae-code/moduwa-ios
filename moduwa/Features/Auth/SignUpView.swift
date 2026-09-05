@@ -10,18 +10,18 @@ import SwiftUI
 /// 비밀번호 규칙은 시안 문구를 따른다 — "숫자를 포함하여 8자 이상". 서버는 8자 이상만
 /// 요구하므로(`password.ts`) 앱이 한 겹 더 좁게 받는 셈이고, 그래서 서버가 거절할 일은 없다.
 struct SignUpView: View {
-    /// 입력을 다 받았다 — 닉네임 화면으로 넘긴다.
-    var onNext: (_ email: String, _ password: String) -> Void
+    /// 입력을 다 받았다 — 닉네임 화면으로 넘긴다. 동의 내용도 함께 넘긴다:
+    /// 민감정보 동의 여부가 **가입 요청에 무장애 항목을 실을지**를 정한다.
+    var onNext: (_ email: String, _ password: String, _ consent: AuthConsent) -> Void
     /// "이미 계정이 있습니다" — 로그인 화면으로 돌려보낸다.
     var onSignIn: () -> Void
 
     @State private var email = ""
     @State private var password = ""
     @State private var passwordConfirm = ""
-    /// 약관 동의. **가입의 전제다**(약관 제5조) — 동의 없이는 다음으로 갈 수 없다.
-    @State private var agreedToTerms = false
-    /// 약관 전문을 읽는 화면. 체크만 요구하고 읽을 길을 주지 않으면 동의가 형식이 된다.
-    @State private var isShowingTerms = false
+    /// 약관·개인정보·민감정보 동의. 앞의 둘은 가입의 전제이고(약관 제5조),
+    /// 민감정보는 **선택**이다(`AuthConsent` 주석).
+    @State private var consent = AuthConsent()
 
     /// 서버 정책(`password.ts`)과 같은 하한. 여기에 "숫자 포함"을 더한 것이 시안의 규칙이다.
     private static let passwordMinimum = 8
@@ -45,26 +45,7 @@ struct SignUpView: View {
     }
 
     private var canSubmit: Bool {
-        isEmailValid && isPasswordValid && isConfirmValid && agreedToTerms
-    }
-
-    /// 동의 체크와 **읽을 길**을 한 줄에 둔다. 체크박스만 두면 무엇에 동의하는지 확인할
-    /// 방법이 없고, 링크만 두면 동의한 사실이 어디에도 남지 않는다.
-    ///
-    /// 개인정보 처리방침은 **웹 URL 이 필요해**(앱스토어 메타데이터 필수 항목) 주소가 나오면
-    /// 이 줄에 함께 붙인다 — 지금은 약관만 둔다.
-    private var termsConsent: some View {
-        HStack(spacing: 8) {
-            AuthCheckbox(title: "서비스 이용약관에 동의합니다", isOn: $agreedToTerms)
-
-            Button("보기") { isShowingTerms = true }
-                .font(.notoSans(13, .bold, relativeTo: .footnote))
-                .foregroundStyle(.deepGreen)
-                .accessibilityLabel("서비스 이용약관 보기")
-
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        isEmailValid && isPasswordValid && isConfirmValid && consent.hasRequired
     }
 
     var body: some View {
@@ -112,8 +93,12 @@ struct SignUpView: View {
                     )
                     .padding(.top, 20)
 
-                    termsConsent
-                        .padding(.top, 24)
+                    AuthConsentSection(
+                        consent: $consent,
+                        // 저장할 무장애 항목이 없으면 민감정보 줄을 두지 않는다.
+                        hasAccessFeatures: !(OnboardingProfileStore.shared.selectionForSignUp ?? []).isEmpty
+                    )
+                    .padding(.top, 24)
 
                     AuthPrimaryButton(title: "다음으로", isEnabled: canSubmit, action: submit)
                         .padding(.top, 20)
@@ -137,29 +122,16 @@ struct SignUpView: View {
         .background(.white)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
-        // 시트로 띄운다 — 가입 흐름은 이미 스택 안이고, 약관을 그 위에 밀어 넣으면 뒤로
-        //  나왔을 때 입력이 살아 있는지 확신할 수 없다. 시트는 입력 화면을 그대로 둔다.
-        .sheet(isPresented: $isShowingTerms) {
-            NavigationStack {
-                TermsView()
-                    .toolbar {
-                        ToolbarItem(placement: .topBarLeading) {
-                            Button("닫기") { isShowingTerms = false }
-                                .foregroundStyle(.textPrimary)
-                        }
-                    }
-            }
-        }
     }
 
     private func submit() {
         guard canSubmit else { return }
-        onNext(trimmedEmail, password)
+        onNext(trimmedEmail, password, consent)
     }
 }
 
 #Preview("가입 — 첫 화면") {
     NavigationStack {
-        SignUpView(onNext: { _, _ in }, onSignIn: {})
+        SignUpView(onNext: { _, _, _ in }, onSignIn: {})
     }
 }

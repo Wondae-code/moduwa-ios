@@ -16,6 +16,8 @@ struct AccessibilityProfileEditView: View {
     @State private var selection: [AccessibilityFeature]
     @State private var isBusy = false
     @State private var errorMessage: String?
+    /// 민감정보 동의. 이미 받아 둔 계정이면 켜진 채로 시작하고 줄 자체가 뜨지 않는다.
+    @State private var sensitiveConsent = SensitiveConsentStore.shared.isGranted
 
     /// 지금 계정에 저장된 값으로 시작한다.
     init(current: [AccessibilityFeature]) {
@@ -26,6 +28,18 @@ struct AccessibilityProfileEditView: View {
     /// 껐다 켜서 순서만 달라진 것은 바뀐 것이 아니다.
     private var hasChanges: Bool {
         Set(selection) != Set(session.accessFeatures)
+    }
+
+    /// 이 저장이 **민감정보를 서버로 보내는가**. 세 가지가 모두 맞을 때만 그렇다:
+    /// 로그인했고(보낼 곳이 있고), 고른 것이 있고(보낼 값이 있고), 아직 동의를 받지 않았다.
+    ///
+    /// 다 해제하는 저장은 묻지 않는다 — 지우는 데 동의를 요구하는 것은 앞뒤가 맞지 않는다.
+    private var needsSensitiveConsent: Bool {
+        session.account != nil && !selection.isEmpty && !SensitiveConsentStore.shared.isGranted
+    }
+
+    private var canSave: Bool {
+        hasChanges && (!needsSensitiveConsent || sensitiveConsent)
     }
 
     var body: some View {
@@ -54,19 +68,6 @@ struct AccessibilityProfileEditView: View {
                 }
                 .background(RoundedRectangle(cornerRadius: Radius.card).fill(Color.photoPlaceholder))
 
-                // 고를 수는 있지만 목록을 좁히지는 못하는 항목이 있다. 숨기지 않고 말해 준다 —
-                //  고른 대로 걸러진 줄 알았는데 아니면, 다음에 보이는 목록 전부를 의심하게 된다.
-                if selection.contains(.elderlyFriendly) {
-                    Text("고령자 친화는 아직 추천을 좁히는 데 쓰이지 않아요. 관광공사 원본에 그 항목이 없어서, 프로필에는 남지만 목록은 다른 조건으로만 걸러져요.")
-                        .font(.notoSans(13))
-                        .foregroundStyle(.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(Spacing.m)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(RoundedRectangle(cornerRadius: Radius.badge)
-                            .fill(Color.photoPlaceholder))
-                }
-
                 // 청각 지원은 원본 데이터가 얇다. 고르고 나서 목록이 비면 앱이 고장난 것처럼
                 //  보이므로 미리 알린다(전국 107곳 — 관광지 27·맛집 22·숙소 23·축제 0).
                 if selection.contains(.hearingFriendly) {
@@ -92,9 +93,13 @@ struct AccessibilityProfileEditView: View {
 
     private var saveBar: some View {
         VStack(spacing: Spacing.m) {
+            if needsSensitiveConsent {
+                SensitiveConsentGate(isOn: $sensitiveConsent)
+            }
+
             AuthErrorLine(message: errorMessage)
 
-            AuthPrimaryButton(title: "저장", isEnabled: hasChanges, isBusy: isBusy) {
+            AuthPrimaryButton(title: "저장", isEnabled: canSave, isBusy: isBusy) {
                 Task { await save() }
             }
         }
@@ -107,7 +112,10 @@ struct AccessibilityProfileEditView: View {
     }
 
     private func save() async {
-        guard hasChanges, !isBusy else { return }
+        guard canSave, !isBusy else { return }
+        // 체크하고 저장을 누른 것이 동의다 — 요청 전에 기록해 두면 실패 후 다시 눌러도
+        //  같은 것을 두 번 묻지 않는다.
+        if needsSensitiveConsent { SensitiveConsentStore.shared.grant() }
         isBusy = true
         errorMessage = nil
         do {

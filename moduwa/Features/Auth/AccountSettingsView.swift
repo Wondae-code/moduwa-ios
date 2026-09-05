@@ -22,12 +22,15 @@ struct AccountSettingsView: View {
 
     /// 줄 하나가 미는 화면.
     private enum Row: Hashable, Identifiable {
-        case accessProfile, profileEdit, myPosts, blockedUsers, accessibility, helpCenter, terms
+        case accessProfile, profileEdit, myPosts, blockedUsers, accessibility, helpCenter,
+             terms, privacyPolicy
 
         var id: Self { self }
     }
 
     @State private var row: Row?
+
+    @Environment(\.openURL) private var openURL
 
     /// 앱 푸시 알림 허용(시안 978:1163). 실제 등록·해제는 `PushRegistrar` 가 한다.
     ///
@@ -263,7 +266,13 @@ struct AccountSettingsView: View {
             }
             SettingsRow(title: "접근성") { row = .accessibility }
             SettingsRow(title: "고객센터") { row = .helpCenter }
-            SettingsRow(title: "서비스 이용약관", showsDivider: false) { row = .terms }
+            SettingsRow(title: "서비스 이용약관") { row = .terms }
+            // 처리방침은 **앱 안에서 닿을 수 있어야 한다**(심사 5.1.1). 주소가 생기면 이 줄이
+            //  브라우저를 열고, 그 전에는 준비 중 안내로 간다 — 줄 자체를 숨기면 심사 때
+            //  "방침이 어디 있나" 가 된다.
+            SettingsRow(title: "개인정보 처리방침", showsDivider: false) {
+                if let url = LegalLinks.privacyPolicy { openURL(url) } else { row = .privacyPolicy }
+            }
 
             dataSource
         }
@@ -308,6 +317,8 @@ struct AccountSettingsView: View {
             comingSoon("고객센터", "questionmark.circle", "고객센터는 준비 중이에요")
         case .terms:
             TermsView()
+        case .privacyPolicy:
+            comingSoon("개인정보 처리방침", "hand.raised", "개인정보 처리방침은 준비 중이에요")
         }
     }
 
