@@ -61,13 +61,16 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 32) {
                 Text("안녕하세요")
                     .font(.notoSans(20, relativeTo: .title3))
+                    .tracking(-0.4)
                     .foregroundStyle(.textSecondary)
                     .accessibilityAddTraits(.isHeader)
 
                 Text("나이, 장애에 상관없이, 누구와 함께하든,\n모두의 즐거운 여행을 바라는 모두와에요.")
                     .font(.notoSans(20, relativeTo: .title3))
+                    .tracking(-0.4)
                     .foregroundStyle(.textSecondary)
-                    .lineSpacing(12)
+                    // 시안 lineHeight 32 (20pt 본문). 12 는 그보다 9pt 성겼다.
+                    .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -78,7 +81,7 @@ struct OnboardingView: View {
             Image("onboarding_welcome")
                 .resizable()
                 .scaledToFit()
-                .frame(maxHeight: 261)
+                .frame(maxHeight: 347)   // 시안 1037:211 — 344×347
                 .accessibilityHidden(true)
 
             Spacer(minLength: 24)
@@ -92,13 +95,16 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("계획에 앞서, 여행자님을 위해\n저희가 배려할 요소가 있다면 알려주세요")
                     .font(.notoSans(20, relativeTo: .title3))
+                    .tracking(-0.4)
                     .foregroundStyle(.textSecondary)
-                    .lineSpacing(12)
+                    // 시안 lineHeight 32 (20pt 본문). 12 는 그보다 9pt 성겼다.
+                    .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
 
                 Text("*개인설정에서 수정가능")
                     .font(.notoSans(14, relativeTo: .subheadline))
+                    .tracking(-0.4)
                     .foregroundStyle(.deepGreen)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -106,7 +112,8 @@ struct OnboardingView: View {
 
             Spacer(minLength: 24)
 
-            VStack(spacing: 24) {
+            // 시안 실측: 라벨 아래 31.5 만큼 띄우고 다음 줄이 온다(24 는 좁았다).
+            VStack(spacing: 31.5) {
                 HStack(spacing: 20) {
                     ForEach(Self.firstRow, id: \.self) { circle($0) }
                 }
@@ -122,12 +129,18 @@ struct OnboardingView: View {
 
             Spacer(minLength: 24)
 
-            AuthPrimaryButton(title: "완료했어요", shape: .capsule) {
+            // 시안은 **아무것도 고르지 않으면 비활성**이다(회색 #E6E6E6 + 글자 #B3B3B3).
+            //  디자이너가 스킵 버튼을 지우고 "해당없음" 을 답으로 만든 것과 이어진다 —
+            //  건너뛰는 길을 없앤 것이 아니라 답으로 바꾼 것이라, 답을 하나는 받는다.
+            AuthPrimaryButton(title: "완료했어요", isEnabled: hasAnswered, shape: .capsule) {
                 page = .welcome
             }
             .padding(.bottom, 20)
         }
     }
+
+    /// 무장애정보입력에 답했는가. "해당없음" 도 답이다 — 그래서 빈 선택과 구분해서 센다.
+    private var hasAnswered: Bool { !selection.isEmpty || choseNone }
 
     /// 사람이 직접 고르는 축 — 브랜드 가이드 아이콘 5종.
     /// `flatPath`·`barrierFreeRoom` 은 서버 속성에서 파생되는 표시용 값이라 여기 없다.
@@ -154,13 +167,16 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 32) {
                 Text("모두와에 오신 것을 환영합니다!")
                     .font(.notoSans(20, relativeTo: .title3))
+                    .tracking(-0.4)
                     .foregroundStyle(.textSecondary)
                     .accessibilityAddTraits(.isHeader)
 
                 Text("다양한 정보들을 둘러보며\n여행계획을 세워보세요.")
                     .font(.notoSans(20, relativeTo: .title3))
+                    .tracking(-0.4)
                     .foregroundStyle(.textSecondary)
-                    .lineSpacing(12)
+                    // 시안 lineHeight 32 (20pt 본문). 12 는 그보다 9pt 성겼다.
+                    .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -171,7 +187,7 @@ struct OnboardingView: View {
             Image("onboarding_landmark")
                 .resizable()
                 .scaledToFit()
-                .frame(maxHeight: 239)
+                .frame(maxHeight: 300)   // 시안 1037:212 — 300×300
                 .accessibilityHidden(true)
 
             Spacer(minLength: 24)
@@ -191,9 +207,12 @@ struct OnboardingView: View {
     private var pageDots: some View {
         HStack(spacing: 8) {
             ForEach(Page.allCases, id: \.self) { item in
+                // 시안: 지금 장은 딥그린으로 **채우고**, 나머지는 흰 원에 딥그린 **테두리** 1pt.
+                //  회색 채움으로 두면 지나온 장과 남은 장이 배경에 묻힌다.
                 Circle()
-                    .fill(item == page ? Color.deepGreen : Color.cardStroke)
-                    .frame(width: 7, height: 7)
+                    .fill(item == page ? Color.deepGreen : .white)
+                    .overlay(Circle().stroke(Color.deepGreen, lineWidth: item == page ? 0 : 1))
+                    .frame(width: 8, height: 8)
             }
         }
         // iOS 페이지 컨트롤의 기본 읽기 방식("페이지, 1/3")을 따른다 —
