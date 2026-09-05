@@ -230,8 +230,9 @@ struct APIFeedService: FeedService {
                 .init(name: "limit", value: "\(FeedPage.placeSize)"),
                 .init(name: "offset", value: "\(page * FeedPage.placeSize)"),
             ]
-            // 고른 무장애 요소로 좁힌다. 서버가 모르는 축(고령자 친화)은 여기서 빠진다 —
+            // 고른 무장애 요소로 좁힌다. 서버가 모르는 축(`serverAccessGroup == nil`)만 빠진다 —
             //  보내 봐야 서버가 무시하고, 무엇으로 좁혔는지 화면과 어긋나게 된다.
+            //  ⚠️ 고령자는 이제 서버가 안다(2026-08-24) — 예전 주석이 "빠진다"고 적어 두었었다.
             let groups = accessFeatures.compactMap(\.serverAccessGroup)
             if !groups.isEmpty {
                 query.append(.init(name: "access", value: groups.joined(separator: ",")))
@@ -341,6 +342,12 @@ struct APIFeedService: FeedService {
                                              dto.bigprint, dto.brailepromotion, dto.guidesystem, dto.blindhandicapetc]),
                 (.hearingFriendly, [dto.signguide, dto.videoguide, dto.hearingroom, dto.hearinghandicapetc]),
                 (.childFriendly, [dto.stroller, dto.lactationroom, dto.babysparechair, dto.infantsfamilyetc]),
+                // 고령자는 **전용 속성이 없다.** 열린관광 5유형의 다섯째이고(서버 sql/037),
+                //  판정은 휠체어 대여·이동보조기기·승강기·주차 중 하나로 한다 — 그 원문이
+                //  지체장애 그룹과 겹치는 것은 의도된 것이다. 한 장소가 두 유형에 다 해당한다.
+                //  ⚠️ 이 줄이 없어서 목록·검색에는 고령자 뱃지가 뜨는데 **상세에만 안 떴다**
+                //   (공유 링크 카드는 서버가 그려서 떠 있었다 — 같은 장소에 다른 말을 했다).
+                (.elderlyFriendly, [dto.wheelchair, dto.elevator, dto.parking]),
             ]
             let accessibilityGroups: [PlaceDetail.AccessibilityGroup] = groups.compactMap { feature, values in
                 let cleaned = values.compactMap { Self.cleanNote($0) }
