@@ -441,9 +441,12 @@ struct APIFeedService: FeedService {
         let shortLabel: String?
         let icon: String?
         let count: Int?
+        /// 구 응답·번들에는 없다 — 없으면 장소 평가로 읽는다(방문 조건은 051 에서 생겼다).
+        let kind: ReviewTagKind?
 
         var tag: ReviewTag {
-            ReviewTag(code: code, label: label, shortLabel: shortLabel ?? label, icon: icon)
+            ReviewTag(code: code, kind: kind ?? .place,
+                      label: label, shortLabel: shortLabel ?? label, icon: icon)
         }
     }
 
@@ -525,7 +528,8 @@ struct APIFeedService: FeedService {
     /// 여기는 `fallback`으로 넘기지 않는다. 번들·목 후기는 **다른 장소**의 후기라서
     /// 폴백하면 이 장소가 남긴 적 없는 후기를 보여 주게 된다. 실패는 화면에서 에러로 알린다.
     func fetchPlaceReviews(
-        contentId: String, sort: PlaceReviewSort, hasImage: Bool, page: Int, pageSize: Int
+        contentId: String, sort: PlaceReviewSort, hasImage: Bool,
+        visitorTag: String?, page: Int, pageSize: Int
     ) async throws -> [TravelReview] {
         var query: [URLQueryItem] = [
             .init(name: "contentId", value: contentId),
@@ -535,6 +539,8 @@ struct APIFeedService: FeedService {
         ]
         // false를 보내지 않는다 — 필터가 꺼진 상태는 "조건 없음"이다
         if hasImage { query.append(.init(name: "hasImage", value: "true")) }
+        // ⚠️ 서버는 **visitor 종류만** 받는다. place 코드를 넣으면 0건이다(두 축이 섞이지 않게).
+        if let visitorTag { query.append(.init(name: "visitorTag", value: visitorTag)) }
         let dtos: [ReviewDTO] = try await getItems("/v1/reviews", query)
         return dtos.map(Self.travelReview)
     }

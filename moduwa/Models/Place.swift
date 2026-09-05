@@ -107,6 +107,22 @@ enum AccessibilityFeature: String, Sendable, Decodable {
         }
     }
 
+    /// 후기의 **방문 조건 태그** 코드(서버 051). 프로필 다섯 축과 1:1 이다.
+    ///
+    /// ⚠️ 이 값으로 태그를 **자동 저장하지 않는다.** 프로필은 비공개인데 태그는 공개라,
+    /// 자동으로 붙이면 프로필을 대신 공개하는 것이 된다. 작성 화면에서 **미리 체크해 보여
+    /// 주기만** 하고 결정은 글마다 본인이 한다(서버팀도 같은 당부를 했다).
+    var visitorTagCode: String? {
+        switch self {
+        case .wheelchairAccessible: "visit_wheelchair"
+        case .visuallyImpairedFriendly: "visit_visual"
+        case .hearingFriendly: "visit_hearing"
+        case .childFriendly: "visit_infant"
+        case .elderlyFriendly: "visit_elderly"
+        case .flatPath, .barrierFreeRoom: nil
+        }
+    }
+
     /// 뱃지 아이콘 (Figma 접근성 아이콘 5종)
     var iconName: String {
         switch self {

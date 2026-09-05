@@ -134,7 +134,8 @@ struct PlaceDetailView: View {
             }
             // 장소 상세 프리뷰는 최신 방문 후기가 먼저 보이는 게 유용하다 (정렬 토글은 전용 화면에 있다)
             let page = try await feedService.fetchPlaceReviews(
-                contentId: place.id, sort: .latest, hasImage: false,
+                // 프리뷰는 거르지 않는다 — 방문 조건 필터는 전용 화면에 있다.
+                contentId: place.id, sort: .latest, hasImage: false, visitorTag: nil,
                 page: reviewPage, pageSize: FeedPage.placeReviewSize
             )
             reviews = reset ? page : reviews + page

@@ -65,9 +65,13 @@ struct MockFeedService: FeedService {
     }
 
     func fetchPlaceReviews(
-        contentId: String, sort: PlaceReviewSort, hasImage: Bool, page: Int, pageSize: Int
+        contentId: String, sort: PlaceReviewSort, hasImage: Bool,
+        visitorTag: String?, page: Int, pageSize: Int
     ) async throws -> [TravelReview] {
-        let pool = hasImage ? Self.reviewPool.filter { !$0.imageURLs.isEmpty } : Self.reviewPool
+        var pool = hasImage ? Self.reviewPool.filter { !$0.imageURLs.isEmpty } : Self.reviewPool
+        if let visitorTag {
+            pool = pool.filter { $0.tags.contains { $0.code == visitorTag } }
+        }
         let sorted = switch sort {
         case .likes: pool.sorted { $0.likeCount > $1.likeCount }
         case .latest: pool.sorted { $0.createdAt > $1.createdAt }

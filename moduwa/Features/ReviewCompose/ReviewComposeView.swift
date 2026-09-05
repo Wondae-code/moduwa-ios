@@ -62,6 +62,8 @@ struct ReviewComposeView: View {
     /// `GET /v1/review-tags`로 받은 태그 사전. 실패하면 칩 섹션을 그리지 않는다
     /// (서버가 모르는 코드는 400이므로 앱에 하드코딩한 목록으로 대신할 수 없다).
     @State private var availableTags: [ReviewTag] = []
+    /// 방문 조건을 미리 체크해 준 적이 있는가. 한 번만 한다(아래 `suggestVisitorTags` 주석).
+    @State private var didSuggestVisitorTags = false
     @State private var selectedTagCodes: Set<String> = []
 
     @State private var photos: [ComposePhoto] = []
@@ -94,6 +96,10 @@ struct ReviewComposeView: View {
                         sectionDivider
                         tagSection
                             .padding(.horizontal, 24)
+
+                        visitorTagSection
+                            .padding(.horizontal, 24)
+                            .padding(.top, Spacing.xl)
                     }
 
                     sectionDivider
@@ -116,7 +122,10 @@ struct ReviewComposeView: View {
             if rating == 0 { rating = initialRating }
         }
         // 태그 사전은 별점·본문과 무관하게 받아 둔다. 실패하면 섹션이 빠질 뿐 작성은 계속된다.
-        .task { availableTags = (try? await feedService.fetchReviewTags()) ?? [] }
+        .task {
+            availableTags = (try? await feedService.fetchReviewTags()) ?? []
+            suggestVisitorTags()
+        }
         .onChange(of: photoSelection) { _, items in
             guard !items.isEmpty else { return }
             photoSelection = []
@@ -190,6 +199,26 @@ struct ReviewComposeView: View {
 
     // MARK: - 태그 다중 선택
 
+    /// 장소 평가 칩(`kind == .place`).
+    private var placeTags: [ReviewTag] { availableTags.filter { $0.kind == .place } }
+    /// 방문 조건 칩(`kind == .visitor`).
+    private var visitorTags: [ReviewTag] { availableTags.filter { $0.kind == .visitor } }
+
+    /// 내 무장애정보와 겹치는 방문 조건을 **미리 체크해 둔다.**
+    ///
+    /// ⚠️ 자동 저장이 아니다 — 체크된 채로 보이고, 지우는 것도 본인이 한다. 프로필은 비공개인데
+    /// 이 태그는 공개라, 묻지 않고 붙이면 프로필을 대신 공개하는 것이 된다. 그래서 아래 칩
+    /// 묶음에 "후기에 함께 공개돼요" 를 적어 두고, 한 번 손댄 뒤에는 다시 건드리지 않는다
+    /// (사전이 늦게 와도 사용자가 이미 고른 것을 덮지 않게).
+    private func suggestVisitorTags() {
+        guard !didSuggestVisitorTags else { return }
+        didSuggestVisitorTags = true
+        let mine = Set(session.accessFeatures.compactMap(\.visitorTagCode))
+        for tag in visitorTags where mine.contains(tag.code) {
+            selectedTagCodes.insert(tag.code)
+        }
+    }
+
     private var tagSection: some View {
         // 스케치는 제목·부제만 가운데로 두고 칩은 왼쪽부터 채운다.
         VStack(alignment: .leading, spacing: 10) {
@@ -204,7 +233,7 @@ struct ReviewComposeView: View {
 
             // 폭이 차면 다음 줄로 넘긴다 — 접근성 글자 크기에서 칩 하나가 한 줄을 다 써도 잘리지 않는다
             FlowLayout(horizontalSpacing: 8, verticalSpacing: 8) {
-                ForEach(availableTags) { tag in
+                ForEach(placeTags) { tag in
                     ReviewTagSelectChip(tag: tag, isSelected: selectedTagCodes.contains(tag.code)) {
                         // 애니메이션 없이 즉시 바뀐다. 선택하면 글자가 굵어져 칩 폭이 조금 달라지는데,
                         // 그게 애니메이션되면 옆·아랫줄 칩까지 밀려 흔들린다.
@@ -219,6 +248,47 @@ struct ReviewComposeView: View {
             .accessibilityValue(selectedTagCodes.isEmpty ? "선택한 태그 없음" : "\(selectedTagCodes.count)개 선택")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// "어떻게 방문하셨나요" — 방문 조건 칩(서버 051).
+    ///
+    /// 장소 평가와 **묻는 대상이 다르다.** 앞은 이 장소가 어땠는지이고, 이것은 쓴 사람이 어떤
+    /// 조건으로 갔는지다. 그래서 묶음을 나눠 보여 준다 — 섞으면 "휠체어로 방문했어요" 가
+    /// 장소의 특징으로 읽힌다.
+    @ViewBuilder
+    private var visitorTagSection: some View {
+        if !visitorTags.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionTitle("어떻게 방문하셨나요?")
+                    .frame(maxWidth: .infinity)
+
+                // 공개된다는 사실을 고를 자리에서 말한다 — 프로필은 비공개인데 이 태그는 공개다.
+                Text("같은 조건으로 여행하는 분들이 이 후기를 찾을 수 있어요. 후기에 함께 공개돼요.")
+                    .font(.notoSans(13))
+                    .foregroundStyle(.textSecondary)
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                FlowLayout(horizontalSpacing: 8, verticalSpacing: 8) {
+                    ForEach(visitorTags) { tag in
+                        ReviewTagSelectChip(tag: tag, isSelected: selectedTagCodes.contains(tag.code)) {
+                            withoutAnimation { selectedTagCodes.toggle(tag.code) }
+                        }
+                    }
+                }
+                .padding(.top, 2)
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("어떻게 방문하셨나요, 여러개 선택 가능. 고른 항목은 후기에 공개됩니다")
+                .accessibilityValue(
+                    selectedVisitorCount == 0 ? "선택한 항목 없음" : "\(selectedVisitorCount)개 선택")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var selectedVisitorCount: Int {
+        visitorTags.filter { selectedTagCodes.contains($0.code) }.count
     }
 
 
@@ -624,7 +694,8 @@ struct ReviewComposeView: View {
             rating: rating,
             body: trimmedReview,
             nickname: resolvedNickname,
-            // 서버가 모르는 코드는 400이므로 받아 둔 사전 순서대로 걸러 보낸다
+            // 서버가 모르는 코드는 400이므로 받아 둔 사전 순서대로 걸러 보낸다.
+            //  장소 평가와 방문 조건을 섞어 보낸다 — 서버가 `kind` 로 다시 가른다(상한 13).
             tags: availableTags.map(\.code).filter(selectedTagCodes.contains),
             // ⚠️ 미체크는 false가 아니라 nil이다 — 서버가 미응답으로 저장한다
             wouldRevisit: wantsRevisit ? true : nil,

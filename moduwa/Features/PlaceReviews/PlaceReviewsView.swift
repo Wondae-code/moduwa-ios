@@ -44,6 +44,11 @@ struct PlaceReviewsView: View {
 
     @State private var sort: PlaceReviewSort = .likes
     @State private var showsPhotoReviewsOnly = false
+    /// "같은 조건인 사람의 후기만"(서버 051). **한 번에 하나만** 고른다 — 서버가 받는
+    /// `visitorTag` 가 하나이고, 둘을 겹치면 "휠체어이면서 유아 동반" 이 되어 거의 0건이 된다.
+    @State private var visitorTagFilter: String?
+    /// 방문 조건 사전. 집계(`summary.tags`)에는 장소 평가만 오므로 따로 받는다.
+    @State private var visitorTags: [ReviewTag] = []
 
     /// "방문 후기를 남겨주세요!"에서 고른 별점 — 작성 시트의 초기값
     @State private var entryRating = 0
@@ -69,6 +74,11 @@ struct PlaceReviewsView: View {
         .background(.white)
         .toolbar(.hidden, for: .navigationBar)
         .task { await load(reset: true) }
+        // 방문 조건 사전. 실패하면 칩 줄이 빠질 뿐 목록은 그대로 보인다.
+        .task {
+            let all = (try? await feedService.fetchReviewTags()) ?? []
+            visitorTags = all.filter { $0.kind == .visitor }
+        }
         // 게시글은 방문 후기와 별도 요청이다(위 `loadPosts` 주석 참고).
         .task { await loadPosts() }
         .sheet(isPresented: $isComposingReview, onDismiss: { entryRating = 0 }) {
@@ -161,6 +171,10 @@ struct PlaceReviewsView: View {
                 fullWidthDivider.padding(.top, 24)
 
                 filterRow
+                    .padding(.horizontal, 24)
+                    .padding(.top, 16)
+
+                visitorFilterRow
                     .padding(.horizontal, 24)
                     .padding(.top, 16)
 
@@ -272,6 +286,45 @@ struct PlaceReviewsView: View {
                 Spacer(minLength: 8)
                 photoOnlyToggle
             }
+        }
+    }
+
+    /// "같은 조건인 사람의 후기" — 방문 조건으로 좁힌다(서버 051).
+    ///
+    /// 이 기능이 있는 이유: 휠체어로 가 본 사람의 후기와 그렇지 않은 사람의 후기는 같은 장소를
+    /// 두고 다른 것을 말한다. 별점 평균으로는 그 차이가 지워진다.
+    @ViewBuilder
+    private var visitorFilterRow: some View {
+        if !visitorTags.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("같은 조건인 사람의 후기")
+                    .font(.notoSans(14, .bold))
+                    .tracking(-0.4)
+                    .foregroundStyle(.textPrimary)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(visitorTags) { tag in
+                            ReviewTagSelectChip(
+                                tag: tag, isSelected: visitorTagFilter == tag.code
+                            ) {
+                                // 같은 칩을 다시 누르면 해제 — "전체" 칩을 따로 두지 않는다.
+                                withoutAnimation {
+                                    visitorTagFilter = visitorTagFilter == tag.code ? nil : tag.code
+                                }
+                                Task { await load(reset: true) }
+                            }
+                        }
+                    }
+                    // 칩 테두리가 스크롤 경계에서 잘리지 않게
+                    .padding(.vertical, 2)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("같은 조건인 사람의 후기")
+            .accessibilityValue(visitorTagFilter == nil ? "전체" :
+                (visitorTags.first { $0.code == visitorTagFilter }?.label ?? "선택됨"))
         }
     }
 
@@ -487,12 +540,22 @@ struct PlaceReviewsView: View {
 
     /// 필터 때문에 비었는지, 후기가 아예 없는지를 구분해 알린다 —
     /// 같은 문구를 쓰면 사용자가 필터를 껐다 켜 볼 이유를 못 찾는다.
+    ///
+    /// 방문 조건은 특히 자주 빈다(그 조건으로 다녀간 사람이 아직 적다) —
+    /// "아직 후기가 없어요" 로 뭉뚱그리면 장소에 후기가 없는 줄로 읽힌다.
+    private func emptyTitle(_ visitorLabel: String?) -> String {
+        if let visitorLabel { return "\(visitorLabel) 후기가 아직 없어요" }
+        return showsPhotoReviewsOnly ? "사진이 있는 후기가 없어요" : "아직 후기가 없어요"
+    }
+
     private var emptyRow: some View {
-        VStack(spacing: 6) {
-            Text(showsPhotoReviewsOnly ? "사진이 있는 후기가 없어요" : "아직 후기가 없어요")
+        let visitorLabel = visitorTags.first { $0.code == visitorTagFilter }?.shortLabel
+        return VStack(spacing: 6) {
+            Text(emptyTitle(visitorLabel))
                 .font(.notoSans(15, .bold))
                 .foregroundStyle(.textPrimary)
-            Text(showsPhotoReviewsOnly ? "필터를 끄면 모든 후기를 볼 수 있어요" : "이 장소의 첫 후기를 남겨보세요")
+            Text(visitorLabel != nil || showsPhotoReviewsOnly
+                 ? "필터를 끄면 모든 후기를 볼 수 있어요" : "이 장소의 첫 후기를 남겨보세요")
                 .font(.notoSans(13))
                 .foregroundStyle(.textSecondary)
                 .multilineTextAlignment(.center)
@@ -574,6 +637,7 @@ struct PlaceReviewsView: View {
 
         let requestedSort = sort
         let requestedHasImage = showsPhotoReviewsOnly
+        let requestedVisitorTag = visitorTagFilter
         do {
             if refreshSummary || summary == nil {
                 let received = try await feedService.fetchReviewSummary(contentId: contentId)
@@ -584,6 +648,7 @@ struct PlaceReviewsView: View {
                 contentId: contentId,
                 sort: requestedSort,
                 hasImage: requestedHasImage,
+                visitorTag: requestedVisitorTag,
                 page: page,
                 pageSize: FeedPage.placeReviewListSize
             )

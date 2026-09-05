@@ -98,8 +98,11 @@ protocol FeedService: Sendable {
     ///
     /// 프로토콜 요구사항에는 기본 인자를 쓸 수 없어(Swift 제약) 호출부가 전부 명시한다.
     /// - `hasImage`: true면 사진이 있는 후기만 (`"사진/영상 후기만 보기"`)
+    /// - `visitorTag`: "같은 조건인 사람의 후기만"(서버 051). **`visitor` 종류 코드만 받는다** —
+    ///   장소 평가 코드를 넣으면 서버가 0건을 준다.
     func fetchPlaceReviews(
-        contentId: String, sort: PlaceReviewSort, hasImage: Bool, page: Int, pageSize: Int
+        contentId: String, sort: PlaceReviewSort, hasImage: Bool,
+        visitorTag: String?, page: Int, pageSize: Int
     ) async throws -> [TravelReview]
     /// 함께 가볼만한 곳 (같은 권역의 무장애 장소)
     func fetchRelatedPlaces(contentId: String, limit: Int) async throws -> [RelatedPlace]
@@ -160,7 +163,8 @@ extension FeedService {
     }
 
     func fetchPlaceReviews(
-        contentId: String, sort: PlaceReviewSort, hasImage: Bool, page: Int, pageSize: Int
+        contentId: String, sort: PlaceReviewSort, hasImage: Bool,
+        visitorTag: String?, page: Int, pageSize: Int
     ) async throws -> [TravelReview] {
         []
     }
