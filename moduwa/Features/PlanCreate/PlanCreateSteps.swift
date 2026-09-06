@@ -184,7 +184,11 @@ struct PlanBudgetStep: View {
                 Text(rowText(option))
                     .font(.notoSans(16, isOn ? .bold : .regular, relativeTo: .headline))
                     .tracking(-0.4)
-                    .foregroundStyle(isOn ? .textPrimary : .textSecondary)
+                    // 미선택은 시안대로 `#B3B3B3`(`iconGray`) 다 — `textSecondary` 가 너무
+                    //  짙다는 지적(2026-09-07). ⚠️ 흰 배경에서 **2.1:1** 이라 본문 최소
+                    //  4.5:1 에 못 미친다. 이 화면에서는 시안을 따르기로 한 결정이고, 고른
+                    //  항목은 `textPrimary` + Bold + 라임 체크로 확실히 갈린다.
+                    .foregroundStyle(isOn ? .textPrimary : .iconGray)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
 

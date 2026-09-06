@@ -51,6 +51,8 @@ struct PlanDateRangeCalendar: View {
                 .frame(height: 1)
                 .accessibilityHidden(true)
 
+            busyLegend
+
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 30) {
                     ForEach(months, id: \.self) { month in
@@ -160,13 +162,10 @@ struct PlanDateRangeCalendar: View {
             VStack(spacing: 3) {
                 weekdayRow
                 ForEach(Array(weeks(of: month).enumerated()), id: \.offset) { _, week in
-                    VStack(spacing: 0) {
-                        HStack(spacing: 0) {
-                            ForEach(week, id: \.self) { day in
-                                dayCell(day, in: month)
-                            }
+                    HStack(spacing: 0) {
+                        ForEach(week, id: \.self) { day in
+                            dayCell(day, in: month)
                         }
-                        busyCaption(for: week, in: month)
                     }
                 }
             }
@@ -295,53 +294,55 @@ struct PlanDateRangeCalendar: View {
 
     // MARK: - 다른 일정 (시안 958:462)
 
-    /// 이미 만든 플랜이 잡아 둔 날짜를 잇는 **회색 알약**. 시안은 `#E6E6E6` 한 덩어리로
-    /// 그려 두었고, 여기서는 칸마다 알약 + 좌우 반쪽 이음새로 같은 모양을 만든다
-    /// (`rangeBand` 와 같은 방식이다 — 끝은 둥글고 가운데는 이어진다).
+    /// 이미 만든 플랜이 잡아 둔 날짜를 잇는 **회색 알약**(시안은 `#E6E6E6` 한 덩어리다).
+    ///
+    /// ⚠️ **한 칸에 한 장만 그린다.** 처음에는 `rangeBand` 처럼 *칸마다 캡슐 + 좌우 반쪽
+    /// 사각형*을 겹쳐 놓았는데, 같은 색이어도 **캡슐 테두리의 안티에일리어싱이 사각형 위에
+    /// 겹쳐 링으로 남아** 날짜마다 동그라미가 보였다(2026-09-07 실기기 지적). 겹치는 도형이
+    /// 없으면 그 링도 없다 — 그래서 모서리만 조건부로 둥근 사각형 하나를 칸 폭에 꽉 채운다.
+    /// 옆 칸과 정확히 맞닿아 이어지고, 구간의 양 끝만 둥글다.
     ///
     /// 이웃 달 칸에는 그리지 않는다. 그 칸은 어차피 못 고르는 자리라 회색이 두 뜻이 된다.
     @ViewBuilder
     private func busyBand(for day: Date, in month: Date) -> some View {
         if calendar.isDate(day, equalTo: month, toGranularity: .month), isBusy(day) {
-            ZStack {
-                HStack(spacing: 0) {
-                    Rectangle().fill(isBusy(dayBefore: day) ? Color.cardStroke : .clear)
-                    Rectangle().fill(isBusy(dayAfter: day) ? Color.cardStroke : .clear)
-                }
-                Capsule().fill(Color.cardStroke).frame(width: 32)
-            }
-            .frame(height: 32)
+            let opensLeft = !isBusy(dayBefore: day)
+            let opensRight = !isBusy(dayAfter: day)
+            UnevenRoundedRectangle(
+                topLeadingRadius: opensLeft ? 16 : 0,
+                bottomLeadingRadius: opensLeft ? 16 : 0,
+                bottomTrailingRadius: opensRight ? 16 : 0,
+                topTrailingRadius: opensRight ? 16 : 0)
+                .fill(Color.cardStroke)
+                .frame(height: 32)
         }
     }
 
-    /// 회색 알약이 걸린 주 아래에 붙는 **"다른 일정"** 범례(시안 Regular 12 `#B3B3B3`).
+    /// **"다른 일정"** 범례(시안 Regular 12 `#B3B3B3`). 회색이 무슨 뜻인지 알린다.
     ///
-    /// 7칸을 그대로 다시 깔고 알약의 가운데 칸에만 글자를 둔다 — 칸보다 글자가 넓어
-    /// `fixedSize` 로 옆으로 흘려 보낸다(시안의 범례도 한 칸보다 넓다).
+    /// ⚠️ **줄마다 붙이지 않고 위에 한 번만 둔다**(2026-09-07 요청: "주간 간격이 '다른 일정'
+    /// 글자가 있을 때 더 넓어져. 이걸 없애"). 주 아래에 놓으면 그 글자가 레이아웃 공간을
+    /// 차지해 **그 주만 높아진다.** 칸 사이 여백은 15pt(칸 44 − 원 32 의 위아래 6 + 줄 간격 3)
+    /// 뿐이라 12pt 글자를 끼워 넣을 자리가 없다 — 겹치지 않게 두려면 결국 줄을 늘려야 한다.
+    ///
+    /// 시안(`958:462`)은 알약 **바로 아래**에 적어 두는데, 그 예시에서는 알약이 달의 마지막
+    /// 주에 있어 아래가 비어 있었다. 알약이 가운데 주에 오면 그대로 옮길 수 없다.
     @ViewBuilder
-    private func busyCaption(for week: [Date], in month: Date) -> some View {
-        let columns = week.indices.filter {
-            calendar.isDate(week[$0], equalTo: month, toGranularity: .month) && isBusy(week[$0])
-        }
-        if let first = columns.first, let last = columns.last {
-            let center = (first + last) / 2
-            HStack(spacing: 0) {
-                ForEach(0..<7, id: \.self) { column in
-                    Group {
-                        if column == center {
-                            Text("다른 일정")
-                                .font(.notoSans(12, .regular, relativeTo: .caption))
-                                .foregroundStyle(Color.iconGray)
-                                .fixedSize()
-                        } else {
-                            Color.clear
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                }
+    private var busyLegend: some View {
+        if !busyRanges.isEmpty {
+            HStack(spacing: 6) {
+                Capsule()
+                    .fill(Color.cardStroke)
+                    .frame(width: 28, height: 14)
+
+                Text("다른 일정")
+                    .font(.notoSans(12, .regular, relativeTo: .caption))
+                    .foregroundStyle(Color.iconGray)
             }
-            .frame(height: 17)
-            // 위 날짜 칸들이 이미 "다른 일정 있음" 을 값으로 읽어 준다.
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .padding(.horizontal, 40)
+            .padding(.top, 14)
+            // 날짜 칸이 이미 "다른 일정 있음" 을 값으로 읽어 준다 — 여기서 또 읽으면 겹친다.
             .accessibilityHidden(true)
         }
     }
