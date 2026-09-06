@@ -75,14 +75,21 @@ enum TextScale: Int, CaseIterable, Identifiable {
 }
 
 extension View {
-    /// 글자 크기 단계를 적용한다. `.system` 이면 시스템 값이 흐르도록 아무것도 붙이지 않는다.
+    /// 글자 크기 단계를 적용한다. `.system` 이면 시스템 값이 그대로 흐른다.
     /// (SwiftUI 기본 `textScale(_:)` 과 헷갈리지 않게 이름을 따로 둔다.)
-    @ViewBuilder
+    ///
+    /// ⚠️ **모디파이어를 붙였다 뗐다 하면 안 된다.** `@ViewBuilder` 의 `if`/`else` 는
+    ///  `_ConditionalContent` 를 만들어 **분기가 바뀌는 순간 뷰 정체성이 바뀐다.** 이 함수는
+    ///  `RootView` 의 탭 전체에 걸려 있어서, 예전처럼 `.system` 에서만 모디파이어를 빼면
+    ///  시스템 ↔ 크게로 넘어갈 때 SwiftUI 가 트리를 통째로 다시 만들고 **각 탭
+    ///  `NavigationStack` 의 경로가 날아갔다** — 접근성 설정에서 글자 크기를 바꾸면 보고 있던
+    ///  화면이 닫히고 메인으로 튕겼다(2026-09-06 QA #15).
+    ///
+    ///  그래서 어떤 단계에서도 **모디파이어는 늘 하나**를 걸고, 덮어쓸지 말지는 그 안에서 정한다.
+    ///  `.system` 이면 물려받은 값을 건드리지 않으므로 결과는 예전과 같다.
     func applyTextScale(_ scale: TextScale) -> some View {
-        if let size = scale.dynamicTypeSize {
-            dynamicTypeSize(size)
-        } else {
-            self
+        transformEnvironment(\.dynamicTypeSize) { inherited in
+            if let size = scale.dynamicTypeSize { inherited = size }
         }
     }
 }
