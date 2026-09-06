@@ -105,7 +105,7 @@ struct PlaceReviewRow: View {
         HStack(spacing: 10) {
             // 사진을 올린 작성자면 사진, 아니면 딥그린 원 + 이름 첫 글자(`AuthorAvatar`).
             AuthorAvatar(name: review.author, avatarURL: review.authorAvatarURL,
-                         diameter: 36, fontSize: 14)
+                         diameter: 36)
 
             VStack(alignment: .leading, spacing: 0) {
                 Text(review.author)

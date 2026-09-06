@@ -260,7 +260,7 @@ struct PostDetailView: View {
     private var authorRow: some View {
         HStack(spacing: 10) {
             AuthorAvatar(name: current.author, avatarURL: current.authorAvatarURL,
-                         diameter: 36, fontSize: 15)
+                         diameter: 36)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(current.author)

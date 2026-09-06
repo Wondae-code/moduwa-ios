@@ -30,7 +30,7 @@ struct ReviewCard: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 9) {
                     AuthorAvatar(name: review.author, avatarURL: review.authorAvatarURL,
-                                 diameter: 36, fontSize: 14)
+                                 diameter: 36)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(review.author)
                             .font(.notoSans(14, .bold))

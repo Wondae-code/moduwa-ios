@@ -262,7 +262,7 @@ struct ReviewDetailView: View {
     private var authorRow: some View {
         HStack(alignment: .center, spacing: 12) {
             avatar(name: review.author, avatarURL: review.authorAvatarURL,
-                   diameter: 40, fontSize: 15)
+                   diameter: 40)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(review.author)
@@ -463,7 +463,7 @@ struct ReviewDetailView: View {
         )
         return HStack(alignment: .top, spacing: 10) {
             avatar(name: comment.author, avatarURL: comment.authorAvatarURL,
-                   diameter: 32, fontSize: 13)
+                   diameter: 32)
             VStack(alignment: .leading, spacing: 3) {
                 // 접근성 글자 크기에서는 이름 + 시간이 한 줄에 들어가지 않아 세로로 쌓는다
                 authorTimeLine(comment)
@@ -912,8 +912,8 @@ struct ReviewDetailView: View {
 
     /// 사진이 있으면 사진, 없으면 이니셜 원. 규칙은 `AuthorAvatar` 한 곳에 있다 —
     /// 이 화면만 따로 그리면 카드와 상세에서 같은 작성자가 달리 보인다.
-    private func avatar(name: String, avatarURL: URL?, diameter: CGFloat, fontSize: CGFloat) -> some View {
-        AuthorAvatar(name: name, avatarURL: avatarURL, diameter: diameter, fontSize: fontSize)
+    private func avatar(name: String, avatarURL: URL?, diameter: CGFloat) -> some View {
+        AuthorAvatar(name: name, avatarURL: avatarURL, diameter: diameter)
     }
 
     private var fullDivider: some View {

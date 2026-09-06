@@ -117,7 +117,7 @@ struct PostCard: View {
         HStack(spacing: 9) {
             // 사진을 올린 작성자면 사진, 아니면 닉네임 첫 글자(`AuthorAvatar`).
             AuthorAvatar(name: post.author, avatarURL: post.authorAvatarURL,
-                         diameter: 36, fontSize: 14)
+                         diameter: 36)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(post.author)

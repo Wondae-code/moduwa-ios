@@ -183,10 +183,8 @@ struct AccountSettingsView: View {
             name: session.account?.nickname ?? "",
             avatarURL: session.account?.avatarURL,
             diameter: 100,
-            fontSize: 36,
             background: Color.moduwaGreen.opacity(0.3),
-            foreground: .deepGreen,
-            fallback: .person
+            foreground: .deepGreen
         )
     }
 
