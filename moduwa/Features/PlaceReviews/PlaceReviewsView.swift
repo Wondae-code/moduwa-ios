@@ -711,8 +711,10 @@ private struct EmptyPlaceReviewsPreviewService: FeedService {
             category: category, page: page, accessFeatures: accessFeatures)
     }
 
-    func fetchReviews(sort: ReviewSort, page: Int) async throws -> [TravelReview] {
-        try await base.fetchReviews(sort: sort, page: page)
+    func fetchReviews(
+        sort: ReviewSort, page: Int, accessFeatures: [AccessibilityFeature]
+    ) async throws -> [TravelReview] {
+        try await base.fetchReviews(sort: sort, page: page, accessFeatures: accessFeatures)
     }
 
     func fetchPlaceDetail(contentId: String) async throws -> PlaceDetail {

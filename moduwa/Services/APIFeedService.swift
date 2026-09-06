@@ -57,10 +57,14 @@ struct APIFeedService: FeedService {
     /// 두 헤더는 서로 다른 질문에 답한다 — 키는 "이 앱이 호출해도 되는가", 세션은
     /// "이 요청이 누구인가"다(`ModuwaAPI`). 세션을 빼먹으면 쓰기는 401 이고, 목록은 성공하지만
     /// 하트가 누른 글에서도 빈 상태로 그려진다.
-    private func authorized(_ url: URL) -> URLRequest {
+    private func authorized(
+        _ url: URL, visitorTags: [AccessibilityFeature] = []
+    ) -> URLRequest {
         var request = URLRequest(url: url)
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         ModuwaAPI.attachSession(to: &request)
+        // 무장애 축은 **헤더로만** 보낸다 — 이유는 `ModuwaAPI.visitorTagsHeader` 주석에 있다.
+        ModuwaAPI.attach(visitorTags: visitorTags, to: &request)
         return request
     }
 
@@ -81,11 +85,15 @@ struct APIFeedService: FeedService {
         return .writeUnsupported
     }
 
-    private func get<T: Decodable>(_ path: String, _ query: [URLQueryItem] = []) async throws -> T {
+    private func get<T: Decodable>(
+        _ path: String, _ query: [URLQueryItem] = [],
+        visitorTags: [AccessibilityFeature] = []
+    ) async throws -> T {
         guard !apiKey.isEmpty else { throw APIError.notConfigured }
         var comps = URLComponents(url: baseURL.appending(path: path), resolvingAgainstBaseURL: false)!
         if !query.isEmpty { comps.queryItems = query }
-        let (data, resp) = try await session.data(for: authorized(comps.url!))
+        let (data, resp) = try await session.data(
+            for: authorized(comps.url!, visitorTags: visitorTags))
         guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             let status = (resp as? HTTPURLResponse)?.statusCode ?? -1
             // 로그인 문제는 그대로 알려야 한다. 개인 데이터 조회(`/v1/saved-places`)가 401 인데
@@ -97,8 +105,11 @@ struct APIFeedService: FeedService {
         return try JSONDecoder().decode(T.self, from: data)
     }
 
-    private func getItems<T: Decodable>(_ path: String, _ query: [URLQueryItem]) async throws -> [T] {
-        let list: ListResponse<T> = try await get(path, query)
+    private func getItems<T: Decodable>(
+        _ path: String, _ query: [URLQueryItem],
+        visitorTags: [AccessibilityFeature] = []
+    ) async throws -> [T] {
+        let list: ListResponse<T> = try await get(path, query, visitorTags: visitorTags)
         return list.items
     }
 
@@ -230,14 +241,16 @@ struct APIFeedService: FeedService {
                 .init(name: "limit", value: "\(FeedPage.placeSize)"),
                 .init(name: "offset", value: "\(page * FeedPage.placeSize)"),
             ]
-            // 고른 무장애 요소로 좁힌다. 서버가 모르는 축(`serverAccessGroup == nil`)만 빠진다 —
-            //  보내 봐야 서버가 무시하고, 무엇으로 좁혔는지 화면과 어긋나게 된다.
+            // 고른 무장애 요소로 좁힌다. 서버가 모르는 축만 빠진다 — 보내 봐야 서버가
+            //  무시하고, 무엇으로 좁혔는지 화면과 어긋나게 된다.
             //  ⚠️ 고령자는 이제 서버가 안다(2026-08-24) — 예전 주석이 "빠진다"고 적어 두었었다.
-            let groups = accessFeatures.compactMap(\.serverAccessGroup)
-            if !groups.isEmpty {
-                query.append(.init(name: "access", value: groups.joined(separator: ",")))
-            }
-            let dtos: [BarrierFreeDTO] = try await getItems("/v1/barrier-free", query)
+            //
+            // ⚠️ **쿼리(`access=`)에서 헤더로 옮겼다**(2026-09-07, 서버 052). 서버가 같은
+            //  헤더를 후기 정렬과 함께 받고 `visit_` 접두어를 떼고 본다 — 값은 그대로다.
+            //  왜 헤더인지는 `ModuwaAPI.visitorTagsHeader` 주석에 있다. 서버는 옛 쿼리도
+            //  아직 받지만(심사 중인 빌드가 쓴다) 새로 보내는 쪽은 헤더만 쓴다.
+            let dtos: [BarrierFreeDTO] = try await getItems(
+                "/v1/barrier-free", query, visitorTags: accessFeatures)
             let places: [Place] = dtos.compactMap { dto in
                 guard let id = dto.contentid, let name = dto.title?.trimmingCharacters(in: .whitespaces), !name.isEmpty,
                       // 목록을 좁힌 것과 **같은 기준**으로 뱃지·문구를 고른다.
@@ -484,16 +497,25 @@ struct APIFeedService: FeedService {
         return dtos.map(\.tag)
     }
 
-    func fetchReviews(sort: ReviewSort, page: Int) async throws -> [TravelReview] {
+    /// - Parameter accessFeatures: 보는 사람의 무장애 축. **추천 정렬에서만** 보낸다 —
+    ///   서버가 이 축과 겹치는 후기를 반응 수보다 앞에 세운다(서버 052).
+    ///
+    ///   최신순에는 보내지 않는다. "최신"이 최신이 아니면 거짓말이고, 서버도 `recommended`
+    ///   에만 적용한다(장소 후기 화면의 "좋아요 순"도 같은 이유로 빠져 있다 — 사용자가 직접
+    ///   고른 순서 앞에 우리가 키를 세우면 그 라벨도 거짓말이 된다).
+    func fetchReviews(
+        sort: ReviewSort, page: Int, accessFeatures: [AccessibilityFeature]
+    ) async throws -> [TravelReview] {
         do {
             let dtos: [ReviewDTO] = try await getItems("/v1/reviews", [
                 .init(name: "sort", value: sort == .recommended ? "recommended" : "latest"),
                 .init(name: "limit", value: "\(FeedPage.reviewSize)"),
                 .init(name: "offset", value: "\(page * FeedPage.reviewSize)"),
-            ])
+            ], visitorTags: sort == .recommended ? accessFeatures : [])
             return dtos.map(Self.travelReview)
         } catch {
-            return try await fallback.fetchReviews(sort: sort, page: page)
+            return try await fallback.fetchReviews(
+                sort: sort, page: page, accessFeatures: accessFeatures)
         }
     }
 

@@ -10,7 +10,9 @@ struct MockFeedService: FeedService {
         MockData.recommendedPlaces.page(page, size: FeedPage.placeSize)
     }
 
-    func fetchReviews(sort: ReviewSort, page: Int) async throws -> [TravelReview] {
+    func fetchReviews(
+        sort: ReviewSort, page: Int, accessFeatures: [AccessibilityFeature]
+    ) async throws -> [TravelReview] {
         let sorted: [TravelReview] = switch sort {
         case .recommended: Self.reviewPool
         case .latest: Self.reviewPool.sorted { $0.createdAt > $1.createdAt }

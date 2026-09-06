@@ -26,6 +26,28 @@ enum ModuwaAPI {
     /// 세션 토큰 헤더 이름. `Authorization` 은 이미 API 키가 쓰고 있어 겹칠 수 없다.
     static let sessionHeader = "X-Session-Token"
 
+    /// 보는 사람의 무장애 축을 싣는 헤더(서버 052).
+    ///
+    /// ⚠️ **쿼리스트링에 실으면 안 된다.** 서버 접속 로그에는 남지 않는 것을 서버팀이 프로브로
+    /// 확인했지만(쿼리는 버려지고 `srcIp` 만 남는다), URL 은 로그 말고도 새는 곳이 많다 —
+    /// 이슈에 붙는 curl 한 줄, 화면 캡처, 채팅에 붙여넣는 재현 절차. 전부 사람 손으로 옮겨진다.
+    /// 누가 디버깅하다 URL 을 티켓에 붙이면 **그 순간 한 사람의 장애 축이 트래커에 들어간다.**
+    /// 나중에 로거나 에러 추적 SDK 를 붙이는 날 조용히 새기 시작하는 것도 헤더가 막아 준다.
+    static let visitorTagsHeader = "x-visitor-tags"
+
+    /// 무장애 축을 헤더에 싣는다. 두 곳이 같은 헤더를 쓴다 —
+    /// 후기 추천 정렬(`GET /v1/reviews?sort=recommended`)과 장소 목록 좁히기
+    /// (`GET /v1/barrier-free`, 서버가 `visit_` 접두어를 떼고 본다).
+    ///
+    /// ⚠️ 서버는 **다섯 개까지만** 보고 그 뒤는 조용히 버린다(`slice(0, 5)`, 앞에서 자른다).
+    /// 축이 다섯뿐이라 지금은 걸릴 일이 없지만, 순서에 뜻을 담지 않는다.
+    static func attach(visitorTags features: [AccessibilityFeature], to request: inout URLRequest) {
+        // `flatPath`·`barrierFreeRoom` 은 방문 조건 태그가 없다 — 조용히 빠진다.
+        let codes = features.compactMap(\.visitorTagCode)
+        guard !codes.isEmpty else { return }
+        request.setValue(codes.joined(separator: ","), forHTTPHeaderField: visitorTagsHeader)
+    }
+
     static func url(_ path: String, _ query: [URLQueryItem] = []) -> URL {
         var components = URLComponents(url: baseURL.appending(path: path), resolvingAgainstBaseURL: false)!
         if !query.isEmpty { components.queryItems = query }

@@ -167,7 +167,8 @@ final class HomeViewModel {
         // 셋을 나란히 띄운다 — 서로를 기다릴 이유가 없다(`loadMoreFeed` 와 같은 판단).
         async let places = feedService.fetchRecommendedPlaces(
             category: selectedCategory, page: 0, accessFeatures: accessFeatures)
-        async let reviews = feedService.fetchReviews(sort: reviewSort, page: 0)
+        async let reviews = feedService.fetchReviews(
+            sort: reviewSort, page: 0, accessFeatures: accessFeatures)
         async let posts = postService.fetchPosts(
             mineOnly: false, likedOnly: false, contentId: nil,
             limit: FeedPage.postSize, offset: 0)
@@ -190,7 +191,8 @@ final class HomeViewModel {
         // TODO: API 연동 시 로딩/에러 상태 추가
         async let places = service.fetchRecommendedPlaces(
             category: selectedCategory, page: 0, accessFeatures: accessFeatures)
-        async let reviews = service.fetchReviews(sort: reviewSort, page: 0)
+        async let reviews = service.fetchReviews(
+            sort: reviewSort, page: 0, accessFeatures: accessFeatures)
         do {
             setPlaces(firstPage: try await places)
             setReviews(firstPage: try await reviews)
@@ -220,7 +222,8 @@ final class HomeViewModel {
 
     func selectSort(_ sort: ReviewSort, using service: any FeedService) async {
         reviewSort = sort
-        setReviews(firstPage: (try? await service.fetchReviews(sort: sort, page: 0)) ?? [])
+        setReviews(firstPage: (try? await service.fetchReviews(
+            sort: sort, page: 0, accessFeatures: accessFeatures)) ?? [])
     }
 
     // MARK: - 더 불러오기
@@ -258,7 +261,8 @@ final class HomeViewModel {
 
         // 바닥난 쪽은 부르지 않는다. 한쪽이 실패해도 다른 쪽은 이어 붙는다.
         async let moreReviews: [TravelReview]? = canLoadMoreReviews
-            ? try? await feedService.fetchReviews(sort: reviewSort, page: nextReviewPage)
+            ? try? await feedService.fetchReviews(
+                sort: reviewSort, page: nextReviewPage, accessFeatures: accessFeatures)
             : nil
         async let morePosts: [TravelPost]? = canLoadMorePosts
             ? try? await postService.fetchPosts(

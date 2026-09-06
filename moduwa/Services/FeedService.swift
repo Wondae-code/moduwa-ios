@@ -71,7 +71,13 @@ protocol FeedService: Sendable {
         category: PlaceCategory, page: Int, accessFeatures: [AccessibilityFeature]
     ) async throws -> [Place]
     /// `page`는 0부터. `FeedPage.reviewSize`보다 적게 반환되면 마지막 페이지다.
-    func fetchReviews(sort: ReviewSort, page: Int) async throws -> [TravelReview]
+    ///
+    /// - Parameter accessFeatures: 보는 사람의 무장애 축. **추천 정렬에서만** 쓰인다 —
+    ///   서버가 이 축과 겹치는 후기를 반응 수보다 앞에 세운다(052). 값은 헤더로 나간다
+    ///   (`ModuwaAPI.visitorTagsHeader` — 쿼리에 실으면 URL 을 타고 새어 나간다).
+    func fetchReviews(
+        sort: ReviewSort, page: Int, accessFeatures: [AccessibilityFeature]
+    ) async throws -> [TravelReview]
     /// 저장한 장소 목록 (`GET /v1/saved-places`) — 최근 저장한 순.
     /// 평점은 후기 집계라 `Place.rating`에 실려 온다(무장애 목록에는 그 값이 없다).
     /// - Parameter accessFeatures: 카드의 뱃지·한 줄 설명을 **고른 축 기준**으로 고르는 데 쓴다.

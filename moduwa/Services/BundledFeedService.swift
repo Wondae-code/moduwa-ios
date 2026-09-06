@@ -46,9 +46,12 @@ struct BundledFeedService: FeedService {
         }
     }
 
-    func fetchReviews(sort: ReviewSort, page: Int) async throws -> [TravelReview] {
+    func fetchReviews(
+        sort: ReviewSort, page: Int, accessFeatures: [AccessibilityFeature]
+    ) async throws -> [TravelReview] {
         // 백엔드에 리뷰/평점 데이터가 아직 없다 — 목으로 대체
-        try await MockFeedService().fetchReviews(sort: sort, page: page)
+        try await MockFeedService().fetchReviews(
+            sort: sort, page: page, accessFeatures: accessFeatures)
     }
 
     func fetchPlaceDetail(contentId: String) async throws -> PlaceDetail {
