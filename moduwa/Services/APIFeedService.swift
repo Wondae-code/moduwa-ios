@@ -548,6 +548,24 @@ struct APIFeedService: FeedService {
         }
     }
 
+    /// 내가 쓴 후기 (`GET /v1/reviews?mine=true`).
+    ///
+    /// ⚠️ **`fetchReviews` 와 달리 번들로 폴백하지 않는다.** 그쪽은 실패하면 번들 후기를
+    /// 돌려주는데, 여기서 그러면 **남이 쓴 후기가 "내 글" 로 뜬다.** 401 도 그대로 올려
+    /// 보낸다 — 호출부가 로그인 안내를 띄워야 한다(`get` 이 이미 `loginRequired` 로 바꾼다).
+    ///
+    /// 무장애 헤더를 싣지 않는다. 내 글을 시간순으로 보는 자리라 추천 점수가 낄 일이 없다.
+    func fetchMyReviews(page: Int) async throws -> [TravelReview] {
+        let dtos: [ReviewDTO] = try await getItems("/v1/reviews", [
+            .init(name: "mine", value: "true"),
+            // `mine` 은 내 글을 모아 보는 자리다 — 추천 점수가 아니라 최근 순이 맞다.
+            .init(name: "sort", value: "latest"),
+            .init(name: "limit", value: "\(FeedPage.reviewSize)"),
+            .init(name: "offset", value: "\(page * FeedPage.reviewSize)"),
+        ])
+        return dtos.map(Self.travelReview)
+    }
+
     // MARK: - 장소별 후기 (집계 · 목록 · 등록)
 
     private struct ReviewSummaryDTO: Decodable {

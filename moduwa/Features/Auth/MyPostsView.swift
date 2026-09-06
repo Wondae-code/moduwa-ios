@@ -1,7 +1,10 @@
 import SwiftUI
 
-/// 설정 → 내 게시글. 내가 쓴 여행 게시글만 최근 순으로 모아 본다
-/// (`GET /v1/posts?mine=true` — `PostService.fetchPosts(mineOnly:)`).
+/// 설정 → 내 게시글. 내가 쓴 **여행 게시글과 장소 후기**를 최근 순으로 섞어 모아 본다
+/// (`GET /v1/posts?mine=true` · `GET /v1/reviews?mine=true`).
+///
+/// 홈 피드와 같은 이유로 섞는다 — 따로 쌓으면 한쪽이 늘 위에 몰려 다른 쪽이 스크롤 아래로
+/// 밀리고, "내가 쓴 것" 이라는 한 묶음인데 둘로 갈려 보인다.
 ///
 /// 시안이 없다. 저장 탭의 "좋아요한 게시물"과 **같은 화면 문법**을 그대로 쓴다 —
 /// 같은 카드(`PostCard`), 같은 상태 네 가지(비로그인·로딩·실패·빈), 같은 여백. 내 글이라고
@@ -12,9 +15,11 @@ import SwiftUI
 /// 되돌릴 수 없는 일을 그렇게 가볍게 둘 수 없다.
 struct MyPostsView: View {
     @Environment(\.postService) private var postService
+    @Environment(\.feedService) private var feedService
     @Environment(PostInteractionSignal.self) private var postSignal
 
     @State private var posts: [TravelPost] = []
+    @State private var reviews: [TravelReview] = []
     @State private var isLoading = false
     @State private var loadFailed = false
     /// 한 번이라도 받아 봤는지. 새로고침이 실패했을 때 보고 있던 목록을 지우지 않으려고 본다.
@@ -62,7 +67,7 @@ struct MyPostsView: View {
         } else if loadFailed && !didLoad {
             failedRow
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        } else if visiblePosts.isEmpty {
+        } else if visibleItems.isEmpty {
             emptyRow
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         } else {
@@ -70,21 +75,54 @@ struct MyPostsView: View {
         }
     }
 
+    /// 게시글과 후기를 한 줄로 세운 목록. 홈 피드(`HomeFeedItem`)와 같은 모양이다.
+    private enum MyItem: Identifiable {
+        case post(TravelPost)
+        case review(TravelReview)
+
+        /// 두 종류의 id 가 겹치지 않게 접두사를 붙인다.
+        var id: String {
+            switch self {
+            case .post(let post): "post-\(post.id)"
+            case .review(let review): "review-\(review.id)"
+            }
+        }
+
+        var createdAt: Date {
+            switch self {
+            case .post(let post): post.createdAt
+            case .review(let review): review.createdAt
+            }
+        }
+    }
+
     /// 상세에서 지운 글은 곧바로 빠진다 — 목록을 다시 받지 않는다(스크롤 위치가 유지된다).
-    private var visiblePosts: [TravelPost] {
-        posts.filter { !postSignal.deletedPostIDs.contains($0.id) }
+    private var visibleItems: [MyItem] {
+        let livePosts = posts
+            .filter { !postSignal.deletedPostIDs.contains($0.id) }
+            .map(MyItem.post)
+        return (livePosts + reviews.map(MyItem.review))
+            .sorted { $0.createdAt > $1.createdAt }
     }
 
     private var list: some View {
         ScrollView {
             LazyVStack(spacing: 16) {
-                ForEach(visiblePosts) { post in
-                    NavigationLink {
-                        PostDetailView(post: post)
-                    } label: {
-                        PostCard(post: post)
+                ForEach(visibleItems) { item in
+                    switch item {
+                    case .post(let post):
+                        NavigationLink {
+                            PostDetailView(post: post)
+                        } label: {
+                            PostCard(post: post)
+                        }
+                        .buttonStyle(.plain)
+                    case .review(let review):
+                        NavigationLink(value: review) {
+                            ReviewCard(review: review)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, 24)
@@ -148,13 +186,21 @@ struct MyPostsView: View {
         loadFailed = false
         requiresSignIn = false
         do {
-            // 저장 탭의 좋아요 목록과 같은 창(30건). 서버가 최근 글부터 준다.
-            posts = try await postService.fetchPosts(
+            // 게시글과 후기를 **함께** 받는다 — 하나씩 기다리면 화면이 두 번 늘어난다.
+            //  둘 다 로그인이 필요하고 401 도 같은 뜻이라, 어느 쪽이 던지든 아래 catch 가 받는다.
+            async let loadedPosts = postService.fetchPosts(
+                // 저장 탭의 좋아요 목록과 같은 창(30건). 서버가 최근 글부터 준다.
                 mineOnly: true, likedOnly: false, contentId: nil, limit: 30, offset: 0)
+            async let loadedReviews = feedService.fetchMyReviews(page: 0)
+
+            posts = try await loadedPosts
+            reviews = try await loadedReviews
             didLoad = true
-        } catch PostServiceError.loginRequired, PostServiceError.sessionExpired {
+        } catch PostServiceError.loginRequired, PostServiceError.sessionExpired,
+                FeedServiceError.loginRequired, FeedServiceError.sessionExpired {
             // 로그아웃한 기기는 비어야 한다 — 이전 계정의 글이 남아 보이면 안 된다.
             posts = []
+            reviews = []
             didLoad = false
             requiresSignIn = true
         } catch {
@@ -171,6 +217,7 @@ struct MyPostsView: View {
         MyPostsView()
     }
     .environment(\.postService, MockPostService())
+    .environment(\.feedService, MockFeedService())
     .environment(SessionStore(service: MockAuthService()))
     .environment(PostInteractionSignal())
 }

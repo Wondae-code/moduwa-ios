@@ -78,6 +78,16 @@ protocol FeedService: Sendable {
     func fetchReviews(
         sort: ReviewSort, page: Int, accessFeatures: [AccessibilityFeature]
     ) async throws -> [TravelReview]
+    /// 내가 쓴 후기 (`GET /v1/reviews?mine=true`, 서버 2026-09-07).
+    ///
+    /// ⚠️ **비로그인이면 `loginRequired` 를 던진다 — 빈 배열이 아니다.** 서버가 401 로 가른
+    /// 이유가 그것이다: 빈 목록으로 주면 "로그인이 안 됐다" 와 "쓴 후기가 없다" 가 화면에서
+    /// 똑같이 보이고, 보는 사람은 자기 글이 사라졌다고 읽는다.
+    ///
+    /// ⚠️ **번들로 폴백하지 않는다.** `fetchReviews` 는 실패하면 번들 후기를 주는데, 여기서
+    /// 그러면 **남이 쓴 후기가 "내 글" 로 뜬다.**
+    func fetchMyReviews(page: Int) async throws -> [TravelReview]
+
     /// 저장한 장소 목록 (`GET /v1/saved-places`) — 최근 저장한 순.
     /// 평점은 후기 집계라 `Place.rating`에 실려 온다(무장애 목록에는 그 값이 없다).
     /// - Parameter accessFeatures: 카드의 뱃지·한 줄 설명을 **고른 축 기준**으로 고르는 데 쓴다.
@@ -220,6 +230,10 @@ extension FeedService {
 /// 목록은 빈 배열이 맞다(저장한 것이 없다). 쓰기는 조용히 성공시키지 않고 던진다 —
 /// 오프라인에서 저장 버튼이 눌린 것처럼 보이면 사용자는 저장됐다고 믿고 앱을 닫는다.
 extension FeedService {
+    /// 서버가 아닌 소스(번들·목)에는 **"내 것" 이라는 개념이 없다** — 계정이 없으니 빈 목록이다.
+    /// 던지지 않는 이유: 여기서 `loginRequired` 를 던지면 프리뷰가 로그인 화면으로 바뀐다.
+    func fetchMyReviews(page: Int) async throws -> [TravelReview] { [] }
+
     func fetchSavedPlaces(accessFeatures: [AccessibilityFeature]) async throws -> [Place] { [] }
 
     func setPlaceSaved(contentId: String, _ saved: Bool) async throws {
