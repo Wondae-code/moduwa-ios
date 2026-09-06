@@ -441,18 +441,27 @@ private struct PlanCard: View {
 private struct UpcomingPlanCard: View {
     let plan: Plan
 
+    /// 사진 표지인지 — 아니면 회색 기본 표지다(`PlanCoverPlaceholder`).
+    /// 스크림과 글자색이 여기서 갈린다.
+    private var hasPhoto: Bool { plan.cardImageURL != nil }
+
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             cover
 
             // 사진 위 흰 글씨의 가독성을 사진에 맡기지 않는다 — 밝은 사진에서도 읽혀야 한다.
-            LinearGradient(
-                colors: [.black.opacity(0), .black.opacity(0.55)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: 103)
-            .frame(maxHeight: .infinity, alignment: .bottom)
+            //
+            // ⚠️ **회색 기본 표지에는 걷는다.** 밝은 회색을 어둡게 만들어 딥그린 글자의
+            //  대비를 오히려 깎는다 — 스크림 없이 14:1 이다(`PlanCoverPlaceholder` 주석).
+            if hasPhoto {
+                LinearGradient(
+                    colors: [.black.opacity(0), .black.opacity(0.55)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 103)
+                .frame(maxHeight: .infinity, alignment: .bottom)
+            }
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(plan.title)
@@ -463,7 +472,7 @@ private struct UpcomingPlanCard: View {
                     .font(.notoSans(14, .regular, relativeTo: .subheadline))
                     .tracking(-0.4)
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(hasPhoto ? .white : Color.textPrimary)
             .multilineTextAlignment(.leading)
             .padding(.leading, 27)
             .padding(.bottom, 22)
@@ -496,9 +505,9 @@ private struct UpcomingPlanCard: View {
                         Color.photoPlaceholder
                     }
                 } else {
-                    // 담긴 장소에 사진이 하나도 없을 때의 기본 표지. **사진이 아니라 브랜드
-                    //  무늬다** — 왜 사진을 쓰지 않는지는 `BrandCoverPattern` 주석에 있다.
-                    BrandCoverPattern()
+                    // 담긴 장소에 사진이 하나도 없을 때의 기본 표지. **사진을 쓰지 않는**
+                    //  이유는 `PlanCoverPlaceholder` 주석에 있다.
+                    PlanCoverPlaceholder()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

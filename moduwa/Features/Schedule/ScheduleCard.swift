@@ -30,10 +30,16 @@ struct ScheduleCard: View {
             .map { (number: $0.offset + 1, places: $0.element.placeNames) }
     }
 
+    /// 사진 표지인지 — 아니면 회색 기본 표지다(`PlanCoverPlaceholder`).
+    /// 흐림·스크림과 글자색이 여기서 갈린다.
+    private var hasPhoto: Bool { plan.cardImageURL != nil }
+
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             background
-            scrim
+            // ⚠️ **회색 기본 표지에는 스크림을 걷는다.** 밝은 회색을 어둡게 만들어 딥그린
+            //  글자의 대비를 오히려 깎는다 — 스크림 없이 14:1 이다(`PlanCoverPlaceholder` 주석).
+            if hasPhoto { scrim }
             content
         }
         .frame(height: Self.height)
@@ -66,9 +72,10 @@ struct ScheduleCard: View {
                         Color.photoPlaceholder
                     }
                 } else {
-                    // 담긴 장소에 사진이 하나도 없을 때의 기본 표지. **사진이 아니라 브랜드
-                    //  무늬다** — 왜 사진을 쓰지 않는지는 `BrandCoverPattern` 주석에 있다.
-                    layered { BrandCoverPattern() }
+                    // 담긴 장소에 사진이 하나도 없을 때의 기본 표지. **사진을 쓰지 않는**
+                    //  이유는 `PlanCoverPlaceholder` 주석에 있다.
+                    // 한 색이라 흐린 사본을 겹칠 것이 없다 — 그대로 채운다.
+                    PlanCoverPlaceholder()
                 }
             }
             .clipped()
@@ -78,8 +85,8 @@ struct ScheduleCard: View {
     /// 표지와 **흐린 사본**을 겹친 한 장. 받아 온 사진과 기본 무늬가 같은 처리를 받게
     /// 한 곳으로 모은다 — 두 번 적으면 한쪽만 바뀐다.
     ///
-    /// `Image` 가 아니라 뷰를 받는다 — 기본 표지가 사진에서 **그리는 무늬**
-    /// (`BrandCoverPattern`)로 바뀌면서 둘의 타입이 갈렸기 때문이다.
+    /// `Image` 가 아니라 뷰를 받는다 — 기본 표지가 사진에서 **색**
+    /// (`PlanCoverPlaceholder`)으로 바뀌면서 둘의 타입이 갈렸기 때문이다.
     private func layered<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         let cover = content()
         return ZStack {
@@ -148,13 +155,14 @@ struct ScheduleCard: View {
                     if dayLines.count > Self.visibleDayCount {
                         Text("…")
                             .font(.notoSans(14, .regular, relativeTo: .subheadline))
-                            .foregroundStyle(.white.opacity(0.85))
+                            .foregroundStyle((hasPhoto ? Color.white : .textPrimary)
+                                .opacity(0.85))
                     }
                 }
                 .padding(.top, 14)
             }
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(hasPhoto ? .white : Color.textPrimary)
         .padding(.horizontal, 27)
         .padding(.bottom, 19)
         .frame(maxWidth: .infinity, alignment: .leading)
