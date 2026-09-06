@@ -9,6 +9,8 @@ struct PlaceDetailView: View {
     @Environment(SessionStore.self) private var session
     @Environment(\.blockService) private var blockService
     @Environment(\.blockSignal) private var blockSignal
+    /// 후기를 쓰면 홈 피드에도 알린다 — 쓰는 화면과 싣는 화면이 다르다.
+    @Environment(PostInteractionSignal.self) private var postSignal
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -109,8 +111,12 @@ struct PlaceDetailView: View {
                 placeAddress: detail?.address ?? place.region,
                 contentId: place.id,
                 initialRating: entryRating,
-                // 등록이 서버에서 성공한 뒤에만 불린다 — 집계·목록을 처음부터 다시 받는다
-                onSubmit: { _ in Task { await loadReviews(reset: true) } }
+                // 등록이 서버에서 성공한 뒤에만 불린다 — 집계·목록을 처음부터 다시 받고,
+                //  같은 후기를 싣는 홈 피드에도 알린다(`PostInteractionSignal`).
+                onSubmit: { _ in
+                    postSignal.reviewWritten()
+                    Task { await loadReviews(reset: true) }
+                }
             )
         }
         .sheet(isPresented: $isAddingToPlan) {
@@ -1042,6 +1048,7 @@ struct PlaceDetailView: View {
     }
     .environment(SavedPlacesStore(service: MockFeedService()))
     .environment(SessionStore(service: MockAuthService()))
+    .environment(PostInteractionSignal())
 }
 
 #Preview("후기 없는 장소") {
@@ -1051,6 +1058,7 @@ struct PlaceDetailView: View {
     }
     .environment(SavedPlacesStore(service: MockFeedService()))
     .environment(SessionStore(service: MockAuthService()))
+    .environment(PostInteractionSignal())
 }
 
 #Preview("큰 글자 (AX3)") {
@@ -1060,6 +1068,7 @@ struct PlaceDetailView: View {
     .environment(\.dynamicTypeSize, .accessibility3)
     .environment(SavedPlacesStore(service: MockFeedService()))
     .environment(SessionStore(service: MockAuthService()))
+    .environment(PostInteractionSignal())
 }
 
 /// 프리뷰 전용 — 상세는 목 그대로 두고 후기·추천만 비운다.

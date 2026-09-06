@@ -87,8 +87,12 @@ struct PlaceReviewsView: View {
                 placeAddress: placeAddress,
                 contentId: contentId,
                 initialRating: entryRating,
-                // 서버 등록이 성공한 뒤에만 불린다 — 집계·목록을 처음부터 다시 받는다
-                onSubmit: { _ in Task { await load(reset: true, refreshSummary: true) } }
+                // 서버 등록이 성공한 뒤에만 불린다 — 집계·목록을 처음부터 다시 받고,
+                //  같은 후기를 싣는 홈 피드에도 알린다(`PostInteractionSignal`).
+                onSubmit: { _ in
+                    postSignal.reviewWritten()
+                    Task { await load(reset: true, refreshSummary: true) }
+                }
             )
         }
     }

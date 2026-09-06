@@ -43,7 +43,16 @@ final class HomeViewModel {
     /// 서로 다르기 때문이다(리뷰는 정렬 옵션이 있고 게시글은 최신순뿐이다).
     private(set) var posts: [TravelPost] = []
     private(set) var selectedCategory: PlaceCategory = .stay
-    private(set) var reviewSort: ReviewSort = .recommended
+    /// 홈 피드의 정렬. **기본값이 최신순**이다.
+    ///
+    /// 예전 기본값은 `.recommended`(좋아요+댓글) 였는데, 반응이 붙는 데는 시간이 걸리므로
+    /// 그 정렬의 첫 페이지는 늘 **오래된 글**로 채워진다. 실측(2026-09-06): 추천순 첫 5건이
+    /// 전부 두 달 전(6월 말~7월 중) 후기였고, 그날 쓴 후기는 반응이 0 이라 12건 중 뒤로
+    /// 밀려 첫 페이지에 아예 없었다. 앱을 처음 켠 사람이 두 달 전 글을 보게 된다
+    /// (2026-09-06 QA #4 "최신 피드 안 가져옴"의 직접 원인).
+    ///
+    /// 추천순은 피커에 그대로 남는다 — 없앤 것이 아니라 **기본값만** 바꿨다.
+    private(set) var reviewSort: ReviewSort = .latest
 
     // 페이지네이션 상태
     private(set) var canLoadMorePlaces = false
@@ -95,10 +104,32 @@ final class HomeViewModel {
             mineOnly: false, likedOnly: false,
             contentId: nil, limit: FeedPage.postSize, offset: 0)
         else { return }
-        posts = fresh
-        postsPage = 0
-        canLoadMorePosts = fresh.count == FeedPage.postSize
+        setPosts(firstPage: fresh)
     }
+
+    /// 당겨서 새로 고침 — 화면의 세 목록(추천 장소·후기·게시글)을 **모두** 처음부터 다시 받는다.
+    ///
+    /// 홈에는 다시 받을 길이 없었다. `.task` 는 화면으로 돌아올 때 다시 돌지 않고, 게시글만
+    /// 플로팅 버튼이 쓰고 온 뒤에 다시 받았다(`WriteFloatingButton.onPosted`) — **후기는
+    /// 장소 상세에서 쓰는데 홈이 그것을 알 방법이 없어서** 앱을 다시 켜야 보였다.
+    /// 저장·내 글·차단 목록에는 이미 있는 동작을 홈에도 준다.
+    ///
+    /// ⚠️ **실패한 목록은 지우지 않는다** — `loadPosts` 와 같은 이유다. 새로 고치려고 당겼는데
+    /// 그 순간 네트워크가 흔들리면 보고 있던 목록이 통째로 사라진다.
+    func refresh(feedService: any FeedService, postService: any PostService) async {
+        // 셋을 나란히 띄운다 — 서로를 기다릴 이유가 없다(`loadMoreFeed` 와 같은 판단).
+        async let places = feedService.fetchRecommendedPlaces(
+            category: selectedCategory, page: 0, accessFeatures: accessFeatures)
+        async let reviews = feedService.fetchReviews(sort: reviewSort, page: 0)
+        async let posts = postService.fetchPosts(
+            mineOnly: false, likedOnly: false, contentId: nil,
+            limit: FeedPage.postSize, offset: 0)
+
+        if let fresh = try? await places { setPlaces(firstPage: fresh) }
+        if let fresh = try? await reviews { setReviews(firstPage: fresh) }
+        if let fresh = try? await posts { setPosts(firstPage: fresh) }
+    }
+
     private var isLoadingMorePlaces = false
 
     /// 로그인한 사람이 고른 무장애 요소. 추천 목록을 이 조건으로 좁힌다.
@@ -209,6 +240,12 @@ final class HomeViewModel {
         places = firstPage
         placesPage = 0
         canLoadMorePlaces = firstPage.count == FeedPage.placeSize
+    }
+
+    private func setPosts(firstPage: [TravelPost]) {
+        posts = firstPage
+        postsPage = 0
+        canLoadMorePosts = firstPage.count == FeedPage.postSize
     }
 
     private func setReviews(firstPage: [TravelReview]) {

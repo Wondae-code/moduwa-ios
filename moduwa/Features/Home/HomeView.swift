@@ -55,6 +55,12 @@ struct HomeView: View {
                     }
                 }
                 .background(.white)
+                // 홈에는 다시 받을 길이 없었다 — `.task` 는 돌아올 때 다시 돌지 않고,
+                //  후기는 장소 상세에서 쓰기 때문에 홈이 그 일을 알지 못했다(QA #4).
+                //  저장·내 글·차단 목록에 이미 있는 동작을 홈에도 준다.
+                .refreshable {
+                    await viewModel.refresh(feedService: feedService, postService: postService)
+                }
             }
             .toolbar(.hidden, for: .navigationBar)
             // 시안 "01. 메인화면"의 Write Button(652:3399) — 우하단 라임 원.
@@ -97,6 +103,12 @@ struct HomeView: View {
             Button("확인") { placeLinkRouter.notice = nil }
         } message: {
             Text(placeLinkRouter.notice ?? "")
+        }
+        // 장소 상세에서 후기를 썼다 — 같은 후기를 싣는 이 피드도 다시 받는다.
+        //  게시글에는 이 길이 이미 있다(`WriteFloatingButton.onPosted`).
+        .task(id: postSignal.reviewRevision) {
+            guard postSignal.reviewRevision > 0 else { return }
+            await viewModel.refresh(feedService: feedService, postService: postService)
         }
         // 차단하면 그 사람의 글이 응답에서 빠진다 — 다시 받아야 화면에서도 사라진다.
         .task(id: blockSignal.revision) {

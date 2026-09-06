@@ -26,4 +26,16 @@ final class PostInteractionSignal {
 
     /// 게시글 삭제가 성공했을 때 부른다.
     func postDeleted(id: String) { deletedPostIDs.insert(id) }
+
+    /// 방문 후기가 올라갈 때마다 오른다. 좋아요와 같은 뜻의 신호다("바뀌었다").
+    ///
+    /// 후기는 **장소 상세**에서 쓰는데 홈 피드도 같은 후기를 싣는다 — 홈은 그 일이
+    /// 일어난 것을 알 방법이 없어서, 쓰고 돌아와도 방금 쓴 후기가 안 보였다(앱을 다시
+    /// 켜야 보였다. 2026-09-06 QA #4). 게시글은 플로팅 버튼이 콜백으로 알려 주지만
+    /// (`WriteFloatingButton.onPosted`) 후기에는 그 길이 없다 — 쓰는 화면과 싣는 화면이
+    /// 서로를 모르므로 여기서 방송한다.
+    private(set) var reviewRevision = 0
+
+    /// 후기 등록이 **서버에서 성공한 뒤에** 부른다.
+    func reviewWritten() { reviewRevision += 1 }
 }
