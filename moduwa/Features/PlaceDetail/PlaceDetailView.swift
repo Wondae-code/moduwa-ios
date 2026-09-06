@@ -491,16 +491,16 @@ struct PlaceDetailView: View {
         return lines
     }
 
-    /// 지금 읽고 있는 줄인가. 글자 단위가 아니라 **줄 단위로 짚는다** —
-    /// 섹션의 각 줄이 조각 하나라서 이 편이 눈으로 따라가기 쉽다.
-    private func isSpeaking(_ section: SpeechSection, line index: Int) -> Bool {
-        reader.isReading(speechID(section)) && reader.segment == index
-    }
-
-    /// 섹션 제목 + 읽어주기(시안 26×26 프레임에 22×22 아이콘).
+    /// 섹션 제목 + 읽어주기.
     ///
-    /// 읽는 중에는 딥그린 원을 채우고 아이콘을 희게 뒤집는다 — 시안에 "읽는 중" 상태가
-    /// 없어서, 같은 화면의 추가정보 뱃지(딥그린 원 + 흰 픽토그램)와 같은 말을 쓴다.
+    /// **읽는 중에는 헤드폰이 파형으로 바뀌고 딥그린 원이 34pt 로 커진다**(2026-09-06 QA #1).
+    /// 시안에는 "읽는 중" 상태가 없어서, 원은 같은 화면의 추가정보 뱃지(딥그린 원 + 흰
+    /// 픽토그램)와 같은 말을 쓰고 크기도 그것과 맞췄다.
+    ///
+    /// 파형은 애플 기본 심볼 `waveform` 이다 — 시안 에셋이 없고(피그마 `Asset_Icon` 에도,
+    /// 헤드폰이 온 아이콘 라이브러리에도 파형이 없다), 그 대신 `symbolEffect(.variableColor)`
+    /// 로 **소리가 나는 동안 실제로 막대가 움직인다.** 멈춰 있는 그림보다 "지금 읽고 있다"를
+    /// 더 정확히 말한다.
     private func sectionHeader(_ section: SpeechSection, segments: [String]) -> some View {
         let id = speechID(section)
         let isReading = reader.isReading(id)
@@ -517,19 +517,29 @@ struct PlaceDetailView: View {
                 Button {
                     reader.toggle(segments, id: id)
                 } label: {
-                    Image("detail_tts")
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 22, height: 22)
-                        .foregroundStyle(isReading ? .white : .textPrimary)
-                        .frame(width: 26, height: 26)
-                        .background {
-                            if isReading { Circle().fill(Color.deepGreen) }
+                    Group {
+                        if isReading {
+                            Image(systemName: "waveform")
+                                .font(.system(size: 19, weight: .medium))
+                                .symbolEffect(.variableColor.iterative, options: .repeating)
+                        } else {
+                            Image("detail_tts")
+                                .renderingMode(.template)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 22, height: 22)
                         }
-                        // 26pt 글리프는 44pt 터치 영역에 못 미친다 — 영역만 넓힌다.
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
+                    }
+                    .foregroundStyle(isReading ? .white : .textPrimary)
+                    // 읽는 중에만 원이 생기므로 자리는 늘 34pt 로 잡아 둔다 —
+                    //  켤 때 제목이 밀리지 않게.
+                    .frame(width: 34, height: 34)
+                    .background {
+                        if isReading { Circle().fill(Color.deepGreen) }
+                    }
+                    // 34pt 는 44pt 터치 영역에 못 미친다 — 영역만 넓힌다.
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(isReading ? "읽기 멈추기" : "\(section.title) 읽어주기")
@@ -631,7 +641,6 @@ struct PlaceDetailView: View {
                                 .foregroundStyle(.textSecondary)
                         }
                     }
-                    .speakingLine(isSpeaking(.info, line: index))
                 }
             }
         }
@@ -694,7 +703,6 @@ struct PlaceDetailView: View {
                         .tracking(-0.4)
                         .foregroundStyle(.textSecondary)
                         .lineSpacing(4)
-                        .speakingLine(isSpeaking(.access, line: index))
                 }
             }
 
@@ -712,7 +720,6 @@ struct PlaceDetailView: View {
                     }
                 }
                 .padding(.top, 8)
-                .speakingLine(isSpeaking(.access, line: (detail?.accessibilityNotes ?? []).count))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1098,23 +1105,4 @@ private struct EmptyReviewPreviewService: FeedService {
         )
     }
     // 나머지(집계·목록·추천)는 프로토콜 기본 구현 = "이 소스에는 데이터 없음"
-}
-
-/// 지금 소리로 읽고 있는 줄을 짚어 준다.
-///
-/// 글자 단위가 아니라 **줄 단위**다 — 섹션의 각 줄이 낭독 조각 하나라서, 눈으로 따라가기에는
-/// 이 편이 낫다. 색만으로 알리지 않도록 배경과 함께 좌우 여백을 줘 자리 자체가 움직여 보인다.
-private extension View {
-    @ViewBuilder
-    func speakingLine(_ isOn: Bool) -> some View {
-        if isOn {
-            padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(RoundedRectangle(cornerRadius: 6).fill(Color.moduwaGreen.opacity(0.35)))
-                .padding(.horizontal, -6)
-                .padding(.vertical, -2)
-        } else {
-            self
-        }
-    }
 }

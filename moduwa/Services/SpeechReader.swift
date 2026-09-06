@@ -22,17 +22,14 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
     /// 지금 읽고 있는 화면의 식별자(장소 contentId 등). 화면마다 버튼이 있으므로 이 값으로
     /// "내가 읽는 중인가"를 가른다 — 다른 장소로 넘어가서 누르면 앞의 낭독은 멈춘다.
     private(set) var readingID: String?
-    /// 지금 읽는 조각의 번호. 화면이 이 값으로 어느 문단을 강조할지 정한다.
-    private(set) var segment: Int?
-    /// 그 조각 안에서 지금 읽는 글자 범위. 강조 표시에 쓴다.
-    private(set) var range: NSRange?
-
     private let synthesizer = AVSpeechSynthesizer()
-    /// 말할 차례를 기다리는 발화들. 콜백이 준 `utterance` 로 조각 번호를 되찾는다.
+    /// 말할 차례를 기다리는 발화들. **마지막 것이 끝났는지**를 알기 위해 들고 있다
+    /// (`didFinish` — 중간 조각의 완료는 아직 읽는 중이다).
     ///
-    /// ⚠️ 번호를 **함께 들고 다닌다.** 빈 조각을 걸러 내면 배열 위치가 밀려서, 화면이 아는
-    /// 번호(설명은 몇 번째인가)와 어긋난다 — 엉뚱한 문단이 강조된다.
-    private var utterances: [(index: Int, utterance: AVSpeechUtterance)] = []
+    /// 예전에는 조각 번호를 함께 들고 다녔다. 읽는 줄에 연두색 띠를 그리려고 화면이 그
+    /// 번호를 봤는데, 그 띠를 없애면서(2026-09-06 QA #1) 번호를 쓸 데가 없어졌다.
+    /// 지금 "읽고 있다"는 섹션 제목 옆 파형이 말한다.
+    private var utterances: [AVSpeechUtterance] = []
 
     private override init() {
         super.init()
@@ -54,9 +51,8 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
     func speak(_ texts: [String], id: String) {
         stop()
 
-        let cleaned = texts.enumerated()
-            .map { (index: $0.offset, text: SpeechText.cleaned($0.element)) }
-            .filter { !$0.text.isEmpty }
+        // 빈 조각은 버린다 — 홈페이지처럼 소리로 읽을 수 없는 값은 호출부가 빈 문자열로 준다.
+        let cleaned = texts.map(SpeechText.cleaned).filter { !$0.isEmpty }
         guard !cleaned.isEmpty else { return }
 
         // ⚠️ **`.playback` 으로 열지 않으면 무음 스위치를 내린 기기에서 소리가 나지 않는다.**
@@ -67,15 +63,15 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
         try? session.setActive(true)
 
         readingID = id
-        utterances = cleaned.map { piece in
-            let utterance = AVSpeechUtterance(string: piece.text)
+        utterances = cleaned.map { text in
+            let utterance = AVSpeechUtterance(string: text)
             utterance.voice = AVSpeechSynthesisVoice(language: "ko-KR")
             utterance.rate = AccessibilitySettings.shared.speechRate.value
             // 조각 사이에 숨을 둔다 — 이름과 주소가 한 문장처럼 붙어 들리지 않게.
             utterance.postUtteranceDelay = 0.35
-            return (piece.index, utterance)
+            return utterance
         }
-        utterances.forEach { synthesizer.speak($0.utterance) }
+        utterances.forEach(synthesizer.speak)
     }
 
     func stop() {
@@ -91,8 +87,6 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
 
     private func finish() {
         readingID = nil
-        segment = nil
-        range = nil
         utterances = []
         // 남의 음악을 다시 키워 준다. 이 알림 없이 끄면 볼륨이 줄어든 채로 남는다.
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
@@ -100,18 +94,9 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
 
     // MARK: - AVSpeechSynthesizerDelegate
 
-    func speechSynthesizer(
-        _ synthesizer: AVSpeechSynthesizer,
-        willSpeakRangeOfSpeechString characterRange: NSRange,
-        utterance: AVSpeechUtterance
-    ) {
-        segment = utterances.first { $0.utterance === utterance }?.index
-        range = characterRange
-    }
-
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
         // 마지막 조각까지 끝났을 때만 정리한다 — 중간 조각의 완료는 아직 읽는 중이다.
-        guard utterances.last?.utterance === utterance else { return }
+        guard utterances.last === utterance else { return }
         finish()
     }
 
@@ -125,10 +110,11 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
 /// 눈으로 읽을 때는 아무렇지 않은 기호가 소리로는 잡음이 된다 — 관광공사 원문에 흔한
 /// `※`, 가운뎃점, 줄바꿈이 그렇다.
 ///
-/// ⚠️ **글자 수를 바꾸지 않는다.** 한 글자를 한 글자로만 바꾼다(지우거나 합치지 않는다).
-/// 낭독기가 알려 주는 위치(`willSpeakRangeOfSpeechString`)는 **읽는 글 기준의 UTF-16
-/// 오프셋**인데, 화면은 원문을 그리고 있다. 여기서 길이가 달라지면 강조가 몇 글자씩 밀려
-/// 엉뚱한 자리를 덮는다. 공백을 줄이거나 줄을 합치고 싶어지지만, 그 대가가 이것이다.
+/// 지금은 **한 글자를 한 글자로만** 바꾼다(지우거나 합치지 않는다). 예전에는 그래야 했다 —
+/// 읽는 줄에 연두색 띠를 그릴 때 낭독기가 주는 위치(`willSpeakRangeOfSpeechString`)가 읽는 글
+/// 기준의 UTF-16 오프셋인데 화면은 원문을 그리고 있어서, 길이가 달라지면 강조가 밀렸다.
+/// **그 띠를 없애면서(2026-09-06 QA #1) 길이를 맞출 의무는 사라졌다** — 다만 지금 바꾸는 것들은
+/// 어차피 1:1 이라 규칙을 굳이 흔들지 않는다. 공백을 줄이거나 줄을 합치는 것은 이제 해도 된다.
 enum SpeechText {
     static func cleaned(_ raw: String) -> String {
         var text = raw
