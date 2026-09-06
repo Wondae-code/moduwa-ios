@@ -1,24 +1,19 @@
 import SwiftUI
 
-/// 태그 아이콘. **`icon`이 nil인 태그가 있다**(반려동물·가성비·친절·주차) —
-/// 브랜드 에셋이 없다는 뜻이므로 임의의 SF Symbol로 메우지 않고 아무것도 그리지 않는다.
-/// (기존 무장애 뱃지 아이콘과 결이 다른 글리프가 섞이면 태그 줄이 통일감을 잃는다)
-struct ReviewTagIcon: View {
-    let icon: String?
-    var size: CGFloat = 14
-
-    var body: some View {
-        if let icon {
-            Image(icon)
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: size, height: size)
-                // 아이콘은 옆 텍스트와 같은 뜻이라 따로 읽히면 중복이다
-                .accessibilityHidden(true)
-        }
-    }
-}
+// 태그 아이콘(`ReviewTagIcon`)은 **셋 다에서 뺐다**(2026-09-07 QA #12 + 요청).
+//
+//  서버가 내려주는 여덟 개 장소 평가 태그 중 **넷만 아이콘이 있다** — `pet`·`value`·`kind`·
+//  `parking` 이 `icon: null` 이다. 그래서 어느 자리에서든 어떤 줄은 글자 앞이 비고 어떤 줄은
+//  안 비었다. 아이콘이 **뜻을 더하는 게 아니라 에셋이 있고 없고를 드러내고** 있었다.
+//
+//  없는 넷을 아무 SF Symbol 로 메우는 길은 처음부터 막혀 있다 — 옆의 납작한 딥그린 픽토그램과
+//  결이 다른 글리프가 섞이면 줄이 통일감을 잃고, 무장애 아이콘은 브랜드 가이드에서만 가져온다.
+//  브랜드 가이드에 반려동물·가성비·친절·주차 그림이 없어서 넷을 채우려면 새로 그려야 한다.
+//
+//  ⚠️ **되돌릴 때는 넷이 다 있어야 한다.** 하나만 오면 그 줄만 맞고 나머지 셋이 그대로
+//  어긋난다 — 지금과 같은 상태로 돌아갈 뿐이다. 순서도 있다: **앱 에셋 먼저, 서버
+//  `review_tag_defs.icon` 나중.** 반대로 하면 서버가 이름을 보내는데 앱에 그림이 없다.
+//  (아이콘 뷰 자체는 이 커밋 이전 판에 있다 — 15줄이라 다시 쓰는 편이 빠를 수도 있다.)
 
 /// 후기 작성 화면의 다중 선택 칩.
 ///
@@ -28,14 +23,7 @@ struct ReviewTagIcon: View {
 /// 셋 중 하나만 남아도 무엇이 골라졌는지 알 수 있어야 한다.
 /// (체크 글리프도 신호였지만 칩 폭을 바꿔 줄 전체를 밀어내서 뺐다 — 남은 두 신호로 형태 구분은 유지된다)
 ///
-/// **아이콘을 그리지 않는다**(2026-09-07 QA #12). 장소 평가 태그 여덟 중 **넷만 아이콘이 있어서**
-/// (반려동물·가성비·친절·주차가 `icon: null`) 칩 줄이 들쭉날쭉했다 — 어떤 칩은 글자 앞이 비고
-/// 어떤 칩은 안 비니, 아이콘이 뜻을 더하는 게 아니라 **에셋이 있고 없고를 드러내고** 있었다.
-/// 없는 넷을 채우는 길도 있었지만 `ReviewTagIcon` 주석의 판단이 그대로 걸린다(결이 다른 글리프를
-/// 끼워 넣지 않는다). 그래서 넷을 채우는 대신 넷을 뺐다.
-///
-/// ⚠️ **읽히는 자리(`ReviewTagBadge`)와 집계 막대(`ReviewTagCountBar`)는 그대로 둔다** —
-/// 거기는 태그가 한두 개씩만 나와 줄이 흔들릴 일이 없고, 좁은 자리라 아이콘이 실제로 도움이 된다.
+/// **아이콘을 그리지 않는다** — 파일 맨 위 설명 참고(넷만 에셋이 있어서 줄이 어긋났다).
 struct ReviewTagSelectChip: View {
     let tag: ReviewTag
     let isSelected: Bool
@@ -73,23 +61,20 @@ struct ReviewTagBadge: View {
     let tag: ReviewTag
 
     var body: some View {
-        HStack(spacing: 3) {
-            ReviewTagIcon(icon: tag.icon, size: 12)
-            Text(tag.shortLabel)
-                .font(.notoSans(11, .medium))
-        }
-        .foregroundStyle(.deepGreen)
-        .padding(.horizontal, 7)
-        .padding(.vertical, 3)
-        .background(Capsule().fill(Color.moduwaGreen.opacity(0.25)))
-        .overlay(Capsule().stroke(Color.moduwaGreen, lineWidth: 1))
+        Text(tag.shortLabel)
+            .font(.notoSans(11, .medium))
+            .foregroundStyle(.deepGreen)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(Capsule().fill(Color.moduwaGreen.opacity(0.25)))
+            .overlay(Capsule().stroke(Color.moduwaGreen, lineWidth: 1))
     }
 }
 
 /// 장소 후기 화면의 태그 집계 막대 한 칸.
 ///
 /// 접근성 판단 — 막대는 그래픽일 뿐 정보가 아니다:
-/// 아이콘·문구·인원수·막대를 하나의 요소로 묶어 "무장애 친화적이에요, 21명"으로 읽힌다.
+/// 문구·인원수·막대를 하나의 요소로 묶어 "무장애 친화적이에요, 21명"으로 읽힌다.
 /// 막대만 남고 수치가 안 읽히면 스크린리더 사용자에게는 아무 정보도 전달되지 않는다.
 /// 막대 길이는 1위 태그를 100%로 둔 상대값이라 절대 수치를 대신할 수 없다는 점도 이유다.
 struct ReviewTagCountBar: View {
@@ -117,14 +102,11 @@ struct ReviewTagCountBar: View {
 
     @ViewBuilder
     private var labelRow: some View {
-        let name = HStack(spacing: 6) {
-            ReviewTagIcon(icon: item.tag.icon, size: 16)
-            Text(item.tag.label)
-                .font(.notoSans(14, .medium))
-                .foregroundStyle(.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-                .multilineTextAlignment(.leading)
-        }
+        let name = Text(item.tag.label)
+            .font(.notoSans(14, .medium))
+            .foregroundStyle(.textPrimary)
+            .fixedSize(horizontal: false, vertical: true)
+            .multilineTextAlignment(.leading)
         let count = Text("\(item.count)명")
             .font(.notoSans(13, .medium))
             .foregroundStyle(.textSecondary)
