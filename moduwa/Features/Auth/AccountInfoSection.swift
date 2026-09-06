@@ -26,7 +26,7 @@ struct AccountInfoSection: View {
     var body: some View {
         VStack(spacing: Spacing.xl) {
             if let account = session.account {
-                identityCard(account)
+                emailBlock(account)
 
                 if !account.emailVerified, account.email != nil {
                     AuthPrimaryButton(title: "이메일 인증하기", action: onVerifyEmail)
@@ -64,31 +64,45 @@ struct AccountInfoSection: View {
         .accessibilityHint("계정을 지우는 화면으로 갑니다")
     }
 
-    private func identityCard(_ account: Account) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.s) {
-            Text(account.nickname)
-                .font(.notoSans(20, .bold, relativeTo: .title3))
-                .foregroundStyle(.textPrimary)
-            if let email = account.email {
-                Text(email)
+    /// 이메일과 인증 상태.
+    ///
+    /// ⚠️ **닉네임을 여기 다시 쓰지 않는다**(2026-09-07 요청). 예전에는 이름·이메일·인증을
+    /// 한 카드에 담았는데, 바로 위가 닉네임 **입력 칸**이라 화면이 "닉네임 → 닉네임 → 이메일"
+    /// 로 읽혔다. 한 값은 한 번만 나온다 — 위에서 아래로 **닉네임 · 이메일 · 비밀번호 변경 ·
+    /// 로그아웃 · 회원 탈퇴**, 각자 한 줄씩.
+    ///
+    /// 라벨(14) + 간격 7 은 위 닉네임 칸(`AuthField`)과 같은 규격이다 — 나란히 서는 두 값이
+    /// 다른 규격이면 한쪽이 잘못 만들어진 것으로 보인다. 이메일은 **고칠 수 없는 값**이라
+    /// 입력 칸이 아니라 읽기 전용 상자다.
+    @ViewBuilder
+    private func emailBlock(_ account: Account) -> some View {
+        if let email = account.email {
+            VStack(alignment: .leading, spacing: 7) {
+                Text("이메일")
                     .font(.notoSans(14, relativeTo: .subheadline))
-                    .foregroundStyle(.textSecondary)
+                    .foregroundStyle(.textPrimary)
+
+                VStack(alignment: .leading, spacing: Spacing.s) {
+                    Text(email)
+                        .font(.notoSans(16, relativeTo: .body))
+                        .foregroundStyle(.textPrimary)
+
+                    HStack(spacing: 6) {
+                        // 색만으로 알리지 않는다 — 아이콘 모양과 글자가 함께 말한다.
+                        Image(systemName: account.emailVerified
+                              ? "checkmark.seal.fill" : "exclamationmark.circle")
+                            .font(.system(size: 14))
+                        Text(account.emailVerified ? "이메일 인증 완료" : "이메일 인증 전")
+                            .font(.notoSans(13, .medium, relativeTo: .footnote))
+                    }
+                    .foregroundStyle(account.emailVerified ? Color.deepGreen : .textSecondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(Spacing.l)
+                .background(RoundedRectangle(cornerRadius: Radius.card).fill(Color.photoPlaceholder))
+                .accessibilityElement(children: .combine)
             }
-            HStack(spacing: 6) {
-                Image(systemName: account.emailVerified
-                      ? "checkmark.seal.fill" : "exclamationmark.circle")
-                    .font(.system(size: 14))
-                    .foregroundStyle(account.emailVerified ? .deepGreen : .textSecondary)
-                Text(account.emailVerified ? "이메일 인증 완료" : "이메일 인증 전")
-                    .font(.notoSans(13, .medium, relativeTo: .footnote))
-                    .foregroundStyle(account.emailVerified ? .deepGreen : .textSecondary)
-            }
-            .padding(.top, 2)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(Spacing.l)
-        .background(RoundedRectangle(cornerRadius: Radius.card).fill(Color.photoPlaceholder))
-        .accessibilityElement(children: .combine)
     }
 
     /// 로그아웃.

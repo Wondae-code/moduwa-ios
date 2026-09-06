@@ -168,16 +168,18 @@ struct AccountSettingsView: View {
         .padding(.bottom, 20)
     }
 
-    /// 라임 원 100 + 우하단 딥그린 뱃지. 뱃지의 픽토그램은 **지금 고른 무장애 항목**이다 —
-    /// 무엇이 저장돼 있는지 프로필에서 바로 보이게 한다(고른 것이 없으면 시안과 같은 지체장애).
+    /// 라임 원 100.
+    ///
+    /// ⚠️ 시안(983:1302)에는 우하단에 **무장애 뱃지**(딥그린 원 + 픽토그램)가 붙어 있었고
+    /// 앱도 그렸는데, 지웠다(2026-09-07 요청). 뱃지는 고른 항목 중 **첫 하나만** 보여 줘서
+    /// 둘 이상 고른 사람에게는 틀린 말이었고, 지금은 바로 아래 `accessFeatureIcons` 가
+    /// **전부** 보여 준다 — 같은 것을 두 번, 그것도 한쪽은 부정확하게 말할 이유가 없다.
     private var avatar: some View {
-        let feature = session.accessFeatures.first ?? .wheelchairAccessible
-        let size = feature.iconSize(height: 19)
         // 사진이 없으면 **닉네임 첫 글자**를 그린다 — 남이 보는 자리(게시글·후기)와 같은
         //  규칙이라, 사진을 안 올린 사람이 자리마다 다른 얼굴로 보이지 않는다.
         //  원 색은 시안(983:1302)의 라임을 유지하고, 밝은 배경이라 글자는 딥그린이다.
         //  이름을 모르는 비로그인에서는 이니셜 없이 원만 남긴다.
-        return AuthorAvatar(
+        AuthorAvatar(
             name: session.account?.nickname ?? "",
             avatarURL: session.account?.avatarURL,
             diameter: 100,
@@ -186,21 +188,6 @@ struct AccountSettingsView: View {
             foreground: .deepGreen,
             showsInitial: session.account != nil
         )
-            .overlay(alignment: .bottomTrailing) {
-                Circle()
-                    .fill(Color.deepGreen)
-                    .frame(width: 37, height: 37)
-                    .overlay {
-                        Image(feature.iconName)
-                            .renderingMode(.template)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: size.width, height: size.height)
-                            .foregroundStyle(.white)
-                    }
-            }
-            .accessibilityElement()
-            .accessibilityLabel("내 무장애 정보: \(feature.label)")
     }
 
     // MARK: - 줄
