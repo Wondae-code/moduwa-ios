@@ -88,6 +88,14 @@ protocol FeedService: Sendable {
     /// 그러면 **남이 쓴 후기가 "내 글" 로 뜬다.**
     func fetchMyReviews(page: Int) async throws -> [TravelReview]
 
+    /// 좋아요한 후기 (`GET /v1/reviews?liked=true`, 서버 2026-09-07) — **내가 누른 순서**.
+    ///
+    /// ⚠️ **`sort` 를 보내지 않는다.** 서버는 `liked` 로 기본 정렬만 바꾸고, `sort` 를 주면
+    /// 그쪽이 이긴다 — 하나라도 실으면 "내가 누른 순서" 를 잃는다.
+    ///
+    /// `fetchMyReviews` 와 같이 **번들로 폴백하지 않고** 401 을 그대로 올린다.
+    func fetchLikedReviews(page: Int) async throws -> [TravelReview]
+
     /// 저장한 장소 목록 (`GET /v1/saved-places`) — 최근 저장한 순.
     /// 평점은 후기 집계라 `Place.rating`에 실려 온다(무장애 목록에는 그 값이 없다).
     /// - Parameter accessFeatures: 카드의 뱃지·한 줄 설명을 **고른 축 기준**으로 고르는 데 쓴다.
@@ -233,6 +241,8 @@ extension FeedService {
     /// 서버가 아닌 소스(번들·목)에는 **"내 것" 이라는 개념이 없다** — 계정이 없으니 빈 목록이다.
     /// 던지지 않는 이유: 여기서 `loginRequired` 를 던지면 프리뷰가 로그인 화면으로 바뀐다.
     func fetchMyReviews(page: Int) async throws -> [TravelReview] { [] }
+
+    func fetchLikedReviews(page: Int) async throws -> [TravelReview] { [] }
 
     func fetchSavedPlaces(accessFeatures: [AccessibilityFeature]) async throws -> [Place] { [] }
 

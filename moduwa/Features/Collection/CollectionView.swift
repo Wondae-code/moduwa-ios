@@ -3,7 +3,8 @@ import SwiftUI
 /// 저장 탭 — Figma "04. 저장 - 모아보기"(642:837) / "좋아요한 게시물"(642:1255)
 ///
 /// 두 탭이 담는 것이 다르다. **저장 모아보기**는 저장한 장소를 카테고리별로 묶고,
-/// **좋아요한 게시물**은 좋아요를 누른 여행 게시글을 **누른 순서**로 쌓는다.
+/// **좋아요한 게시물**은 좋아요를 누른 여행 게시글과 **장소 후기**를 **누른 순서**로 쌓는다
+/// (`GET /v1/posts?liked=true` · `GET /v1/reviews?liked=true`).
 ///
 /// 후기(`ReviewCard`)는 이 탭에 오지 않는다 — 후기 좋아요는 서버에 숫자(`like_count`)만
 /// 있고 누가 눌렀는지가 없어 "내가 좋아한 후기"를 물을 수 없다. 게시글은 `post_likes` 에
@@ -15,12 +16,15 @@ struct CollectionView: View {
     @Environment(PostInteractionSignal.self) private var postSignal
     @Environment(\.blockSignal) private var blockSignal
 
+    @Environment(\.feedService) private var feedService
+
     @State private var selectedTab: SavedTab = .places
     @State private var selectedCategory: PlaceCategory?
 
     /// 좋아요한 게시글. 탭을 처음 열 때 받는다 — 저장 탭을 여는 것만으로 부르면
     /// 보지도 않는 목록을 받는다.
     @State private var likedPosts: [TravelPost] = []
+    @State private var likedReviews: [TravelReview] = []
     @State private var isLoadingLiked = false
     @State private var didLoadLiked = false
     @State private var likedLoadFailed = false
@@ -278,17 +282,19 @@ struct CollectionView: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         } else if isLoadingLiked && !didLoadLiked {
-            message("좋아요한 게시물을 불러오는 중이에요", isLoading: true)
+            message("좋아요한 글을 불러오는 중이에요", isLoading: true)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         } else if likedLoadFailed && !didLoadLiked {
             likedFailedRow
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        } else if likedPosts.isEmpty {
+        } else if likedPosts.isEmpty && likedReviews.isEmpty {
             VStack(spacing: 10) {
                 Text("좋아요한 게시물이 없어요")
                     .font(.notoSans(15, .bold))
                     .foregroundStyle(Color.textPrimary)
-                Text("마음에 드는 여행 게시글에 하트를 눌러 보세요")
+                // 후기도 함께 담기게 됐으니(2026-09-07) 안내도 둘을 말한다 — 게시글만
+                //  말하면 후기에 누른 하트는 어디 갔는지 알 수 없다.
+                Text("마음에 드는 여행 게시글이나 후기에 하트를 눌러 보세요")
                     .font(.notoSans(13))
                     .foregroundStyle(Color.textSecondary)
             }
@@ -307,6 +313,14 @@ struct CollectionView: View {
                         }
                         .buttonStyle(.plain)
                     }
+
+                    // 후기는 게시글 **뒤에** 온다 — 둘을 섞을 기준이 없다(`loadLiked` 주석).
+                    ForEach(likedReviews) { review in
+                        NavigationLink(value: review) {
+                            ReviewCard(review: review)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 20)
@@ -319,7 +333,7 @@ struct CollectionView: View {
 
     private var likedFailedRow: some View {
         VStack(spacing: 14) {
-            Text("좋아요한 게시물을 불러오지 못했어요")
+            Text("좋아요한 글을 불러오지 못했어요")
                 .font(.notoSans(15, .bold))
                 .foregroundStyle(Color.textPrimary)
             Button("다시 시도") { Task { await loadLiked() } }
@@ -334,18 +348,32 @@ struct CollectionView: View {
     }
 
     /// 서버가 **내가 누른 순서**로 준다 — 앱에서 다시 줄 세우지 않는다.
+    ///
+    /// ⚠️ **게시글과 후기를 섞지 못한다.** 서버는 둘 다 좋아요 누른 시각으로 정렬해 주는데
+    /// (`post_likes.created_at` · `review_likes.created_at`) **그 값을 응답에 싣지 않는다.**
+    /// 각 목록은 맞는 순서인데 둘을 하나로 세울 기준이 없다 — `createdAt`(글 쓴 시각)으로
+    /// 섞으면 이 탭이 약속한 "누른 순서" 가 게시글 쪽에서도 깨진다.
+    /// 그래서 **게시글 묶음 다음에 후기 묶음**으로 둔다. 각 묶음 안은 누른 순서 그대로다.
+    /// 서버가 `likedAt` 을 실어 주면 그때 한 줄로 합친다(2026-09-07 요청).
     private func loadLiked() async {
         guard !isLoadingLiked else { return }
         isLoadingLiked = true
         likedLoadFailed = false
         likedRequiresSignIn = false
         do {
-            likedPosts = try await postService.fetchPosts(
+            // 둘을 함께 받는다 — 하나씩 기다리면 화면이 두 번 늘어난다.
+            async let loadedPosts = postService.fetchPosts(
                 mineOnly: false, likedOnly: true, contentId: nil, limit: 30, offset: 0)
+            async let loadedReviews = feedService.fetchLikedReviews(page: 0)
+
+            likedPosts = try await loadedPosts
+            likedReviews = try await loadedReviews
             didLoadLiked = true
-        } catch PostServiceError.loginRequired, PostServiceError.sessionExpired {
+        } catch PostServiceError.loginRequired, PostServiceError.sessionExpired,
+                FeedServiceError.loginRequired, FeedServiceError.sessionExpired {
             // 로그아웃한 기기는 비어야 한다 — 이전 계정이 좋아요한 글이 남아 보이면 안 된다.
             likedPosts = []
+            likedReviews = []
             didLoadLiked = false
             likedRequiresSignIn = true
         } catch {

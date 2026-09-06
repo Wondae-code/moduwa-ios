@@ -566,6 +566,22 @@ struct APIFeedService: FeedService {
         return dtos.map(Self.travelReview)
     }
 
+    /// 좋아요한 후기 (`GET /v1/reviews?liked=true`) — **내가 누른 순서**.
+    ///
+    /// ⚠️ **`sort` 를 보내지 않는다.** 서버가 `liked` 로 기본 정렬만 바꾸기 때문이다 —
+    /// `sort` 를 주면 그쪽이 이겨서 "누른 순서" 가 사라진다(서버팀이 일부러 그렇게 했다:
+    /// `liked` 가 무조건 이기면 준 `sort` 가 조용히 무시된다). 무장애 가점도 안 얹힌다.
+    ///
+    /// `fetchMyReviews` 와 같이 폴백하지 않는다 — 번들 후기가 "내가 좋아요한 것" 으로 뜬다.
+    func fetchLikedReviews(page: Int) async throws -> [TravelReview] {
+        let dtos: [ReviewDTO] = try await getItems("/v1/reviews", [
+            .init(name: "liked", value: "true"),
+            .init(name: "limit", value: "\(FeedPage.reviewSize)"),
+            .init(name: "offset", value: "\(page * FeedPage.reviewSize)"),
+        ])
+        return dtos.map(Self.travelReview)
+    }
+
     // MARK: - 장소별 후기 (집계 · 목록 · 등록)
 
     private struct ReviewSummaryDTO: Decodable {
