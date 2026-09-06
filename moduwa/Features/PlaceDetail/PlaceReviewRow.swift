@@ -18,23 +18,28 @@ struct PlaceReviewRow: View {
     var onLike: (() -> Void)? = nil
     /// 사진을 전부 가로 스크롤로 펼친다 (전용 화면). false면 첫 장만 80×80.
     var showsAllPhotos = false
-    /// 팔로우·더보기를 실제로 누를 수 있게 하고, 누르면 "준비 중" popover를 띄운다.
+    /// 더보기(⋮)를 실제 버튼으로 둘지.
     ///
-    /// **false면 시안대로 그리기만 하고 누를 수 없다** — 행 전체가 `NavigationLink`인 자리
-    /// (장소 상세 프리뷰)에서 안에 버튼을 넣으면 탭이 갈라지고 VoiceOver 포커스도 쪼개진다.
-    /// 링크로 감싸지 않는 화면(`PlaceReviewsView`)에서만 켠다.
+    /// **false면 아예 그리지 않는다** — 행 전체가 `NavigationLink` 인 자리(장소 상세 프리뷰)
+    /// 에서 안에 버튼을 넣으면 탭이 갈라지고 VoiceOver 포커스도 쪼개진다. 그쪽에서는 상세로
+    /// 들어가서 신고한다. 링크로 감싸지 않는 화면(`PlaceReviewsView`)에서만 켠다.
     var showsActionNotices = false
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    @State private var showsFollowNotice = false
-    @State private var showsMoreNotice = false
     /// 신고 시트. 서버 후기일 때만 열린다.
     @State private var isReporting = false
 
     /// 버튼이 눌릴 수 있는 화면이면 접근성 구조도 달라진다 —
     /// 행 전체를 한 요소로 묶으면 그 안의 버튼에 도달할 방법이 없다.
     private var isInteractive: Bool { showsActionNotices }
+
+    /// 더보기(⋮)를 그릴지. **신고할 대상이 있을 때만** 그린다(후기 상세와 같은 규칙).
+    /// 번들·목 후기(`serverId == nil`)에는 붙일 대상이 없다.
+    ///
+    /// 행 전체가 `NavigationLink` 인 자리(장소 상세 프리뷰)에서는 안에 버튼을 넣으면 탭이
+    /// 갈라지고 VoiceOver 포커스도 쪼개진다 — 그쪽에서는 상세로 들어가서 신고한다.
+    private var canReport: Bool { showsActionNotices && review.serverId != nil }
 
     var body: some View {
         if isInteractive {
@@ -126,14 +131,15 @@ struct PlaceReviewRow: View {
 
             Spacer(minLength: 8)
 
-            // 접근성 글자 크기에서는 동작 없는 장식을 뺀다 (닉네임을 밀어내면 안 된다).
-            // 실제로 눌리는 버튼은 글자 크기와 무관하게 남긴다.
-            if showsActionNotices {
-                followButton
+            // ⚠️ **팔로우를 지웠다**(2026-09-07). 서버에 팔로우 개념 자체가 없어서, 누르면
+            //  "준비 중" 만 뜨거나(후기 화면) **아예 눌리지도 않는 장식**이었다(장소 상세).
+            //  없는 기능을 버튼 모양으로 두면 앱이 고장 난 것으로 읽힌다. 생기면 그때 넣는다.
+            //
+            // 더보기는 **후기 상세와 같은 규칙**이다 — 신고할 대상이 있을 때만 그린다.
+            //  예전에는 대상이 없어도 ⋮ 를 그리고 "이 후기는 신고할 수 없어요" 를 눌러야
+            //  알려 줬는데, 그건 누르기 전까지 알 수 없는 버튼이다.
+            if canReport {
                 moreButton
-            } else if !dynamicTypeSize.isAccessibilitySize {
-                followBadge
-                moreDots
             }
         }
     }
@@ -146,37 +152,16 @@ struct PlaceReviewRow: View {
         return parts.joined(separator: " • ")
     }
 
-    /// 동작 없는 장식판 (프리뷰 자리)
-    private var followBadge: some View {
-        followLabel.accessibilityHidden(true)
-    }
-
-    /// 팔로우는 백엔드에 대응 기능이 없다(팔로우 개념 자체가 없다).
-    /// 그래도 버튼으로 두는 이유 — 스케치에 있는 요소를 회색 장식으로 두면 "왜 안 눌리지"가 되고,
-    /// 눌러서 "준비 중"을 알려 주는 편이 상태가 분명하다. 실제 팔로우가 생기면 여기만 바꾼다.
-    private var followButton: some View {
-        Button { showsFollowNotice = true } label: { followLabel }
-            .buttonStyle(.plain)
-            .accessibilityLabel("\(review.author) 팔로우")
-            .popover(isPresented: $showsFollowNotice) {
-                noticeContent("팔로우는 아직 준비 중이에요")
-            }
-    }
-
-    /// 더보기 — **신고**로 간다. 숨기기는 넣지 않았다: 서버에 그 개념이 없고, 앱에만 숨기면
+    /// 더보기 — **신고·차단**. 숨기기는 넣지 않았다: 서버에 그 개념이 없고, 앱에만 숨기면
     /// 기기를 바꾸면 되살아나 "숨겼는데 다시 보인다"가 된다.
     ///
-    /// 서버 후기(`serverId`)만 신고할 수 있다 — 번들·목 후기에는 신고를 붙일 대상이 없다.
+    /// 그릴지 말지는 `canReport` 가 정한다 — 후기 상세와 같은 규칙이다.
     private var moreButton: some View {
         Menu {
-            if review.serverId != nil {
-                Button("신고", systemImage: "flag") { isReporting = true }
-                // 작성자 식별자가 없으면(번들 후기) 차단할 대상이 없다.
-                if let uuid = review.authorUUID {
-                    Button("차단", systemImage: "hand.raised") { onBlock?(uuid) }
-                }
-            } else {
-                Button("이 후기는 신고할 수 없어요") {}.disabled(true)
+            Button("신고", systemImage: "flag") { isReporting = true }
+            // 작성자 식별자가 없으면(번들 후기) 차단할 대상이 없다.
+            if let uuid = review.authorUUID {
+                Button("차단", systemImage: "hand.raised") { onBlock?(uuid) }
             }
         } label: {
             moreDots
@@ -185,42 +170,11 @@ struct PlaceReviewRow: View {
                 .contentShape(Rectangle())
         }
         .accessibilityLabel("이 후기 관리")
-        .popover(isPresented: $showsMoreNotice) {
-            noticeContent("이 후기는 신고할 수 없어요")
-        }
         .sheet(isPresented: $isReporting) {
             if let serverId = review.serverId {
                 ReportSheet(target: .review(id: serverId))
             }
         }
-    }
-
-    /// 기능이 아직 없는 버튼의 안내.
-    ///
-    /// 접근성 판단 — 커스텀 토스트를 쓰지 않는다:
-    /// 잠깐 떴다 사라지는 커스텀 뷰는 VoiceOver가 읽어 주지 않아, 스크린리더 사용자에게는
-    /// 버튼을 눌러도 아무 일이 없는 것과 같다. iOS 기본 popover는 표시되면 **포커스가 내용으로
-    /// 자동 이동**하므로 별도의 announcement를 얹지 않는다(얹으면 중복 낭독이 된다).
-    /// `.alert`이 아니라 popover인 이유는 브랜드 폰트를 유지할 수 있어서다
-    /// (`.alert` 내용은 시스템 폰트로 고정된다 — `ComingSoonView`를 만든 것과 같은 이유).
-    private func noticeContent(_ message: String) -> some View {
-        Text(message)
-            .font(.notoSans(14, .medium, relativeTo: .subheadline))
-            .foregroundStyle(Color.textPrimary)
-            .multilineTextAlignment(.leading)
-            .padding(16)
-            // 없으면 iPhone(compact)에서 popover가 시트로 바뀐다
-            .presentationCompactAdaptation(.popover)
-    }
-
-    private var followLabel: some View {
-        Text("팔로우")
-            .font(.notoSans(12, .medium))
-            .foregroundStyle(.textSecondary)
-            .padding(.horizontal, 10)
-            .frame(height: 28)
-            .background(Capsule().fill(.white))
-            .overlay(Capsule().stroke(Color.moduwaGreen, lineWidth: 1))
     }
 
     private var moreDots: some View {
