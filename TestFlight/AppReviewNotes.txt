@@ -1,96 +1,56 @@
-App Store Connect → App Review Information → Notes
-(붙여넣기용 원문. 앱 화면이 한국어라 심사자가 버튼을 찾을 수 있도록
- 영어 설명에 한국어 라벨을 괄호로 병기했습니다.)
-
-────────────────────────────────────────────────────────────────
-
 Thank you for reviewing moduwa.
 
 ■ IMPORTANT: most of this app works WITHOUT signing in.
 
-Browsing places, search, place details, accessibility facility
-information, and reading reviews all work without an account.
-Sign-in is only required to: write a post or a review, create a
-travel plan, and save/like items. We provided a demo account below
-so you can test those.
+Browsing places, search, place details, accessibility facility information, and reading reviews all work without an account. Sign-in is only required to write a post or a review, create a travel plan, and save/like items. We provided a demo account so you can test those.
 
 ■ FIRST LAUNCH — 3 onboarding screens (no sign-up required)
 
-1. Welcome screen ("안녕하세요") → tap the button to continue.
+1. Welcome screen ("안녕하세요") — tap the button to continue.
 
-2. "Tell us what we should accommodate for you"
-   ("계획에 앞서, 여행자님을 위해 저희가 배려할 요소가 있다면 알려주세요")
-   You must select at least one option before the button enables.
-   - To see our main feature, select 지체장애 (mobility / wheelchair).
-   - Or select 해당없음 (Not applicable) to skip.
-   Then tap 완료했어요 (Done).
+2. "Tell us what we should accommodate for you" ("계획에 앞서, 여행자님을 위해 저희가 배려할 요소가 있다면 알려주세요"). You must select at least one option before the button enables. To see our main feature, select 지체장애 (mobility / wheelchair). Or select 해당없음 (Not applicable) to skip. Then tap 완료했어요 (Done).
 
-3. "Welcome to moduwa" → tap 둘러보기 (Browse) to enter the app
-   without signing in. (The other button, 여행계획 짜러가기, goes to
-   the Plan tab.)
+3. "Welcome to moduwa" — tap 둘러보기 (Browse) to enter the app without signing in. The other button, 여행계획 짜러가기, goes to the Plan tab.
 
 ■ DEMO ACCOUNT
 
-Username / Password: see the Sign-In Information fields above.
+Credentials are in the Sign-In Information fields above.
 
-To sign in: Home → gear icon (top right) → 로그인 (Sign in)
-→ "이메일로 시작하기" (Continue with email).
+To sign in: Home → gear icon (top right) → 로그인 (Sign in) → "이메일로 시작하기" (Continue with email).
 
-Notes on sign-in:
-- Sign in with Apple also works if you prefer.
-- Kakao sign-in requires the KakaoTalk app to be installed, so
-  please use email or Apple.
-- The app may show an email-verification screen. It does NOT block
-  anything — tap 나중에 하기 (Do it later). Posting, saving and plans
-  all work on an unverified account, so you do not need access to
-  the demo account's mailbox.
+• Sign in with Apple also works if you prefer.
+• Kakao sign-in requires the KakaoTalk app to be installed, so please use email or Apple.
+• The app may show an email-verification screen. It does NOT block anything — tap 나중에 하기 (Do it later). Posting, saving and plans all work on an unverified account, so you do not need access to the demo account's mailbox.
 
 ■ WHERE TO FIND THINGS
 
-All of these are under the gear icon at the top right of the Home
-screen, which opens 설정 (Settings):
+All of these are under the gear icon at the top right of the Home screen, which opens 설정 (Settings).
 
-- Account deletion (Guideline 5.1.1(v)):
-    설정 (Settings) → 프로필 편집 (Edit profile) → 회원 탈퇴 (Delete account)
-- Support contact (Guideline 1.2):
-    설정 → 고객센터 (Help center) → help@moduwa.app
-    Also on the web: https://moduwa.app/support
-- Privacy policy:  https://moduwa.app/privacy
-- Terms of service: 설정 → 서비스 이용약관
-- Accessibility profile: 설정 → 내 무장애정보 편집
-- Blocked users: 설정 → 차단한 사용자
+• Account deletion (Guideline 5.1.1(v)): 설정 (Settings) → 프로필 편집 (Edit profile) → 회원 탈퇴 (Delete account)
+• Support contact (Guideline 1.2): 설정 → 고객센터 (Help center) → help@moduwa.app — also on the web at https://moduwa.app/support
+• Privacy policy: https://moduwa.app/privacy
+• Terms of service: 설정 → 서비스 이용약관
+• Accessibility profile: 설정 → 내 무장애정보 편집
+• Blocked users: 설정 → 차단한 사용자
 
-Report / Block: open any post or review → ⋮ menu (top right)
-→ 신고 (Report) or 차단 (Block). Your own content shows 삭제 (Delete)
-instead, since you cannot report yourself.
+Report / Block: open any post or review, then use the ⋮ menu at the top right → 신고 (Report) or 차단 (Block). Your own content shows 삭제 (Delete) instead, since you cannot report yourself.
 
 ■ ABOUT THIS APP
 
-moduwa helps travelers with mobility, visual, hearing, elderly, or
-infant-stroller needs find barrier-free destinations in South Korea.
+moduwa helps travelers with mobility, visual, hearing, elderly, or infant-stroller needs find barrier-free destinations in South Korea.
 
-Place and accessibility data comes from the Korea Tourism
-Organization (한국관광공사) public TourAPI barrier-free dataset —
-over 10,000 verified locations nationwide. Attribution is shown in
-the app at 설정 → bottom of the screen.
+Place and accessibility data comes from the Korea Tourism Organization (한국관광공사) public TourAPI barrier-free dataset — over 10,000 verified locations nationwide. Attribution is shown in the app at the bottom of 설정.
 
-All content is in Korean, as the app serves domestic Korean travel.
-This is a new app, so the number of user-written reviews is still
-small — this is expected at launch, not a loading failure.
+All content is in Korean, as the app serves domestic Korean travel. This is a new app, so the number of user-written reviews is still small. That is expected at launch, not a loading failure.
 
 ■ KEY FEATURE TO TRY
 
-Set your accessibility needs at 설정 → 내 무장애정보 편집, then on the
-Home feed set the sort to 추천 (Recommended). Reviews written by
-travelers with the SAME accessibility needs are ranked first, so a
-wheelchair user sees wheelchair-relevant reviews before others.
-This is the core idea of the app.
+Set your accessibility needs at 설정 → 내 무장애정보 편집, then on the Home feed set the sort to 추천 (Recommended). Reviews written by travelers with the SAME accessibility needs are ranked first, so a wheelchair user sees wheelchair-relevant reviews before others. This is the core idea of the app.
 
 ■ PERMISSIONS
 
-The app does not request location, camera, or photo-library
-permissions. Photos are attached through the system photo picker,
-which does not require a permission prompt.
+The app does not request location, camera, or photo-library permissions. Photos are attached through the SwiftUI PhotosPicker, which does not require a permission prompt.
 
-Please contact us at help@moduwa.app if anything is unclear.
-We will respond within one business day.
+The only permission the app requests is push notifications, and it is requested ONLY when the user turns the notification toggle on at 설정 → 알림 설정. Nothing is asked at launch.
+
+Please contact us at help@moduwa.app if anything is unclear. We aim to respond within three business days.
