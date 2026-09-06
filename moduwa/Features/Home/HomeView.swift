@@ -22,6 +22,8 @@ struct HomeView: View {
     /// 홈 히어로 CTA → 새 플랜 플로우(플랜 탭이 연다).
     @Environment(\.planCreation) private var planCreation
     @State private var viewModel = HomeViewModel()
+    /// 정렬 목록이 펼쳐져 있는지.
+    @State private var isSortMenuOpen = false
     /// 알림에서 온 게시글 상세. 목록에 없는 글일 수도 있어(다른 사람이 스크롤 밖의 글에
     /// 댓글을 달았다) 아이디로 받아 와 직접 민다.
     @State private var pushedPost: TravelPost?
@@ -313,6 +315,9 @@ struct HomeView: View {
                 )
                 sortMenu
             }
+            // 펼친 목록이 아래 리뷰 카드 위에 그려지도록 이 줄을 위로 올린다 —
+            //  VStack 은 뒤에 오는 형제를 나중에 그려서, 없으면 카드가 목록을 덮는다.
+            .zIndex(1)
 
             // 게시글과 리뷰를 **고른 정렬대로 섞는다**(`HomeViewModel.feedItems`). 두 목록을
             //  따로 쌓으면 한쪽이 늘 위에 몰려 다른 쪽이 스크롤 아래로 밀리고,
@@ -347,36 +352,33 @@ struct HomeView: View {
         }
     }
 
-    /// 정렬 고르기 — **시스템 메뉴**(시안 129:84 닫힘 / 129:89 열림).
+    /// 정렬 고르기 (시안 129:84 닫힘 / 129:89 열림).
     ///
-    /// 예전에는 버튼 + 팝오버로 직접 만들었다. 시스템 `Menu` 가 스크롤 뷰 안에서 라벨을
-    /// 플로팅 레이어에 남겨 스크롤과 어긋나게 움직였기 때문인데, **지금 iOS 에서는 그 증상이
-    /// 없다**(2026-09-07 실측 — 스크롤·열기·고르기 모두 확인). 직접 만든 것보다 시스템 것이
-    /// 나은 이유는 공짜로 따라오는 것들이다: 바깥을 눌러 닫기, 화면 끝에서 알아서 뒤집히기,
-    /// 다이나믹 타입·VoiceOver·고대비, 그리고 **사용자가 이미 아는 모양**.
+    /// ⚠️ **시스템 `Menu` 를 쓰면 안 된다.** 메뉴를 **열어 둔 채로 스크롤하면** 메뉴가 스크롤에
+    /// 따라 위아래로 흔들린다 — 시스템 메뉴는 스크롤 뷰 밖의 플로팅 레이어에 뜨는데 앵커는
+    /// 스크롤과 함께 움직이기 때문이다. 2026-09-07 에 시스템 것으로 갈아 봤다가 되돌렸다
+    /// (**닫은 상태로만 스크롤해 보고 "고쳐졌다"고 판단했던 것이 잘못이었다** — 열어 두고
+    /// 스크롤해야 나온다).
     ///
-    /// 안쪽을 `Picker` 로 두면 고른 항목에 **체크가 저절로** 붙고 VoiceOver 도 "선택됨"으로
-    /// 읽는다 — 시안에는 체크가 없지만 남긴다(무엇이 골라져 있는지 목록에서 알 수 없으면
-    /// 접근성이 주제인 앱에서 앞뒤가 안 맞는다).
-    ///
-    /// 시안의 "팔로잉"은 넣지 않았다 — 팔로우 기능이 앱에도 서버에도 없다(2026-09-07 결정).
+    /// 그래서 직접 만들지만 **모양과 동작은 시스템 메뉴에 맞춘다** — 체크를 왼쪽에 두고,
+    /// 44pt 줄, 둥근 모서리에 옅은 그림자. 다른 점 하나는 **스크롤 뷰 안에 얹혀 있어서
+    /// 목록과 함께 움직인다**는 것이다. 그래서 흔들릴 수가 없다.
     private var sortMenu: some View {
-        Menu {
-            Picker("리뷰 정렬", selection: sortBinding) {
-                ForEach(ReviewSort.allCases, id: \.self) { sort in
-                    Text(sort.rawValue).tag(sort)
-                }
-            }
+        Button {
+            // 열고 닫는 데 애니메이션을 쓰지 않는다 — 스르륵 펼쳐지면 아래 카드 위에서
+            //  덮개가 자라는 것으로 보인다(`withoutAnimation`, 설명 더보기와 같은 판단).
+            withoutAnimation { isSortMenuOpen.toggle() }
         } label: {
             // 시안 13:303 — 캡슐(radius 999), 흰 배경, 보더 #E6E6E6 1,
-            //  패딩 위아래 9 · 왼 14 · 오 10, 글자 간격 5, **Noto Sans Regular 14**.
+            //  패딩 위아래 9 · 왼 14 · 오 10, 글자 간격 5.
             HStack(spacing: 5) {
                 Text(viewModel.reviewSort.rawValue)
-                    .font(.notoSans(14))
+                    .font(.notoSans(14, .bold))
                 // 시안은 Material Symbols 의 `expand_more` 다 — 그 폰트가 없어 같은 뜻의
-                //  SF 심볼을 쓴다. Regular 로는 너무 가늘어 한 단계만 올린다.
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 13, weight: .medium))
+                //  SF 심볼을 쓴다. 열려 있으면 뒤집어 상태를 모양으로도 알린다.
+                Image(systemName: isSortMenuOpen ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 12, weight: .bold))
+                    .contentTransition(.identity)
             }
             .foregroundStyle(.deepGreen)
             .padding(.vertical, 9)
@@ -386,18 +388,59 @@ struct HomeView: View {
             .overlay(Capsule().stroke(Color.cardStroke, lineWidth: 1))
             .contentShape(Capsule())
         }
+        .buttonStyle(.plain)
         .accessibilityLabel("리뷰 정렬: \(viewModel.reviewSort.rawValue)순")
+        .accessibilityHint(isSortMenuOpen ? "닫기" : "정렬 고르기")
+        // 칩 위에 얹는다 — 레이아웃을 밀지 않으므로 열어도 아래 카드가 내려가지 않고,
+        //  스크롤 뷰 **안**이라 목록과 함께 움직인다(시스템 메뉴가 흔들린 이유가 여기 없다).
+        .overlay(alignment: .topTrailing) {
+            if isSortMenuOpen {
+                sortOptions
+                    // 칩 높이(35) + 틈 6.
+                    .offset(y: 41)
+            }
+        }
     }
 
-    /// 메뉴가 고른 값을 받아 목록을 다시 받는다. `Picker` 가 바인딩만 알면 되도록 감싼다.
-    private var sortBinding: Binding<ReviewSort> {
-        Binding(
-            get: { viewModel.reviewSort },
-            set: { sort in
-                guard sort != viewModel.reviewSort else { return }
-                Task { await viewModel.selectSort(sort, using: feedService) }
+    /// 펼친 목록. 체크를 **왼쪽**에 두는 것은 시스템 메뉴와 같은 배치다 —
+    /// 시안에는 체크가 없지만, 무엇이 골라져 있는지 목록에서 알 수 없으면 접근성이 주제인
+    /// 앱에서 앞뒤가 안 맞는다(2026-09-07 결정, 시안과 다른 지점).
+    ///
+    /// 시안의 "팔로잉"은 넣지 않았다 — 팔로우 기능이 앱에도 서버에도 없다.
+    private var sortOptions: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(ReviewSort.allCases, id: \.self) { sort in
+                let isCurrent = sort == viewModel.reviewSort
+                Button {
+                    withoutAnimation { isSortMenuOpen = false }
+                    guard !isCurrent else { return }
+                    Task { await viewModel.selectSort(sort, using: feedService) }
+                } label: {
+                    HStack(spacing: 8) {
+                        // 자리를 늘 잡아 둔다 — 고를 때마다 글자가 좌우로 움직이지 않게.
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.deepGreen)
+                            .opacity(isCurrent ? 1 : 0)
+                            .frame(width: 15)
+                        Text(sort.rawValue)
+                            .font(.notoSans(15))
+                            .foregroundStyle(.textPrimary)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 14)
+                    // 시스템 메뉴 줄 높이에 맞춘다(글자가 커져도 이 아래로는 안 내려간다).
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(isCurrent ? .isSelected : [])
             }
-        )
+        }
+        .frame(minWidth: 150, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 14).fill(.white))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.cardStroke, lineWidth: 1))
+        .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
     }
 }
 
