@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 /// 라이브 API(moduwa-backend) 연동 FeedService.
 ///
@@ -458,9 +459,37 @@ struct APIFeedService: FeedService {
         let kind: ReviewTagKind?
 
         var tag: ReviewTag {
-            ReviewTag(code: code, kind: kind ?? .place,
-                      label: label, shortLabel: shortLabel ?? label, icon: icon)
+            let resolved = kind ?? .place
+            #if DEBUG
+            // 서버가 방문 조건 태그 코드를 바꾸거나 축을 늘리면 **앱은 조용히 틀린다.**
+            //  `AccessibilityFeature(visitorTagCode:)` 가 nil 을 주고 `compactMap` 이 버려서,
+            //  홈 추천이 "나와 같은 조건" 을 하나도 못 세고 참여수 순으로 되돌아간다 — 오류도
+            //  빈 목록도 없이 추천의 뜻만 바뀐다. 서버 쪽 실패(모르는 축을 무시해 필터가 통째로
+            //  사라지는 것)와 같은 병이고, 방향만 반대다(서버팀 052 회신).
+            //
+            //  **`visit_` 접두어로 판별하지 않는다** — `kind` 로 본다. 접두어는 서버가 언제든
+            //  바꿀 수 있고, 그러면 이 그물 자체가 조용히 빈 그물이 된다(서버팀 당부).
+            //
+            //  터뜨리지 않고 남기기만 하는 이유: 서버가 **새 축을 더하는 것**은 회귀가 아닌데
+            //  `assertionFailure` 는 그것과 이름 변경을 구별하지 못하고, 기기에 꽂아 QA 하는
+            //  중에 태그 코드 하나로 앱을 멈춰 세우게 된다. `print` 가 아니라 `Logger` 인 것도
+            //  같은 이유다 — 기기 빌드에서 Console 로 보인다(`PushRegistrar` 와 같은 규칙).
+            if resolved == .visitor, AccessibilityFeature(visitorTagCode: code) == nil {
+                Self.tagLog.fault("""
+                    모르는 방문 조건 태그 '\(code, privacy: .public)' — \
+                    AccessibilityFeature.visitorTagCode 표를 서버와 맞춰야 한다. \
+                    이대로 두면 홈 추천이 조용히 참여수 순으로 돌아간다.
+                    """)
+            }
+            #endif
+            return ReviewTag(code: code, kind: resolved,
+                             label: label, shortLabel: shortLabel ?? label, icon: icon)
         }
+
+        #if DEBUG
+        /// 공개 후기에 붙은 코드만 남긴다 — 보는 사람의 프로필 축은 절대 여기 오지 않는다.
+        private static let tagLog = Logger(subsystem: "com.waasegye.moduwa", category: "tags")
+        #endif
     }
 
     /// 홈 피드·장소별 목록이 같은 DTO를 쓰므로 매핑을 한 곳에 둔다.
