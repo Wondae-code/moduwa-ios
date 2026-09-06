@@ -17,12 +17,27 @@ struct PostCard: View {
                 photoArea
                     .frame(height: 180)
                     .clipped()
+                    // 무장애 정보는 **사진 좌상단**에 온다 — 리뷰 카드와 같은 자리·같은 모양
+                    //  (시안 `icon` 13:423, 여백 16). 본문 아래에 두면 다 읽은 뒤에야 보인다:
+                    //  이 앱에서 가장 먼저 알아야 하는 값인데 가장 늦게 눈에 들어왔다.
+                    .overlay(alignment: .topLeading) {
+                        if !post.accessFeatures.isEmpty {
+                            accessBadges(style: .inverted)
+                                .padding(16)
+                        }
+                    }
             }
 
             // 줄 사이 4 · 패딩 16/20 — 시안 리뷰 카드와 같은 리듬으로 맞춘다
             //  (게시글 카드는 시안이 따로 없다. 같은 목록에 나란히 서므로 리듬이 달라선 안 된다.)
             VStack(alignment: .leading, spacing: 4) {
                 authorRow
+
+                // 사진이 없으면 얹을 곳이 사라지므로 본문 **위**로 옮긴다. 밝은 배경이라
+                //  채운 모양을 쓴다(`ReviewCard` 와 같은 규칙).
+                if post.imageURLs.isEmpty, !post.accessFeatures.isEmpty {
+                    accessBadges(style: .filled)
+                }
 
                 Text(post.body)
                     .font(.notoSans(16))
@@ -32,7 +47,6 @@ struct PostCard: View {
                     // 홈 카드는 미리보기다 — 긴 글은 잘라 두고 상세에서 다 읽게 한다.
                     .lineLimit(6)
 
-                if !post.accessFeatures.isEmpty { accessRow }
                 likeCommentRow
             }
             .padding(.horizontal, 20)
@@ -128,21 +142,17 @@ struct PostCard: View {
         }
     }
 
-    /// 작성자가 고른 무장애 정보. 카드에서는 아이콘만 — 이름까지 쓰면 줄이 넘친다.
-    private var accessRow: some View {
+    /// 작성자가 고른 무장애 정보.
+    ///
+    /// 리뷰 카드는 뱃지 **하나**면 되지만(후기는 "검증됨" 한 값이다) 게시글은 작성자가 여럿
+    /// 고를 수 있어 나란히 놓는다. 뱃지를 누르면 이름이 펼쳐지는 것은 `AccessibilityBadge` 가
+    /// 이미 하는 일이라, 카드에서 이름까지 쓰지 않아도 확인할 길이 있다.
+    private func accessBadges(style: AccessibilityBadge.Style) -> some View {
         HStack(spacing: 6) {
             ForEach(post.accessFeatures, id: \.self) { feature in
-                Image(feature.iconName)
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: feature.iconSize(height: 13).width, height: 13)
-                    .foregroundStyle(.deepGreen)
+                AccessibilityBadge(feature: feature, style: style)
             }
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(
-            "무장애 정보 " + post.accessFeatures.map(\.label).joined(separator: ", "))
     }
 
     /// 좋아요·댓글 수. 하트는 **표시만** 한다 — 카드에서 누르면 목록 전체가 다시 그려지고,
