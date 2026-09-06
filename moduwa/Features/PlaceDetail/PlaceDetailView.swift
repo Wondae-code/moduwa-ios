@@ -24,8 +24,6 @@ struct PlaceDetailView: View {
     /// 후기 작성 시트 (시안 미확보 — ReviewComposeView 참고)
     @State private var isComposingReview = false
     @State private var isAddingToPlan = false
-    /// 헤더 ☰ 의 "준비 중" 안내 popover
-    @State private var showsMenuNotice = false
 
     /// 후기 집계 (평점·후기 수). 무장애 상세와 다른 엔드포인트라 따로 받는다.
     @State private var summary: PlaceReviewSummary?
@@ -164,7 +162,7 @@ struct PlaceDetailView: View {
         return detail?.reviewCount ?? 0
     }
 
-    // MARK: - 헤더 (뒤로가기 + 타이틀 + 지도/메뉴)
+    // MARK: - 헤더 (뒤로가기 + 타이틀 + 지도)
 
     private var headerBar: some View {
         HStack(spacing: 0) {
@@ -181,33 +179,18 @@ struct PlaceDetailView: View {
 
             Spacer()
 
-            HStack(spacing: 12) {
-                Button {
-                    if let url = detail?.kakaoMapURL { openURL(url) }
-                } label: {
-                    Image("detail_map")
-                        .renderingMode(.template)
-                        .frame(width: 26, height: 26)
-                }
-                .accessibilityLabel("지도에서 보기")
-
-                // 눌러도 아무 일이 없으면 고장으로 읽힌다 — 장소 후기 화면의 ☰·팔로우와
-                // 같은 방식(기본 popover)으로 준비 중임을 말해 준다.
-                Button { showsMenuNotice = true } label: {
-                    Image("hamburger")
-                        .renderingMode(.template)
-                        .frame(width: 26, height: 26)
-                }
-                .accessibilityLabel("메뉴")
-                .popover(isPresented: $showsMenuNotice) {
-                    Text("메뉴는 아직 준비 중이에요")
-                        .font(.notoSans(14, .medium, relativeTo: .subheadline))
-                        .foregroundStyle(Color.textPrimary)
-                        .padding(16)
-                        // 없으면 iPhone(compact)에서 popover가 시트로 바뀐다
-                        .presentationCompactAdaptation(.popover)
-                }
+            // 지도 하나만 둔다. 옆에 있던 ☰ 는 눌러도 "준비 중" 안내만 띄우던 자리라
+            //  지웠다(2026-09-06 QA #9) — 심사가 지적한 "준비 중 버튼" 하나도 함께 없어진다.
+            //  지도 버튼은 남긴다: 카카오맵으로 나가는 **유일한 동선**이다(`mapSection` 주석 —
+            //  시안에서 지도 아래 "카카오맵에서 보기" 링크가 hidden 처리됐다).
+            Button {
+                if let url = detail?.kakaoMapURL { openURL(url) }
+            } label: {
+                Image("detail_map")
+                    .renderingMode(.template)
+                    .frame(width: 26, height: 26)
             }
+            .accessibilityLabel("지도에서 보기")
         }
         .foregroundStyle(.textPrimary)
         .padding(.leading, 28)
@@ -394,40 +377,31 @@ struct PlaceDetailView: View {
     }
 
     private func actionButton(
-        title: String, icon: String? = nil, systemIcon: String? = nil,
-        isOn: Bool = false, action: @escaping () -> Void
+        title: String, icon: String, isOn: Bool = false, action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            actionLabel(title: title, icon: icon, systemIcon: systemIcon, isOn: isOn)
+            actionLabel(title: title, icon: icon, isOn: isOn)
         }
         .buttonStyle(.plain)
     }
 
-    /// 다섯 버튼의 겉모습(시안 249:770 — 셀 88×67, 아이콘 22, 라벨 13).
+    /// 네 버튼의 겉모습(시안 249:770 — 셀 88×67, 아이콘 22, 라벨 13).
     /// 공유만 `ShareLink` 라서 라벨을 따로 뽑아 둔다 — 모양을 두 번 적으면 한쪽만 바뀐다.
     ///
-    /// `systemIcon` 은 시안 에셋이 아직 없는 읽어주기용이다. 22pt 로 맞춰 다른 넷과 같은
-    /// 자리에 서게 한다.
-    private func actionLabel(
-        title: String, icon: String? = nil, systemIcon: String? = nil, isOn: Bool = false
-    ) -> some View {
+    /// 예전에는 `systemIcon`(SF 심볼) 도 받았다. 읽어주기가 이 줄에 있었고 시안 에셋이
+    /// 없어서였는데, 그 버튼이 섹션 제목 옆으로 옮겨 가면서 쓸 데가 없어졌다.
+    private func actionLabel(title: String, icon: String, isOn: Bool = false) -> some View {
         VStack(spacing: 3) {
-            Group {
-                if let icon {
-                    Image(icon)
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                } else if let systemIcon {
-                    Image(systemName: systemIcon)
-                        .resizable()
-                        .scaledToFit()
-                }
-            }
+            Image(icon)
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
                 .frame(width: 22, height: 22)
                 .foregroundStyle(.deepGreen)
-                // 켜진 상태를 글자만으로 두지 않는다 — 아이콘도 함께 진해진다.
-                .opacity(isOn ? 1 : 0.65)
+                // ⚠️ 아이콘을 흐리게 두지 않는다(2026-09-06 QA #7). 예전에는 꺼진 상태를
+                //  `.opacity(0.65)` 로 낮췄는데, 넷 중 셋은 켜질 일이 없어서(일정추가·후기쓰기·
+                //  공유) 늘 흐린 채로 서 있었다 — 비활성 버튼처럼 읽힌다.
+                //  저장됨 상태는 색이 아니라 **글자**가 말한다("저장하기 → 저장됨" + 굵게).
             // 시안 249:773 — 13 Medium, 자간 -0.4. 켜진 상태만 굵게 한다.
             Text(title)
                 .font(.notoSans(13, isOn ? .bold : .medium))
