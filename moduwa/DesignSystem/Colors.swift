@@ -46,6 +46,14 @@ extension Color {
     static var photoPlaceholder: Color {
         AccessibilitySettings.shared.highContrast ? Color(hex: 0xE4E4E4) : Color(hex: 0xF2F2F2)
     }
+    /// 사진이 **없는** 장소 카드의 사진 자리 배경(`PlaceCategoryArtwork`).
+    ///
+    /// `photoPlaceholder`(#F2F2F2) 보다 밝다 — 그 위에 **흰 카테고리 아이콘**을 얹는 "유령"
+    /// 표현이라 배경이 흰색에 가까워야 한다(2026-09-07 요청).
+    /// 고대비에서는 짙게 해 흰 아이콘이 살아나게 한다(1.02:1 → 1.27:1).
+    static var cardPhotoEmpty: Color {
+        AccessibilitySettings.shared.highContrast ? Color(hex: 0xE4E4E4) : Color(hex: 0xFAFAFA)
+    }
 
     /// 입력 오류 — 온보딩·로그인 시안(2026-08-24)에서 처음 등장한 색.
     ///
@@ -68,5 +76,6 @@ extension ShapeStyle where Self == Color {
     static var iconGray: Color { .iconGray }
     static var cardStroke: Color { .cardStroke }
     static var photoPlaceholder: Color { .photoPlaceholder }
+    static var cardPhotoEmpty: Color { .cardPhotoEmpty }
     static var errorRed: Color { .errorRed }
 }

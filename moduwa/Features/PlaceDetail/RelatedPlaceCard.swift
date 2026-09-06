@@ -62,10 +62,19 @@ struct RelatedPlaceCard: View {
                     AsyncImage(url: imageURL) { image in
                         image.resizable().scaledToFill()
                     } placeholder: {
-                        PhotoPlaceholder()
+                        // 받는 중 — 곧 사진이 들어올 자리다. 여기서 카테고리 아이콘을 띄우면
+                        //  사진이 오면서 깜빡인다.
+                        Color.photoPlaceholder
                     }
                 } else {
-                    PhotoPlaceholder()
+                    // 개발용 "장소 사진" 상자(`PhotoPlaceholder`)를 쓰고 있었다 — 사용자가
+                    //  보는 화면에 그 글자가 그대로 보였다.
+                    //
+                    // ⚠️ **카테고리는 `nil` 로 넘긴다** — `RelatedPlace` 에 카테고리 필드가
+                    //  없다(서버 응답에 없어서 `RelatedPlace.place` 가 `.attraction` 으로
+                    //  고정해 둔다). 그 값으로 아이콘을 그리면 호텔에 관광지 그림이 붙는다.
+                    //  서버가 카테고리를 실어 주면 그때 아이콘이 붙는다.
+                    PlaceCategoryArtwork(category: nil)
                 }
             }
     }

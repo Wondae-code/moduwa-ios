@@ -66,14 +66,8 @@ struct SavedPlaceCard: View {
                         Color.photoPlaceholder
                     }
                 } else {
-                    // 사진 없는 장소가 5곳 중 1곳이다 — 회색 상자 대신 카테고리를 알린다
-                    // (`PlaceCard.categoryArtwork` 와 같은 규칙).
-                    Image(place.category.iconName)
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 30, height: 30)
-                        .foregroundStyle(Color.deepGreen.opacity(0.5))
+                    // 세 카드가 같은 규칙을 쓴다(`PlaceCategoryArtwork` 주석).
+                    PlaceCategoryArtwork(category: place.category, iconSize: 30)
                 }
             }
             .clipped()

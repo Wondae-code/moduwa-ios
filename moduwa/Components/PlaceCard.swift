@@ -11,12 +11,12 @@ struct PlaceCard: View {
                 .frame(maxWidth: .infinity)
                 .clipped()
                 .overlay(alignment: .topLeading) {
-                    // 사진 위에서는 흰 원 + 딥그린 아이콘, 플레이스홀더 위에서는 딥그린 원 + 흰 아이콘
-                    AccessibilityBadge(
-                        feature: place.feature,
-                        style: place.imageURL != nil ? .inverted : .filled
-                    )
-                    .padding(8)
+                    // **사진이 있든 없든 흰 원 + 딥그린 아이콘**(2026-09-07 요청 — 카드마다
+                    //  뱃지 색이 달라 같은 목록 안에서 두 가지로 보였다). 사진 없는 자리는
+                    //  거의 흰 배경이라 원의 테두리는 흐려지지만, 딥그린 글리프가 8.1:1 로
+                    //  또렷하고 뱃지에 옅은 그림자가 있어 자리가 뜬다.
+                    AccessibilityBadge(feature: place.feature, style: .inverted)
+                        .padding(8)
                 }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -78,33 +78,10 @@ struct PlaceCard: View {
                         Color.photoPlaceholder
                     }
                 } else {
-                    categoryArtwork
+                    // 세 카드가 같은 규칙을 쓴다(`PlaceCategoryArtwork` 주석).
+                    PlaceCategoryArtwork(category: place.category)
                 }
             }
-    }
-
-    /// 사진이 **없는** 장소의 자리. 관광공사가 사진을 올리지 않은 곳이 5곳 중 1곳이라
-    /// 드물게 나는 예외가 아니라 늘 보이는 상태다(2026-08-16 측정, `APIFeedService` 주석 참고).
-    ///
-    /// `PhotoPlaceholder`("장소 사진" 이라 적힌 회색 상자)를 쓰지 않는다 — 그건 주석이 밝히듯
-    /// **개발용 자리 표시**라 화면에 남으면 "빠진 자리" 로 읽힌다. 카테고리 아이콘을 놓으면
-    /// 같은 자리가 "사진이 없다" 가 아니라 "이런 종류의 장소" 라는 정보를 전한다.
-    private var categoryArtwork: some View {
-        LinearGradient(
-            colors: [Color.gradientLime.opacity(0.35), Color.photoPlaceholder],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-        .overlay {
-            Image(place.category.iconName)
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 34, height: 34)
-                .foregroundStyle(Color.deepGreen.opacity(0.55))
-        }
-        // 카테고리는 카드 본문에도 글자로 있다 — 여기서 또 읽어 주면 같은 말이 두 번 난다.
-        .accessibilityHidden(true)
     }
 
     private var accessibilitySummary: String {
