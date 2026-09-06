@@ -49,7 +49,7 @@ extension PlaceCategory: Codable {
     }
 }
 
-enum AccessibilityFeature: String, Sendable, Decodable {
+enum AccessibilityFeature: String, Sendable, Decodable, CaseIterable {
     case wheelchairAccessible
     case flatPath
     case barrierFreeRoom
@@ -105,6 +105,16 @@ enum AccessibilityFeature: String, Sendable, Decodable {
         case .elderlyFriendly: "elderly"
         case .flatPath, .barrierFreeRoom: nil
         }
+    }
+
+    /// 방문 조건 태그 코드에서 축을 되찾는다 — 후기에 붙은 태그(`visit_wheelchair` 등)를
+    /// 무장애 축으로 되돌릴 때 쓴다. 홈 추천 정렬이 "이 후기가 나와 같은 조건인가"를
+    /// 묻는 데 필요하다(`HomeFeedItem.accessFeatures`).
+    ///
+    /// 위 `visitorTagCode` 를 뒤집어 찾는다 — 코드 표를 두 번 적으면 한쪽만 고쳐질 수 있다.
+    init?(visitorTagCode code: String) {
+        guard let match = Self.allCases.first(where: { $0.visitorTagCode == code }) else { return nil }
+        self = match
     }
 
     /// 후기의 **방문 조건 태그** 코드(서버 051). 프로필 다섯 축과 1:1 이다.

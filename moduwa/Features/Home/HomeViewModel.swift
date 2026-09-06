@@ -31,6 +31,34 @@ enum HomeFeedItem: Identifiable, Hashable {
         case .post(let post): post.likeCount + post.commentCount
         }
     }
+
+    /// 이 글이 관련된 무장애 축. 두 종류가 서로 **다른 자리에** 담고 있어 여기서 한 뜻으로 모은다:
+    ///
+    /// - 후기: 작성자가 고른 **방문 조건 태그**(`visit_wheelchair` 등, 서버 051).
+    ///   장소 평가 태그("음식이 맛있어요")는 쓴 사람의 조건이 아니므로 세지 않는다.
+    /// - 게시글: 작성자가 고른 **무장애 정보**(`TravelPost.accessFeatures`).
+    ///
+    /// ⚠️ 후기 태그를 `kind` 로 가르지 **않는다.** `GET /v1/reviews` 의 항목에 실리는 태그는
+    ///  `code`·`label`·`shortLabel`·`icon` 뿐이고 **`kind` 가 없다**(서버 `reviewSelect`,
+    ///  app.ts:891 — `kind` 는 정의 목록 `GET /v1/review-tags` 에만 있다). 그래서 `ReviewTag.kind`
+    ///  는 기본값 `.place` 로 디코드되고, `kind` 로 걸렀다면 방문 조건 태그가 **하나도** 걸리지
+    ///  않는다(실측). 코드로 되찾으면 `visit_*` 만 정확히 맞으므로 가를 필요도 없다.
+    nonisolated var accessFeatures: Set<AccessibilityFeature> {
+        switch self {
+        case .review(let review):
+            Set(review.tags.compactMap { AccessibilityFeature(visitorTagCode: $0.code) })
+        case .post(let post):
+            Set(post.accessFeatures)
+        }
+    }
+
+    /// 보는 사람의 축과 **몇 개나 겹치는가.** 홈 추천 정렬의 첫 번째 키다.
+    ///
+    /// 겹침 여부(0/1)가 아니라 **개수**를 세는 이유: 축을 둘 이상 고른 사람에게는 둘 다
+    /// 맞는 글이 하나만 맞는 글보다 더 맞는 글이다. 하나만 고른 사람에게는 0/1 과 같다.
+    nonisolated func accessMatchCount(with mine: Set<AccessibilityFeature>) -> Int {
+        mine.isEmpty ? 0 : accessFeatures.intersection(mine).count
+    }
 }
 
 @Observable
@@ -76,27 +104,39 @@ final class HomeViewModel {
 
     /// 홈 "여행자 리뷰" 섹션에 그릴 것 — 리뷰와 게시글을 **고른 정렬대로 섞은** 목록.
     ///
-    /// 두 목록을 각각 받아 와 화면에서 합치므로, 서버가 리뷰에 매긴 순서를 게시글에도
-    /// **같은 식으로** 적용해야 한다. 그러지 않으면 한 섹션 안에서 두 기준이 섞여
-    /// 위아래 순서가 뒤죽박죽으로 보인다. 서버 `REVIEW_ORDERS`(app.ts)와 짝을 맞춘다:
+    /// 두 목록을 각각 받아 와 화면에서 합치므로, 리뷰에 매긴 순서를 게시글에도 **같은 식으로**
+    /// 적용해야 한다. 그러지 않으면 한 섹션 안에서 두 기준이 섞여 위아래가 뒤죽박죽으로 보인다.
+    /// 게시글에는 정렬 파라미터가 아예 없어(`/v1/posts` 는 `created_at desc` 고정) 합치는
+    /// 자리에서 규칙을 다시 적용하는 수밖에 없다.
     ///
-    /// - `.latest` → `created_at desc`
-    /// - `.recommended` → `(like_count + comment_count) desc, created_at desc`
+    /// - `.latest` → `created_at desc`. **시간순 그대로 둔다** — "최신"이 최신이 아니면 거짓말이다.
+    /// - `.recommended` → **① 내 무장애 축과 겹치는 수 → ② 반응 수 → ③ 최신**
     ///
-    /// ⚠️ 정렬 규칙을 서버에서 바꾸면 이쪽도 함께 고쳐야 한다. 홈 정렬은 리뷰만 서버에
-    /// 맡기고 게시글은 늘 최신순으로 받기 때문에(정렬 파라미터가 없다) 합치는 자리에서
-    /// 규칙을 다시 적용하는 수밖에 없다.
+    /// ⚠️ **추천 정렬은 이제 서버와 일부러 다르다.** 서버 `REVIEW_ORDERS`(app.ts:934)의
+    /// `recommended` 는 `(like_count + comment_count) desc, created_at desc` 뿐이다. 접근성이
+    /// 주제인 앱에서 "추천"이 반응 수만 뜻하면 **나와 상관없는 조건의 글이 위에 선다** —
+    /// 휠체어로 다니는 사람에게 시각장애 후기가 인기순으로 먼저 오는 식이다. 그래서 앱이
+    /// 자기 뜻으로 접근성 일치를 첫 번째 키로 둔다(2026-09-06 결정).
+    ///
+    /// ⚠️ **받아 온 것 안에서만 다시 세운다.** 서버는 여전히 반응 수 순으로 페이지를 잘라
+    /// 주므로, 나와 같은 조건인데 반응이 없는 후기가 **뒷 페이지에 있으면 여기까지 오지
+    /// 못한다.** 그것까지 올리려면 서버가 보는 사람의 축을 알아야 한다 — 무장애 항목은
+    /// 민감정보라(동의 없으면 보내지 않는다) 그 판단이 따로 필요해서 여기서 멈춘다.
+    ///
+    /// 축을 고르지 않은 사람(해당없음·비로그인)은 겹침이 늘 0 이라 예전과 똑같이 동작한다.
     var feedItems: [HomeFeedItem] {
         let merged = reviews.map(HomeFeedItem.review) + posts.map(HomeFeedItem.post)
         switch reviewSort {
         case .latest:
             return merged.sorted { $0.createdAt > $1.createdAt }
         case .recommended:
-            // 반응 수가 같으면 최신 글이 위로 — 서버의 두 번째 정렬 키와 같다.
-            return merged.sorted {
-                $0.engagement == $1.engagement
-                    ? $0.createdAt > $1.createdAt
-                    : $0.engagement > $1.engagement
+            let mine = Set(accessFeatures)
+            return merged.sorted { first, second in
+                let (a, b) = (first.accessMatchCount(with: mine), second.accessMatchCount(with: mine))
+                if a != b { return a > b }
+                if first.engagement != second.engagement { return first.engagement > second.engagement }
+                // 반응 수까지 같으면 최신 글이 위로 — 서버의 두 번째 정렬 키와 같다.
+                return first.createdAt > second.createdAt
             }
         }
     }
