@@ -67,9 +67,14 @@ struct AuthorAvatar: View {
                     //  (`ReviewDetailView` 가 쓰던 규칙을 그대로 옮겼다).
                     .dynamicTypeSize(...DynamicTypeSize.large)
             case .person:
+                // 카카오톡 기본 프로필처럼 **원을 꽉 채우고 어깨가 아래로 잘려 나간다**
+                //  (2026-09-07 요청). 작게 두면 원 안에 떠 있는 픽토그램으로 보이고, 키워서
+                //  가장자리에 닿게 하면 그것 자체가 프로필 그림이 된다.
+                //  아래로 내리는 이유: 그러지 않으면 머리 위에 빈자리가 남고 어깨가 안 잘린다.
                 Image(systemName: "person.fill")
-                    .font(.system(size: diameter * 0.46))
+                    .font(.system(size: diameter * 1.0))
                     .foregroundStyle(foreground)
+                    .offset(y: diameter * 0.20)
             }
         }
     }
