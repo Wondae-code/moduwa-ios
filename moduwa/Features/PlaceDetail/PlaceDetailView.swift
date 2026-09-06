@@ -179,18 +179,24 @@ struct PlaceDetailView: View {
 
             Spacer()
 
-            // 지도 하나만 둔다. 옆에 있던 ☰ 는 눌러도 "준비 중" 안내만 띄우던 자리라
+            // 시안 `menu`(249:711)는 **읽어주기 + 지도** 두 개다 — 헤드폰이 지도 왼쪽.
+            //  옆에 있던 ☰ 는 시안에 아예 없고 눌러도 "준비 중" 안내만 띄우던 자리라
             //  지웠다(2026-09-06 QA #9) — 심사가 지적한 "준비 중 버튼" 하나도 함께 없어진다.
             //  지도 버튼은 남긴다: 카카오맵으로 나가는 **유일한 동선**이다(`mapSection` 주석 —
             //  시안에서 지도 아래 "카카오맵에서 보기" 링크가 hidden 처리됐다).
-            Button {
-                if let url = detail?.kakaoMapURL { openURL(url) }
-            } label: {
-                Image("detail_map")
-                    .renderingMode(.template)
-                    .frame(width: 26, height: 26)
+            HStack(spacing: 12) {
+                // 이 버튼만 화면 **전체**를 읽는다. 섹션 제목 옆 버튼은 그 섹션만 읽는다.
+                speechButton(pageSpeech, section: .page, diameter: 26, touchWidth: 34)
+
+                Button {
+                    if let url = detail?.kakaoMapURL { openURL(url) }
+                } label: {
+                    Image("detail_map")
+                        .renderingMode(.template)
+                        .frame(width: 26, height: 26)
+                }
+                .accessibilityLabel("지도에서 보기")
             }
-            .accessibilityLabel("지도에서 보기")
         }
         .foregroundStyle(.textPrimary)
         .padding(.leading, 28)
@@ -298,7 +304,10 @@ struct PlaceDetailView: View {
             // 저장은 앱 전체가 함께 보는 상태다 — 저장 탭이 곧바로 반영한다(`SavedPlacesStore`).
             actionButton(
                 title: savedStore.isSaved(place.id) ? "저장됨" : "저장하기",
-                icon: "detail_bookmark",
+                // 저장됨은 **아이콘 모양**으로도 말한다 — 채운 북마크(시안 bookmark 컴포넌트의
+                //  selected 변형, `tab_saved_fill` 과 같은 글리프). 글자만 바뀌면 눈으로
+                //  훑을 때 눌렸는지 알기 어렵다.
+                icon: savedStore.isSaved(place.id) ? "detail_bookmark_fill" : "detail_bookmark",
                 isOn: savedStore.isSaved(place.id)
             ) {
                 // 저장·일정·후기는 모두 로그인 필수다(백엔드 030). 들어가는 문에서 묻는다 —
@@ -441,8 +450,29 @@ struct PlaceDetailView: View {
     /// 보이는 버튼이라야 닿는다 — 이 기능이 겨냥하는 사람(VoiceOver 를 켜지 않는 저시력·
     /// 고령·난독 사용자)은 두 손가락 제스처를 모른다.
     private enum SpeechSection: String {
+        /// 헤더 버튼 — 이 화면의 내용 전체(시안 249:712).
+        case page
         case info, access
-        var title: String { self == .info ? "기본정보" : "추가정보" }
+
+        var title: String {
+            switch self {
+            case .page: "장소 상세"
+            case .info: "기본정보"
+            case .access: "추가정보"
+            }
+        }
+    }
+
+    /// 헤더 버튼이 읽을 것 — **보이는 순서대로 화면 전체**다.
+    ///
+    /// 섹션 버튼이 "이 부분만"이라면 이 버튼은 "이 화면 전체"다. 링크처럼 소리로 읽을 수 없는
+    /// 줄은 `infoSpeech` 가 이미 빈 문자열로 만들어 두고 낭독기가 건너뛴다.
+    private var pageSpeech: [String] {
+        var lines = [detail?.name ?? place.name, detail?.address ?? place.region]
+        if let overview = detail?.overview { lines.append(overview) }
+        lines += infoSpeech
+        lines += accessSpeech
+        return lines
     }
 
     private func speechID(_ section: SpeechSection) -> String { "\(place.id)#\(section.rawValue)" }
@@ -476,25 +506,51 @@ struct PlaceDetailView: View {
     /// 로 **소리가 나는 동안 실제로 막대가 움직인다.** 멈춰 있는 그림보다 "지금 읽고 있다"를
     /// 더 정확히 말한다.
     private func sectionHeader(_ section: SpeechSection, segments: [String]) -> some View {
-        let id = speechID(section)
-        let isReading = reader.isReading(id)
-        return HStack(spacing: 8) {
+        HStack(spacing: 8) {
             Text(section.title)
                 .font(.sectionTitle)
                 .tracking(-0.4)
                 .foregroundStyle(.textPrimary)
                 .accessibilityAddTraits(.isHeader)
 
-            if !segments.contains(where: { !$0.isEmpty }) {
-                EmptyView()
-            } else {
+            // 섹션 제목 옆은 34 — 바로 아래 무장애 뱃지와 크기를 맞춘다.
+            speechButton(segments, section: section, diameter: 34)
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    /// 읽어주기 버튼. **헤더와 섹션 제목이 같은 것을 쓴다** — 두 곳에 따로 적으면 한쪽만 바뀐다.
+    ///
+    /// 읽을 것이 하나도 없으면(모든 조각이 빈 문자열) 버튼을 아예 그리지 않는다 —
+    /// 눌러도 소리가 나지 않는 버튼은 고장으로 읽힌다.
+    ///
+    /// - Parameters:
+    ///   - diameter: 읽는 중 딥그린 원의 지름. **시안이 자리마다 다르다** — 헤더의 `tts` 는
+    ///     26(249:712)으로 지도 아이콘과 같은 줄에 서고, 섹션 제목 옆은 34 다
+    ///     (`photoBadge(diameter:)` 가 사진 위 34 · 추가정보 28 을 받는 것과 같은 판단).
+    ///     꺼진 상태에도 이 자리를 잡아 두어 켤 때 옆 것이 밀리지 않게 한다.
+    ///   - touchWidth: 터치 영역의 너비. 헤더에서는 34 다 — 44 로 넓히면 12pt 옆의 지도
+    ///     버튼과 영역이 겹친다(시안 간격이 12). 세로는 두 곳 다 44 로 넓힌다.
+    private func speechButton(
+        _ segments: [String], section: SpeechSection,
+        diameter: CGFloat, touchWidth: CGFloat = 44
+    ) -> some View {
+        let id = speechID(section)
+        let isReading = reader.isReading(id)
+        let hasContent = segments.contains { !$0.isEmpty }
+
+        return Group {
+            if hasContent {
                 Button {
                     reader.toggle(segments, id: id)
                 } label: {
                     Group {
                         if isReading {
+                            // 시안에 "읽는 중" 상태가 없다 — 애플 기본 파형을 쓰고,
+                            //  소리 나는 동안 막대가 실제로 움직이게 한다.
                             Image(systemName: "waveform")
-                                .font(.system(size: 19, weight: .medium))
+                                .font(.system(size: diameter * 0.56, weight: .medium))
                                 .symbolEffect(.variableColor.iterative, options: .repeating)
                         } else {
                             Image("detail_tts")
@@ -505,21 +561,17 @@ struct PlaceDetailView: View {
                         }
                     }
                     .foregroundStyle(isReading ? .white : .textPrimary)
-                    // 읽는 중에만 원이 생기므로 자리는 늘 34pt 로 잡아 둔다 —
-                    //  켤 때 제목이 밀리지 않게.
-                    .frame(width: 34, height: 34)
+                    .frame(width: diameter, height: diameter)
                     .background {
                         if isReading { Circle().fill(Color.deepGreen) }
                     }
-                    // 34pt 는 44pt 터치 영역에 못 미친다 — 영역만 넓힌다.
-                    .frame(width: 44, height: 44)
+                    // 글리프는 44pt 터치 영역에 못 미친다 — 영역만 넓힌다.
+                    .frame(width: touchWidth, height: 44)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(isReading ? "읽기 멈추기" : "\(section.title) 읽어주기")
             }
-
-            Spacer(minLength: 0)
         }
     }
 
