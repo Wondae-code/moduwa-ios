@@ -148,7 +148,11 @@ struct ReviewDetailView: View {
             // 신고는 장소 상세의 후기 줄(`PlaceReviewRow`)에만 있었다 — 후기를 **끝까지 읽은
             //  자리**에서 신고할 길이 없으면, 문제를 발견한 사람이 목록으로 되돌아가야 한다.
             //  번들·목 후기(`serverId == nil`)에는 신고를 붙일 대상이 없어 버튼을 아예 두지 않는다.
-            if review.serverId != nil {
+            //
+            // ⚠️ **내가 쓴 후기에는 두지 않는다**(2026-09-07). 게시글이 이미 그렇게 하고 있다
+            //  — 서버가 자기 것 신고를 무시해서(204) 눌러도 아무 일이 없는 버튼이 된다.
+            //  자기 자신을 차단하는 것도 뜻이 없다.
+            if review.serverId != nil, !review.isMine(viewerUUID: session.account?.uuid) {
                 Menu {
                     Button("신고", systemImage: "flag") { isReporting = true }
                     // 작성자 식별자가 없으면(번들 후기) 차단할 대상이 없다.

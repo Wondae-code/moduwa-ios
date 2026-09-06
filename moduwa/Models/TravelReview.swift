@@ -69,6 +69,18 @@ struct TravelReview: Identifiable, Hashable, Sendable {
     /// 작성자 식별자(`authorInfo.uuid`) — 차단이 가리킬 값. 닉네임으로 차단하면 동명이인이
     /// 함께 차단된다. 번들 후기에는 없어 옵셔널이다.
     var authorUUID: String? = nil
+
+    /// 보는 사람이 쓴 후기인가. **신고·차단을 감추는 근거다.**
+    ///
+    /// 게시글은 서버가 `isMine` 을 주는데(`TravelPost`) 후기에는 그 필드가 없다. 대신
+    /// `authorUUID` 가 늘 실려 오므로(서버 `reviewSelect` 의 `a.uuid`) 계정 uuid 와 맞춰 본다.
+    ///
+    /// ⚠️ 둘 중 하나라도 없으면 **내 것이 아니라고 본다** — 비로그인이거나 번들 후기다.
+    /// 반대로 기울면 남의 글에서 신고가 사라진다(신고는 없는 편이 더 나쁘다).
+    func isMine(viewerUUID: String?) -> Bool {
+        guard let authorUUID, let viewerUUID else { return false }
+        return authorUUID == viewerUUID
+    }
 }
 
 /// 장소별 후기 집계 (`GET /v1/reviews/summary?contentId=`).

@@ -26,6 +26,7 @@ struct PlaceReviewRow: View {
     var showsActionNotices = false
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(SessionStore.self) private var session
 
     /// 신고 시트. 서버 후기일 때만 열린다.
     @State private var isReporting = false
@@ -34,12 +35,16 @@ struct PlaceReviewRow: View {
     /// 행 전체를 한 요소로 묶으면 그 안의 버튼에 도달할 방법이 없다.
     private var isInteractive: Bool { showsActionNotices }
 
-    /// 더보기(⋮)를 그릴지. **신고할 대상이 있을 때만** 그린다(후기 상세와 같은 규칙).
-    /// 번들·목 후기(`serverId == nil`)에는 붙일 대상이 없다.
+    /// 더보기(⋮)를 그릴지. **신고할 대상이 있고 내 후기가 아닐 때만** 그린다
+    /// (후기 상세와 같은 규칙). 번들·목 후기(`serverId == nil`)에는 붙일 대상이 없고,
+    /// 내가 쓴 후기는 서버가 자기 것 신고를 무시해(204) 눌러도 아무 일이 없다.
     ///
     /// 행 전체가 `NavigationLink` 인 자리(장소 상세 프리뷰)에서는 안에 버튼을 넣으면 탭이
     /// 갈라지고 VoiceOver 포커스도 쪼개진다 — 그쪽에서는 상세로 들어가서 신고한다.
-    private var canReport: Bool { showsActionNotices && review.serverId != nil }
+    private var canReport: Bool {
+        showsActionNotices && review.serverId != nil
+            && !review.isMine(viewerUUID: session.account?.uuid)
+    }
 
     var body: some View {
         if isInteractive {
