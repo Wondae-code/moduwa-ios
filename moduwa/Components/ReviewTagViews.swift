@@ -27,6 +27,15 @@ struct ReviewTagIcon: View {
 /// ③ `accessibilityAddTraits(.isSelected)`로 스크린리더에 "선택됨"이 실린다.
 /// 셋 중 하나만 남아도 무엇이 골라졌는지 알 수 있어야 한다.
 /// (체크 글리프도 신호였지만 칩 폭을 바꿔 줄 전체를 밀어내서 뺐다 — 남은 두 신호로 형태 구분은 유지된다)
+///
+/// **아이콘을 그리지 않는다**(2026-09-07 QA #12). 장소 평가 태그 여덟 중 **넷만 아이콘이 있어서**
+/// (반려동물·가성비·친절·주차가 `icon: null`) 칩 줄이 들쭉날쭉했다 — 어떤 칩은 글자 앞이 비고
+/// 어떤 칩은 안 비니, 아이콘이 뜻을 더하는 게 아니라 **에셋이 있고 없고를 드러내고** 있었다.
+/// 없는 넷을 채우는 길도 있었지만 `ReviewTagIcon` 주석의 판단이 그대로 걸린다(결이 다른 글리프를
+/// 끼워 넣지 않는다). 그래서 넷을 채우는 대신 넷을 뺐다.
+///
+/// ⚠️ **읽히는 자리(`ReviewTagBadge`)와 집계 막대(`ReviewTagCountBar`)는 그대로 둔다** —
+/// 거기는 태그가 한두 개씩만 나와 줄이 흔들릴 일이 없고, 좁은 자리라 아이콘이 실제로 도움이 된다.
 struct ReviewTagSelectChip: View {
     let tag: ReviewTag
     let isSelected: Bool
@@ -34,15 +43,12 @@ struct ReviewTagSelectChip: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 5) {
-                ReviewTagIcon(icon: tag.icon, size: 15)
-                Text(tag.label)
-                    .font(.notoSans(14, isSelected ? .bold : .medium))
-                    // 접근성 글자 크기에서 칩 하나가 한 줄을 다 써도 잘리지 않게
-                    .fixedSize(horizontal: false, vertical: true)
-                    .multilineTextAlignment(.leading)
-            }
-            .foregroundStyle(isSelected ? .textPrimary : .textSecondary)
+            Text(tag.label)
+                .font(.notoSans(14, isSelected ? .bold : .medium))
+                // 접근성 글자 크기에서 칩 하나가 한 줄을 다 써도 잘리지 않게
+                .fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(.leading)
+                .foregroundStyle(isSelected ? .textPrimary : .textSecondary)
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
             .frame(minHeight: 40)
