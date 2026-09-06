@@ -5,8 +5,8 @@ import SwiftUI
 /// 상세와 달리 지도가 없다. 순서를 바꾸는 화면이라 목록 전체가 한눈에 들어와야 하고,
 /// 드래그로 행을 옮기는 동안 지도가 계속 다시 그려지면 방해만 된다.
 ///
-/// **순서는 꾹 눌러 끌어서, 빼기는 왼쪽으로 밀어서** 한다 — 왜 이렇게 나뉘었는지는
-/// `remove(_:)` 주석에 적었다.
+/// **순서는 손잡이로 끌어서, 빼기는 카드 안 빨간 `−` 로** 한다 — 왜 이 모양이 됐는지는
+/// `RemoveButton` 주석에 적었다.
 ///
 /// 편집 결과는 **완료를 눌러야** 호출부에 넘어간다 — 순서를 이리저리 바꿔 보다가 되돌리고 싶을 때
 /// 취소할 길이 있어야 한다.
@@ -59,18 +59,9 @@ struct PlanEditView: View {
                             .listRowInsets(EdgeInsets(top: 0, leading: 36, bottom: 0, trailing: 24))
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.appBackground)
-                            // 왼쪽으로 밀어 뺀다(`remove(_:)` 주석에 편집 모드를 끈 이유가 있다).
-                            //  `allowsFullSwipe` 로 끝까지 밀면 바로 빠진다 — 되돌릴 수 있는
-                            //  조작이라(완료 전) 한 번 더 확인시킬 일이 아니다.
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) { remove(item.id) } label: {
-                                    // 글자를 빼고 아이콘만 둔다 — "빼기" 가 아이콘 아래
-                                    //  붙으면서 그림이 행 가운데보다 위로 밀렸다(2026-09-07).
-                                    //  뜻은 `accessibilityLabel` 이 그대로 지고 있다.
-                                    Image(systemName: "trash")
-                                }
-                                .accessibilityLabel("빼기")
-                            }
+                            // **빨간 `−` 기둥만 끄고 드래그 핸들은 남긴다.** 빼기는 카드 안의
+                            //  `RemoveButton` 이 맡는다(그 주석에 이유가 있다).
+                            .deleteDisabled(true)
                     case .distance(_, let text):
                         distanceRow(text)
                             .listRowInsets(EdgeInsets(top: 0, leading: 36, bottom: 0, trailing: 24))
@@ -84,6 +75,9 @@ struct PlanEditView: View {
                 .onMove(perform: move)
             }
             .listStyle(.plain)
+            // 켜 두는 이유는 **드래그 핸들** 하나다 — 순서를 바꾸는 화면이라 잡는 곳이
+            //  늘 보여야 한다. 딸려 오는 빨간 `−` 는 행마다 `deleteDisabled` 로 끈다.
+            .environment(\.editMode, .constant(.active))
             .scrollContentBackground(.hidden)
             .background(Color.appBackground)
         }
@@ -136,35 +130,6 @@ struct PlanEditView: View {
         return leg.distanceText
     }
 
-    /// 항목 하나를 한 칸 위/아래로 옮긴다 — **스크린리더 전용 동작**이다.
-    ///
-    /// ⚠️ 편집 모드를 끄면서 시스템 핸들이 사라졌고, 그와 함께 **VoiceOver 가 주던 재정렬
-    /// 수단도 사라졌다.** 화면에 그린 `☰` 는 눈에 보이는 힌트일 뿐이라 그걸 대신하지 못한다.
-    /// 꾹 눌러 끄는 동작은 스크린리더로 흉내 낼 수 없으므로, 각 행에 "위로/아래로 옮기기"
-    /// 동작을 직접 달아 준다(`PlanEditStopRow` 호출부).
-    ///
-    /// 한 칸은 **평평한 목록 기준**이다 — 거리 줄과 날짜 머리글을 건너뛰므로, 날 경계에서는
-    /// 자연히 다른 날로 넘어간다(`rebuild` 가 머리글을 경계로 다시 나눈다).
-    private func nudge(_ itemID: UUID, by offset: Int) {
-        guard let from = rows.firstIndex(where: { row in
-            if case .item(_, let item) = row { return item.id == itemID }
-            return false
-        }) else { return }
-
-        // 옮겨 갈 자리도 항목이어야 한다 — 머리글·거리 줄은 건너뛴다.
-        let step = offset > 0 ? 1 : -1
-        var target: Int?
-        var cursor = from + step
-        while rows.indices.contains(cursor) {
-            if case .item = rows[cursor] { target = cursor; break }
-            cursor += step
-        }
-        guard let target else { return }
-
-        // `move(fromOffsets:toOffset:)` 는 아래로 옮길 때 목적지가 한 칸 뒤다.
-        move(from: IndexSet(integer: from), to: step > 0 ? target + 1 : target)
-    }
-
     private func move(from source: IndexSet, to destination: Int) {
         var flat = rows
         flat.move(fromOffsets: source, toOffset: destination)
@@ -174,24 +139,13 @@ struct PlanEditView: View {
         UIAccessibility.post(notification: .announcement, argument: "순서를 옮겼어요")
     }
 
-    /// 항목 하나를 뺀다 — 왼쪽으로 밀면 나오는 "빼기" 가 부른다.
-    ///
-    /// ⚠️ **편집 모드를 끈 이유가 여기 있다.** 예전에는 `editMode` 를 `.active` 로 고정해
-    /// 드래그 핸들을 늘 보여 줬는데, 그러면 삭제가 **행마다 왼쪽에 빨간 `−`** 로 붙는다.
-    /// 화면에서 제일 센 색이 세로로 줄지어 서고, 정작 이 화면의 일은 순서다 — 시선이 순서가
-    /// 아니라 삭제로 먼저 갔다(2026-09-07 지적). 그런데 **편집 모드에서는 `swipeActions` 가
-    /// 아예 안 먹는다**(실측). 그래서 모드를 끄고 스와이프로 옮겼다.
-    ///
-    /// **치른 값: 드래그 핸들이 사라진다.** 순서 바꾸기는 **꾹 눌러 끌기**로 살아 있지만
-    /// (실측) 눈에 보이는 손잡이는 없다. 시안(`519:987`)에는 핸들이 그려져 있으므로
-    /// 이 점은 시안과 어긋난다.
+    /// 항목 하나를 뺀다 — 카드 안 빨간 `−` 가 부른다(`RemoveButton`).
     ///
     /// **확인 창을 두지 않는다.** 서버에는 지금 보내지 않고, 이 화면의 다른 편집(순서·날짜
-    /// 이동)과 같이 "완료" 를 눌러야 한 번에 저장된다 — 잘못 밀었으면 뒤로 나가면 그만이다.
+    /// 이동)과 같이 "완료" 를 눌러야 한 번에 저장된다 — 잘못 눌렀으면 뒤로 나가면 그만이다.
     /// 되돌릴 수 있는 조작에 확인을 붙이면 매번 두 번 누르게 만들 뿐이다.
     ///
-    /// 날짜 머리글과 거리 줄에는 스와이프가 없다(`deleteDisabled`) — 둘 다 편집 대상이
-    /// 아니라 다른 값에서 나온다.
+    /// 날짜 머리글과 거리 줄에는 `−` 가 없다 — 둘 다 편집 대상이 아니라 다른 값에서 나온다.
     private func remove(_ itemID: UUID) {
         guard let dayIndex = days.firstIndex(where: { day in
             day.items.contains { $0.id == itemID }
@@ -357,14 +311,13 @@ struct PlanEditView: View {
         return Group {
             switch item {
             case .stop(let stop):
-                PlanEditStopRow(number: day.stopNumber(at: index) ?? 0, stop: stop)
+                PlanEditStopRow(number: day.stopNumber(at: index) ?? 0, stop: stop) {
+                    remove(itemID)
+                }
             case .memo(let memo):
-                PlanEditMemoRow(memo: memo)
+                PlanEditMemoRow(memo: memo) { remove(itemID) }
             }
         }
-        // 화면의 `☰` 는 눈으로 보는 힌트다. 스크린리더에는 이 두 동작이 그 자리를 대신한다.
-        .accessibilityAction(named: "위로 옮기기") { nudge(itemID, by: -1) }
-        .accessibilityAction(named: "아래로 옮기기") { nudge(itemID, by: 1) }
     }
 
     /// 장소 사이의 거리 한 줄. 상세 화면과 같은 자리·같은 글씨다.
@@ -416,6 +369,7 @@ struct PlanEditView: View {
 private struct PlanEditStopRow: View {
     let number: Int
     let stop: PlanStop
+    let onRemove: () -> Void
 
     var body: some View {
         HStack(spacing: 14) {
@@ -427,71 +381,90 @@ private struct PlanEditStopRow: View {
                 .frame(width: 24, height: 24)
                 .background(Color.iconGray, in: Circle())
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(stop.place.name)
-                    .font(.notoSans(16, .medium, relativeTo: .headline))
-                    .foregroundStyle(Color.textPrimary)
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(stop.place.name)
+                        .font(.notoSans(16, .medium, relativeTo: .headline))
+                        .foregroundStyle(Color.textPrimary)
 
-                Text(stop.place.subtitle)
-                    .font(.notoSans(14, .regular, relativeTo: .subheadline))
-                    .foregroundStyle(Color.textSecondary)
+                    Text(stop.place.subtitle)
+                        .font(.notoSans(14, .regular, relativeTo: .subheadline))
+                        .foregroundStyle(Color.textSecondary)
+                }
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 8)
+                // 카드 글자는 한 덩어리로 읽힌다. `−` 는 그 옆에 **따로 선** 버튼이다.
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(number)번 \(stop.place.name), \(stop.place.subtitle)")
+
+                RemoveButton(label: "\(stop.place.name) 빼기", action: onRemove)
             }
-            .lineLimit(1)
-            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.leading, 16)
-            .padding(.vertical, 8)
             .frame(minHeight: 57)
             .background(Color.appBackground, in: RoundedRectangle(cornerRadius: 12))
             .overlay {
                 RoundedRectangle(cornerRadius: 12).stroke(Color.cardStroke, lineWidth: 1)
             }
-
-            DragHandleHint()
         }
         .padding(.vertical, 5)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(number)번 \(stop.place.name), \(stop.place.subtitle)")
     }
 }
 
-/// 시안(`519:987`)의 드래그 손잡이. **그림일 뿐 컨트롤이 아니다.**
+/// 일정에서 한 줄을 빼는 버튼 — **빨간 `−` 를 카드 안 오른쪽에** 둔다.
 ///
-/// ⚠️ 시스템 핸들은 편집 모드에서만 나오는데, 그 모드에서는 `swipeActions` 가 안 먹는다
-/// (`PlanEditView.remove(_:)` 주석). 스와이프로 빼기를 살리려면 모드를 꺼야 했고, 그러면
-/// 손잡이가 사라져 **순서를 바꿀 수 있다는 사실 자체가 화면에서 지워졌다.**
+/// 편집 모드의 표준 삭제와 **같은 글리프**지만 자리가 다르다. 시스템은 이 원을 행마다
+/// **왼쪽 바깥**에 세우는데, 그러면 화면에서 제일 센 색이 세로로 줄지어 서고 정작 이 화면의
+/// 일은 순서다 — 시선이 순서가 아니라 삭제로 먼저 갔다(2026-09-07 지적). 카드 안으로
+/// 들어오면 같은 뜻을 유지하면서 줄의 무게 중심이 이름으로 돌아온다.
 ///
-/// 그래서 모양만 되살린다. **거짓말은 아니다** — 편집 모드가 꺼진 목록은 행 어디를 꾹 눌러도
-/// 끌리므로, 이 자리를 잡고 끌면 실제로 끌린다. 다만 **누르자마자** 끌리지는 않는다(꾹
-/// 눌러야 한다) — 시스템 핸들과 다른 점이고, 그래서 색을 옅게 두어 "잡는 곳" 보다
-/// "여기서 끌 수 있다" 는 힌트로 읽히게 했다.
+/// 그 기둥은 `deleteDisabled(true)` 로 끈다 — **빨간 원만 사라지고 드래그 핸들은 남는다.**
 ///
-/// 스크린리더에는 감춘다 — 잡을 수 없는 그림이라 정지점만 늘린다. 대신 행마다
-/// "위로/아래로 옮기기" 동작이 붙어 있다(`PlanEditView.nudge(_:by:)`).
-private struct DragHandleHint: View {
+/// ⚠️ 스와이프로 옮겨 봤다가 되돌렸다(2026-09-07). **편집 모드에서는 `swipeActions` 가 아예
+/// 안 먹어서** 모드를 꺼야 했는데, 그러면 드래그 핸들이 함께 사라진다. 손잡이를 그림으로
+/// 되살려 봤지만 이번엔 민 상태의 좌우 간격이 어긋났다 — 시스템이 놓는 버튼 여백(22)과
+/// 시안의 손잡이 여백(24)이 서로를 밀어내서, **평소 여백을 11 까지 당겨야만** 맞았다.
+/// 늘 보이는 평소 상태를 버리고 잠깐 보이는 민 상태를 얻는 거래라 접었다.
+///
+/// 색은 시스템 빨강(#FF3B30, 흰 배경에서 3.0:1)이 아니라 앱의 `errorRed`(#BF1414) 다 —
+/// 같은 뜻을 더 읽히는 대비로 전한다. 고대비에서는 #A30D0D 로 더 짙어진다.
+private struct RemoveButton: View {
+    let label: String
+    let action: () -> Void
+
     var body: some View {
-        Image(systemName: "line.3.horizontal")
-            .font(.system(size: 16, weight: .medium))
-            .foregroundStyle(Color.iconGray)
-            .frame(width: 24)
-            .accessibilityHidden(true)
+        Button(action: action) {
+            Image(systemName: "minus.circle.fill")
+                .font(.system(size: 22))
+                // 원은 빨강, 가운데 막대는 흰색 — 시스템 삭제 원과 같은 모양이다.
+                .symbolRenderingMode(.palette)
+                .foregroundStyle(.white, Color.errorRed)
+                // 글리프는 22 지만 손가락 자리는 44 다. 카드 높이(57)가 이걸 품는다.
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityHint("일정에서 뺍니다. 완료를 눌러야 저장돼요")
     }
 }
 
 private struct PlanEditMemoRow: View {
     let memo: PlanMemo
+    let onRemove: () -> Void
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 8) {
             Text(memo.text)
                 .font(.notoSans(14, .regular, relativeTo: .subheadline))
                 .foregroundStyle(Color.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 16)
                 .padding(.vertical, 12)
-                .background(Color.photoPlaceholder, in: RoundedRectangle(cornerRadius: 12))
 
-            DragHandleHint()
+            RemoveButton(label: "메모 빼기", action: onRemove)
         }
+        .padding(.leading, 16)
+        .background(Color.photoPlaceholder, in: RoundedRectangle(cornerRadius: 12))
         .padding(.leading, 38)
         .padding(.vertical, 5)
     }
