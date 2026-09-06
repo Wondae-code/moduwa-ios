@@ -32,7 +32,6 @@ struct PostCard: View {
                     // 홈 카드는 미리보기다 — 긴 글은 잘라 두고 상세에서 다 읽게 한다.
                     .lineLimit(6)
 
-                if !post.places.isEmpty { placeRow }
                 if !post.accessFeatures.isEmpty { accessRow }
                 likeCommentRow
             }
@@ -94,39 +93,38 @@ struct PostCard: View {
             .clipped()
     }
 
+    /// 작성자 줄 — **리뷰 카드와 같은 모양**이다(2026-09-07). 아바타 36, 간격 9,
+    /// 이름(Bold 14) 아래 장소(Regular 12). 같은 목록에 나란히 서는 두 카드가 서로 다른
+    /// 짜임이면 한쪽이 잘못 만들어진 것으로 보인다.
+    ///
+    /// 리뷰 카드에 없는 것이 하나 있다 — **시간**. 게시글에만 있는 값이고(후기 카드는 시간을
+    /// 그리지 않는다) "방금 쓴 글" 을 알아보는 데 쓰이므로 오른쪽에 남겼다.
     private var authorRow: some View {
         HStack(spacing: 9) {
             // 사진을 올린 작성자면 사진, 아니면 닉네임 첫 글자(`AuthorAvatar`).
             AuthorAvatar(name: post.author, avatarURL: post.authorAvatarURL,
-                         diameter: 32, fontSize: 14)
+                         diameter: 36, fontSize: 14)
 
-            Text(post.author)
-                .font(.notoSans(14, .bold))
-                .foregroundStyle(.textPrimary)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(post.author)
+                    .font(.notoSans(14, .bold))
+                    .foregroundStyle(.textPrimary)
+                    .lineLimit(1)
+                // 붙인 장소가 리뷰 카드의 `location` 자리에 온다. 여러 곳이면 첫 곳과
+                //  나머지 개수만 — 카드가 목록을 나열할 자리가 아니다.
+                if !post.places.isEmpty {
+                    Text(placeSummary)
+                        .font(.caption12)
+                        .foregroundStyle(.textSecondary)
+                        .lineLimit(1)
+                }
+            }
 
             Spacer(minLength: 8)
 
             Text(RelativeTimeText.string(from: post.createdAt))
                 .font(.caption12)
                 .foregroundStyle(.textSecondary)
-        }
-    }
-
-    /// 붙인 장소. 여러 곳이면 첫 곳과 나머지 개수만 보여 준다 — 카드가 목록을 나열할 자리가 아니다.
-    private var placeRow: some View {
-        HStack(spacing: 4) {
-            Image("location_on")
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 13, height: 13)
-                .foregroundStyle(.deepGreen)
-
-            Text(placeSummary)
-                .font(.meta13)
-                .foregroundStyle(.textSecondary)
-                .lineLimit(1)
         }
     }
 
@@ -153,9 +151,14 @@ struct PostCard: View {
         // 시안 리뷰 카드 `Review` — 두 묶음 사이 16, 아이콘과 숫자 사이 2.
         HStack(spacing: 16) {
             HStack(spacing: 2) {
-                Image(systemName: post.likedByMe ? "heart.fill" : "heart")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(post.likedByMe ? .moduwaGreen : .textSecondary)
+                // 리뷰 카드와 **같은 에셋·같은 색**이다(2026-09-07). 예전에는 SF 심볼을 쓰고
+                //  안 누른 상태를 회색으로 뒀는데, 같은 목록에서 후기 카드의 하트만 라임이라
+                //  두 카드가 다른 물건처럼 보였다.
+                //
+                //  누른 상태는 색이 아니라 **채움**으로 구분한다 — 색만으로 알리지 않는다.
+                Image(post.likedByMe ? "favorite_fill" : "favorite")
+                    .renderingMode(.template)
+                    .foregroundStyle(.moduwaGreen)
                 Text("\(post.likeCount)")
             }
             HStack(spacing: 2) {
