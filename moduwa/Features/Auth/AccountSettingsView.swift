@@ -186,7 +186,7 @@ struct AccountSettingsView: View {
             fontSize: 36,
             background: Color.moduwaGreen.opacity(0.3),
             foreground: .deepGreen,
-            showsInitial: session.account != nil
+            fallback: .person
         )
     }
 

@@ -159,10 +159,12 @@ struct ProfileEditView: View {
 
     /// 지금 보여 줄 아바타 — 고른 사진 > 계정 사진 > 라임 원(무장애 뱃지).
     /// 설정 화면과 **같은 지름 100**이라 두 화면 사이에서 크기가 튀지 않는다.
+    /// ⚠️ 우하단에 **무장애 뱃지**가 붙어 있었는데 지웠다(2026-09-07 요청, 설정 화면 아바타와
+    /// 같은 이유). 고른 항목 중 **첫 하나만** 보여 줘서 둘 이상 고른 사람에게는 틀린 말이었고,
+    /// 여기는 **사진을 고치는 화면**이라 무장애 정보가 낄 자리도 아니다 — 그 값은 설정 화면의
+    /// 아이콘 줄(`AccountSettingsView.accessFeatureIcons`)이 전부 보여 준다.
     private var avatar: some View {
-        let feature = session.accessFeatures.first ?? .wheelchairAccessible
-        let size = feature.iconSize(height: 19)
-        return Group {
+        Group {
             if let picked {
                 // 방금 고른 사진은 아직 URL 이 없다 — 미리보기는 여기서만 그린다.
                 Image(uiImage: picked.thumbnail)
@@ -180,22 +182,9 @@ struct ProfileEditView: View {
                     fontSize: 36,
                     background: Color.moduwaGreen.opacity(0.3),
                     foreground: .deepGreen,
-                    showsInitial: session.account != nil
+                    fallback: .person
                 )
             }
-        }
-        .overlay(alignment: .bottomTrailing) {
-            Circle()
-                .fill(Color.deepGreen)
-                .frame(width: 37, height: 37)
-                .overlay {
-                    Image(feature.iconName)
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: size.width, height: size.height)
-                        .foregroundStyle(.white)
-                }
         }
         .accessibilityElement()
         .accessibilityLabel(hasPhoto ? "프로필 사진" : "프로필 사진 없음")
@@ -237,17 +226,16 @@ struct ProfileEditView: View {
     ///
     /// 비밀번호 변경·이메일 인증·회원 탈퇴는 **여전히 화면을 민다** — 그것들은 메뉴 한 단이
     /// 아니라 각자 할 일이 있는 화면이다(입력·확인).
+    ///
+    /// ⚠️ **선도 여백도 따로 붙이지 않는다**(2026-09-07 요청). 닉네임과 이메일 사이에 가로선을
+    /// 그었다가 지웠다 — 한 화면 안에서 어떤 줄 사이에만 선이 있으면 거기가 다른 화면의 시작인
+    /// 것처럼 읽힌다. 줄 사이 간격은 바깥 `VStack(spacing: Spacing.xl)` 하나가 정한다.
     private var accountSection: some View {
         AccountInfoSection(
             onVerifyEmail: { route = .verifyEmail },
             onChangePassword: { route = .resetPassword },
             onDeleteAccount: { route = .deleteAccount }
         )
-        .padding(.top, Spacing.s)
-        .overlay(alignment: .top) {
-            // 사진·닉네임(내가 보이는 모습)과 계정(로그인 수단)은 성격이 다르다 — 선으로 가른다.
-            Rectangle().fill(Color.photoPlaceholder).frame(height: 1)
-        }
     }
 
     private var saveBar: some View {

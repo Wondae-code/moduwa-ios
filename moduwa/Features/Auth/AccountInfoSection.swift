@@ -23,6 +23,9 @@ struct AccountInfoSection: View {
 
     @Environment(SessionStore.self) private var session
 
+    /// ⚠️ 줄 사이 간격은 **바깥 화면과 같은 `Spacing.xl`(24) 하나**다(2026-09-07 요청).
+    /// 예전에는 로그아웃 위에 16, 회원 탈퇴 위에 8 이 따로 붙어 있어 줄마다 간격이 달랐다 —
+    /// 위에서 아래로 훑을 때 어디가 한 묶음인지 알 수 없었다.
     var body: some View {
         VStack(spacing: Spacing.xl) {
             if let account = session.account {
@@ -60,7 +63,6 @@ struct AccountInfoSection: View {
                 .underline()
         }
         .buttonStyle(.plain)
-        .padding(.top, Spacing.s)
         .accessibilityHint("계정을 지우는 화면으로 갑니다")
     }
 
@@ -114,7 +116,7 @@ struct AccountInfoSection: View {
     ///    실측했다**(2026-08-21: 창은 뜨고 닫히는데 로그아웃이 실행되지 않았다).
     ///    눌러도 아무 일이 없는 버튼보다 바로 로그아웃하는 편이 정직하다.
     private var signOutSection: some View {
-        VStack(spacing: Spacing.s) {
+        Group {
             Button {
                 Task {
                     await session.signOut()
@@ -137,7 +139,6 @@ struct AccountInfoSection: View {
             //  화면이 로그아웃을 말리는 것처럼 읽힌다.
             .accessibilityHint("다시 로그인하면 저장한 장소와 플랜이 그대로 돌아옵니다")
         }
-        .padding(.top, Spacing.l)
     }
 }
 
