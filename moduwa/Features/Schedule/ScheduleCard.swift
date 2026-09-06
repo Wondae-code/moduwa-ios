@@ -61,21 +61,33 @@ struct ScheduleCard: View {
             .overlay {
                 if let imageURL = plan.cardImageURL {
                     AsyncImage(url: imageURL) { image in
-                        ZStack {
-                            image.resizable().scaledToFill()
-                            image.resizable().scaledToFill()
-                                // opaque: true — 아니면 흐린 사본의 가장자리가 투명해져
-                                // 카드 테두리에 밝은 띠가 생긴다.
-                                .blur(radius: Self.blurRadius, opaque: true)
-                                .mask(blurMask)
-                        }
+                        layered(image)
                     } placeholder: {
                         Color.photoPlaceholder
                     }
+                } else {
+                    // 🚧 **UI 확인용 기본 표지**(2026-09-07). 담긴 장소에 사진이 하나도 없으면
+                    //  카드가 빈 회색이라 흐림 처리까지 볼 수 없어서 임시로 깔아 둔다.
+                    //  ⚠️ 사진이 **경주 한 곳**이라 제주 일정에도 경주가 뜬다 — 그대로 낼
+                    //   그림이 아니다(플랜 탭도 같다).
+                    layered(Image("schedule_cover_default"))
                 }
             }
             .clipped()
             .accessibilityHidden(true)
+    }
+
+    /// 사진과 **흐린 사본**을 겹친 한 장. 받아 온 사진과 기본 표지가 같은 처리를 받게
+    /// 한 곳으로 모은다 — 두 번 적으면 한쪽만 바뀐다.
+    private func layered(_ image: Image) -> some View {
+        ZStack {
+            image.resizable().scaledToFill()
+            image.resizable().scaledToFill()
+                // opaque: true — 아니면 흐린 사본의 가장자리가 투명해져
+                // 카드 테두리에 밝은 띠가 생긴다.
+                .blur(radius: Self.blurRadius, opaque: true)
+                .mask(blurMask)
+        }
     }
 
     /// 흐림 띠의 농도. 위쪽(사진 그대로)에서 아래쪽(완전히 흐림)으로 넘어간다.
