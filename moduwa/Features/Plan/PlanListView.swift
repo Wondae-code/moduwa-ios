@@ -496,13 +496,9 @@ private struct UpcomingPlanCard: View {
                         Color.photoPlaceholder
                     }
                 } else {
-                    // 🚧 **UI 확인용 기본 표지**(2026-09-07). 담긴 장소에 사진이 하나도 없으면
-                    //  카드가 빈 회색이라 짜임을 볼 수 없어서 임시로 깔아 둔다.
-                    //  ⚠️ 사진이 **경주 한 곳**이라 제주 플랜에도 경주가 뜬다 — 그대로 낼 그림이
-                    //   아니다. 지역별 그림이나 다른 표현으로 바꿔야 한다.
-                    Image("plan_cover_default")
-                        .resizable()
-                        .scaledToFill()
+                    // 담긴 장소에 사진이 하나도 없을 때의 기본 표지. **사진이 아니라 브랜드
+                    //  무늬다** — 왜 사진을 쓰지 않는지는 `BrandCoverPattern` 주석에 있다.
+                    BrandCoverPattern()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -61,28 +61,30 @@ struct ScheduleCard: View {
             .overlay {
                 if let imageURL = plan.cardImageURL {
                     AsyncImage(url: imageURL) { image in
-                        layered(image)
+                        layered { image.resizable().scaledToFill() }
                     } placeholder: {
                         Color.photoPlaceholder
                     }
                 } else {
-                    // 🚧 **UI 확인용 기본 표지**(2026-09-07). 담긴 장소에 사진이 하나도 없으면
-                    //  카드가 빈 회색이라 흐림 처리까지 볼 수 없어서 임시로 깔아 둔다.
-                    //  ⚠️ 사진이 **경주 한 곳**이라 제주 일정에도 경주가 뜬다 — 그대로 낼
-                    //   그림이 아니다(플랜 탭도 같다).
-                    layered(Image("schedule_cover_default"))
+                    // 담긴 장소에 사진이 하나도 없을 때의 기본 표지. **사진이 아니라 브랜드
+                    //  무늬다** — 왜 사진을 쓰지 않는지는 `BrandCoverPattern` 주석에 있다.
+                    layered { BrandCoverPattern() }
                 }
             }
             .clipped()
             .accessibilityHidden(true)
     }
 
-    /// 사진과 **흐린 사본**을 겹친 한 장. 받아 온 사진과 기본 표지가 같은 처리를 받게
+    /// 표지와 **흐린 사본**을 겹친 한 장. 받아 온 사진과 기본 무늬가 같은 처리를 받게
     /// 한 곳으로 모은다 — 두 번 적으면 한쪽만 바뀐다.
-    private func layered(_ image: Image) -> some View {
-        ZStack {
-            image.resizable().scaledToFill()
-            image.resizable().scaledToFill()
+    ///
+    /// `Image` 가 아니라 뷰를 받는다 — 기본 표지가 사진에서 **그리는 무늬**
+    /// (`BrandCoverPattern`)로 바뀌면서 둘의 타입이 갈렸기 때문이다.
+    private func layered<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        let cover = content()
+        return ZStack {
+            cover
+            cover
                 // opaque: true — 아니면 흐린 사본의 가장자리가 투명해져
                 // 카드 테두리에 밝은 띠가 생긴다.
                 .blur(radius: Self.blurRadius, opaque: true)
