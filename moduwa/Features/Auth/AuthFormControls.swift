@@ -499,34 +499,26 @@ struct SocialSignInSection: View {
             VStack(spacing: 10) {
                 divider
 
-                // 애플 버튼. `.signInWithAppleButtonStyle(.black)` 은 시안의 어두운 CTA 톤과
-                //  맞고, 흰 배경에서 대비도 가장 높다.
+                // 애플 버튼을 **직접 그린다.** 애플이 주는 `SignInWithAppleButton` 은 글자
+                //  크기를 버튼 높이에 비례해 스스로 정해서(51pt 에 약 22pt) 옆의 구글·카카오
+                //  (16pt) 사이에서 혼자 커 보였고, 줄일 노브가 없었다(2026-09-07 QA #5).
+                //  흐름은 `AppleSignInFlow.start()` 가 시작한다 — 결과 모양은 예전 버튼과 같다.
                 //
-                // ⚠️ **글자는 우리가 못 정한다.** 종류가 문구를 정하고 애플이 지역화한다 —
-                //  `.signIn`="Apple로 로그인" · `.continue`="Apple로 계속하기" ·
-                //  `.signUp`="Apple로 가입하기". 옆 버튼들처럼 "Apple로 시작하기" 로 쓰려면
-                //  직접 그려야 하는데, 승인된 문구 밖의 말을 쓰는 것은 브랜드 지침 위반이라
-                //  심사에서 걸린다(규칙 4.8). **`.continue` 가 그중 "시작하기"에 가장 가깝고**,
-                //  처음 누르면 계정이 만들어지는 이 화면의 실제 동작과도 맞는다(2026-09-07 QA #5).
-                //
-                // ⚠️ **영어로 나오던 이유는 앱 언어가 en 이었기 때문이다.** 화면 글자는 다
-                //  한국어인데 지역화를 선언한 적이 없어서(`developmentRegion = en`, `.lproj`
-                //  없음) 애플 버튼만 개발 언어를 따라 "Sign in with Apple" 로 떴다 —
-                //  긴 영어 문장이 큰 글자로 들어가 혼자 튀어 보였다. Info.plist 에
-                //  `CFBundleLocalizations = [ko]` 를 선언해 고쳤다.
-                //  글자 **크기**는 애플이 버튼 높이에 비례해 정하므로 손댈 수 없다.
-                SignInWithAppleButton(.continue) { request in
-                    // 이름·이메일을 요청한다. **이름은 첫 로그인에만** 돌아온다.
-                    request.requestedScopes = [.fullName, .email]
-                } onCompletion: { result in
-                    onApple(result)
+                // ⚠️ 직접 그릴 때 지켜야 하는 것(애플 브랜드 지침):
+                //  · 로고는 애플 것을 쓴다(SF 심볼 `apple.logo`) — 다시 그리지 않는다.
+                //  · 문구는 **승인된 것만**. "Apple로 계속하기" 는 `Continue with Apple` 의
+                //    공식 한국어다. 옆 버튼들처럼 "Apple로 시작하기" 로 쓰면 지침 위반이다.
+                //  · 색은 검정 또는 흰색. 검정이 흰 배경에서 대비가 가장 높고 시안 톤과 맞는다.
+                //  · "다른 로그인 수단보다 덜 눈에 띄게 두지 말라" — 맨 위, 같은 높이, 채운 배경.
+                //  글자 크기만 지침의 비율(높이의 43%)에서 벗어난다.
+                socialButton(fill: .black, foreground: .white, hasBorder: false,
+                             action: { Task { onApple(await AppleSignInFlow.start()) } },
+                             label: "Apple로 계속하기") {
+                    Image(systemName: "apple.logo")
+                        // 로고는 글자와 함께 커져야 한다 — 옆 버튼의 18pt 마크와 눈으로 맞춘다.
+                        .font(.system(size: 17))
+                    Text("Apple로 계속하기")
                 }
-                .signInWithAppleButtonStyle(.black)
-                .frame(maxWidth: .infinity)
-                .frame(height: AuthMetrics.buttonHeight)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.card))
-                .disabled(isBusy)
-                .accessibilityLabel("Apple로 계속하기")
 
                 if GoogleSignInFlow.isConfigured {
                     // 라벨은 **화면에 적힌 그대로** 둔다 — 보이는 말과 VoiceOver 가 읽는 말이
@@ -574,7 +566,8 @@ struct SocialSignInSection: View {
 
     /// 시안의 소셜 버튼: 322×51~54, radius 18, 아이콘과 글자 사이 15.
     private func socialButton<Content: View>(
-        fill: Color, hasBorder: Bool, action: @escaping () -> Void, label: String,
+        fill: Color, foreground: Color = .textSecondary, hasBorder: Bool,
+        action: @escaping () -> Void, label: String,
         @ViewBuilder content: () -> Content
     ) -> some View {
         Button(action: action) {
@@ -582,7 +575,7 @@ struct SocialSignInSection: View {
                 content()
             }
             .font(.notoSans(16, .medium, relativeTo: .headline))
-            .foregroundStyle(.textSecondary)
+            .foregroundStyle(foreground)
             .frame(maxWidth: .infinity)
             .frame(minHeight: AuthMetrics.buttonHeight)
             .background(RoundedRectangle(cornerRadius: Radius.card).fill(fill))
