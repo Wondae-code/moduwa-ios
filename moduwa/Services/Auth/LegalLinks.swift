@@ -12,8 +12,8 @@ enum LegalLinks {
     /// 나쁘게 읽힌다.
     static let privacyPolicy: URL? = URL(string: "https://moduwa.app/privacy")
 
-    /// 문의 창구. **고객센터 화면이 이 값을 쓴다** — 심사(1.2)가 연락 수단 공개를 요구한다.
-    /// 처리방침·약관 본문이 `help@moduwa.app` 을 안내하고 있다(2026-09-05 확인).
-    /// ⚠️ 아직 화면에 연결하지 않았다 — 고객센터는 여전히 "준비 중" 이다.
-    static let supportEmail: String? = nil
+    /// 문의 창구. **고객센터 화면이 이 값을 쓴다**(`HelpCenterView`) — 심사(1.2)가 연락 수단
+    /// 공개를 요구한다. 처리방침·약관 본문도 같은 주소를 안내한다(2026-09-05 확인).
+    /// 세 곳이 어긋나면 안 되므로 값은 여기 하나만 둔다.
+    static let supportEmail: String? = "help@moduwa.app"
 }

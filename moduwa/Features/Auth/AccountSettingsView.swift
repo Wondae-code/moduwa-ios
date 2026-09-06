@@ -330,7 +330,7 @@ struct AccountSettingsView: View {
         case .accessibility:
             AccessibilitySettingsView()
         case .helpCenter:
-            comingSoon("고객센터", "questionmark.circle", "고객센터는 준비 중이에요")
+            HelpCenterView()
         case .terms:
             TermsView()
         case .privacyPolicy:
