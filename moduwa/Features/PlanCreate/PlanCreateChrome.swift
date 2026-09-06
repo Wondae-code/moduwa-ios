@@ -127,6 +127,21 @@ struct PlanCreateChip: View {
     var fillsWidth = false
     let action: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// 3열 격자에서 **한 줄로 고정하는지.** 칸 폭이 셋 다 같아야 하는데(같은 종류의
+    /// 선택지니까) 문구 길이는 제각각이라, 제일 긴 것("통영·거제·남해")이 108pt 칸에
+    /// 안 들어가 두 줄로 접히고 **그 줄만 높이가 달라졌다**(2026-09-07 실측).
+    ///
+    /// 칸을 넓히는 대신 글자를 살짝 줄인다 — 아이폰 17 Pro 폭에서는 줄지 않고, SE 처럼
+    /// 좁은 화면에서만 0.85 배까지 준다(14 → 11.9pt). 칩 크기는 끝까지 같다.
+    ///
+    /// ⚠️ **접근성 글자 크기에서는 걸지 않는다.** 그때는 격자가 한 열로 펴져 줄바꿈이
+    /// 정상이고, 한 줄로 묶으면 글자가 잘리거나 읽을 수 없게 작아진다.
+    private var clampsToOneLine: Bool {
+        fillsWidth && !dynamicTypeSize.isAccessibilitySize
+    }
+
     var body: some View {
         Button(action: action) {
             Text(label)
@@ -141,7 +156,10 @@ struct PlanCreateChip: View {
                 .multilineTextAlignment(.center)
                 // 접근성 글자 크기에서 칩 하나가 여러 줄이 되어도 잘리지 않게
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 14)
+                .lineLimit(clampsToOneLine ? 1 : nil)
+                .minimumScaleFactor(clampsToOneLine ? 0.85 : 1)
+                // 3열 격자는 12 — 14 로는 제일 긴 문구가 칸에 안 들어간다(위 주석).
+                .padding(.horizontal, fillsWidth ? 12 : 14)
                 .padding(.vertical, fillsWidth ? 6 : 2)
                 .frame(maxWidth: fillsWidth ? .infinity : nil)
                 .frame(minHeight: fillsWidth ? 38 : 30)

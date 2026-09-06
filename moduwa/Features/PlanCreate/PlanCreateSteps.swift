@@ -210,15 +210,16 @@ struct PlanBudgetStep: View {
 
 // MARK: - 공통 칩 격자 (2/6 · 4/6)
 
-/// 시안 519:1219 의 3열 격자 — 가로 간격 10, 세로 피치 58.
+/// 시안 519:1219 의 3열 격자 — 칸 폭 108, 가로 간격 10, 세로 피치 58.
 ///
-/// ⚠️ **칸 폭이 균등하지 않다.** 시안에서 앞 세 줄은 108 로 같은데 마지막 줄만
-/// 97 / 120 / 108 이다 — "통영·거제·남해" 가 108 에 안 들어가서 디자이너가 그 칸만 넓히고
-/// 옆칸을 좁혔다. `GridItem(.flexible())` 로 3등분하면 **그 칩만 두 줄로 접혀 그 줄 전체
-/// 높이가 달라진다**(2026-09-07 iPhone 17 Pro 실측). 그래서 줄마다 칩에 제 폭을 주고
-/// 남는 폭을 고르게 나누는 `PlanChipRows` 를 쓴다.
+/// **칸 폭은 전부 같다.** 시안은 마지막 줄만 97 / 120 / 108 로 그려 두었는데("통영·거제·남해"
+/// 가 108 에 안 들어가서 그 칸만 넓힌 것이다) 그대로 옮겨 보니 **줄마다 칩 크기가 달라져
+/// 더 이상해 보였다**(2026-09-07 판단). 같은 종류의 선택지는 같은 크기여야 한다.
 ///
-/// 접근성 글자 크기에서는 한 칸에 문구가 들어가지 않아 **한 열로 편다**.
+/// 대신 접히던 원인만 따로 막는다 — 좌우 패딩을 14 → 12 로 줄이고, 기본 글자 크기에서는
+/// 한 줄로 고정해 모자라면 글자만 살짝 줄인다(`PlanCreateChip` 의 `fillsWidth` 분기).
+/// 접근성 글자 크기에서는 한 칸에 문구가 들어가지 않아 **한 열로 편다** — 거기서는 줄바꿈이
+/// 정상이므로 한 줄 고정을 걸지 않는다.
 private struct PlanChipGrid: View {
     /// (저장에 쓰는 코드, 화면에 쓰는 문구)
     let items: [(code: String, label: String)]
@@ -230,11 +231,14 @@ private struct PlanChipGrid: View {
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    private var columnCount: Int { dynamicTypeSize.isAccessibilitySize ? 1 : 3 }
+    private var columns: [GridItem] {
+        let count = dynamicTypeSize.isAccessibilitySize ? 1 : 3
+        return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
+    }
 
     var body: some View {
         // 칩이 위아래 3pt 여백을 품어 44pt 탭 영역을 만든다 — 그만큼 행 간격에서 뺀다(58 피치 유지)
-        PlanChipRows(columns: columnCount, spacing: 10, rowSpacing: 14) {
+        LazyVGrid(columns: columns, spacing: 14) {
             ForEach(items, id: \.code) { item in
                 PlanCreateChip(
                     label: item.label,
@@ -254,62 +258,3 @@ private struct PlanChipGrid: View {
 }
 
 
-/// 칩을 `columns` 개씩 줄로 끊되, **한 줄 안에서 폭을 균등하게 나누지 않는다.**
-///
-/// 각 칩에 제 문구가 들어갈 만큼의 폭을 먼저 주고, 줄에 남는 폭을 고르게 더한다. 시안이
-/// 마지막 줄만 97 / 120 / 108 로 그려 둔 것과 같은 규칙이다 — 긴 문구가 있는 줄은 그 칩이
-/// 넓어지고 옆칸이 좁아진다. `LazyVGrid` 의 3등분으로는 긴 칩이 두 줄로 접혀 그 줄만
-/// 높이가 달라졌다.
-///
-/// 줄이 덜 찬 마지막 줄은 남는 폭을 나눠 갖지 않는다 — 칩 두 개가 한 줄을 다 차지하면
-/// 위 줄들과 다른 물건처럼 보인다.
-private struct PlanChipRows: Layout {
-    var columns: Int
-    var spacing: CGFloat
-    var rowSpacing: CGFloat
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let width = proposal.replacingUnspecifiedDimensions().width
-        let rows = layout(subviews: subviews, in: width)
-        let height = rows.map(\.height).reduce(0, +)
-            + rowSpacing * CGFloat(max(rows.count - 1, 0))
-        return CGSize(width: width, height: height)
-    }
-
-    func placeSubviews(
-        in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
-    ) {
-        var y = bounds.minY
-        for row in layout(subviews: subviews, in: bounds.width) {
-            var x = bounds.minX
-            for item in row.items {
-                subviews[item.index].place(
-                    at: CGPoint(x: x, y: y),
-                    proposal: ProposedViewSize(width: item.width, height: row.height))
-                x += item.width + spacing
-            }
-            y += row.height + rowSpacing
-        }
-    }
-
-    private struct Row { var items: [(index: Int, width: CGFloat)]; var height: CGFloat }
-
-    private func layout(subviews: Subviews, in width: CGFloat) -> [Row] {
-        guard columns > 0, !subviews.isEmpty else { return [] }
-        return stride(from: 0, to: subviews.count, by: columns).map { start in
-            let indices = Array(start..<min(start + columns, subviews.count))
-            let gaps = spacing * CGFloat(indices.count - 1)
-            let ideals = indices.map { subviews[$0].sizeThatFits(.unspecified).width }
-            // 줄이 다 찼을 때만 남는 폭을 나눈다.
-            let slack = indices.count == columns
-                ? max(0, width - gaps - ideals.reduce(0, +)) / CGFloat(columns)
-                : 0
-            let widths = ideals.map { $0 + slack }
-            let height = zip(indices, widths).map { index, itemWidth in
-                subviews[index].sizeThatFits(
-                    ProposedViewSize(width: itemWidth, height: nil)).height
-            }.max() ?? 0
-            return Row(items: Array(zip(indices, widths)).map { ($0.0, $0.1) }, height: height)
-        }
-    }
-}

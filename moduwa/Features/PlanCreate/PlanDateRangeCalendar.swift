@@ -18,7 +18,13 @@ struct PlanDateRangeCalendar: View {
     @Binding var startDate: Date?
     @Binding var endDate: Date?
     /// 이미 만든 플랜이 잡아 둔 날짜 — 시안의 회색 알약 + "다른 일정" 범례(`958:462`).
-    /// **막지 않는다.** 겹치는 날짜도 고를 수 있고, 이건 알려 주기만 하는 표시다.
+    ///
+    /// **고를 수 없다**(2026-09-07 결정). 처음에는 알려 주기만 하는 표시로 뒀는데, 그러면
+    /// 같은 날에 두 여행이 잡혀도 앱이 아무 말을 안 한다. 회색으로 칠해 두고 눌리게 두는 것도
+    /// 앞뒤가 안 맞는다 — 칠해 놓은 이유가 "여기는 이미 찼다" 이므로 눌리지 않는 게 맞다.
+    ///
+    /// 그래서 **범위도 이 날짜들을 넘어갈 수 없다.** 못 고르는 날을 사이에 끼운 기간은 만들 수
+    /// 없기 때문이다(`clamped(_:from:)`).
     var busyRanges: [ClosedRange<Date>] = []
 
     /// 시안은 이번 달과 다음 달을 이어 붙여 스크롤한다. 1년치를 그려 두면
@@ -27,6 +33,12 @@ struct PlanDateRangeCalendar: View {
 
     private let calendar = Calendar.current
     private var today: Date { calendar.startOfDay(for: .now) }
+
+    /// 드래그가 손끝 아래 날짜를 찾는 데 쓰는 칸 위치. 각 칸이 올려 준다(`DayFrames`).
+    @State private var dayFrames: [Date: CGRect] = [:]
+    /// 드래그를 시작한 날짜. 드래그 중에만 값이 있다.
+    @State private var dragAnchor: Date?
+    private static let gridSpace = "PlanDateGrid"
 
     var body: some View {
         VStack(spacing: 0) {
@@ -47,6 +59,10 @@ struct PlanDateRangeCalendar: View {
                 }
                 .padding(.top, 26)
                 .padding(.bottom, 12)
+                .coordinateSpace(name: Self.gridSpace)
+                .onPreferenceChange(DayFrames.self) { dayFrames = $0 }
+                // 탭은 각 칸의 `Button` 이 받는다 — 이 제스처는 **꾹 누른 뒤**에만 깨어난다.
+                .simultaneousGesture(dragGesture)
             }
         }
     }
@@ -200,6 +216,7 @@ struct PlanDateRangeCalendar: View {
     private func dayCell(_ day: Date, in month: Date) -> some View {
         let isThisMonth = calendar.isDate(day, equalTo: month, toGranularity: .month)
         let isPast = day < today
+        let selectable = isThisMonth && !isPast && !isBusy(day)
 
         Button {
             // 선택 상태가 바뀌면 띠와 원이 동시에 나타난다 — 애니메이션되면 격자가 출렁인다.
@@ -225,14 +242,33 @@ struct PlanDateRangeCalendar: View {
             .frame(maxWidth: .infinity)
             .frame(height: 44)
             .contentShape(Rectangle())
+            // 드래그가 손끝 아래 날짜를 찾을 수 있게 칸 위치를 모아 올린다 (`dragGesture`).
+            .background {
+                if selectable {
+                    GeometryReader { geometry in
+                        Color.clear.preference(
+                            key: DayFrames.self,
+                            value: [calendar.startOfDay(for: day):
+                                        geometry.frame(in: .named(Self.gridSpace))])
+                    }
+                }
+            }
         }
         .buttonStyle(.plain)
-        .disabled(!isThisMonth || isPast)
+        .disabled(!selectable)
+        // 기준점은 **칸이 스스로 알린다.** 좌표로 되짚으면 안 된다 —
+        //  `DragGesture.startLocation` 은 누른 점이 아니라 **누른 뒤 첫 이동 지점**으로
+        //  들어와서, 출발 칸을 지나쳐 버린다(실측). 여기서는 이 칸이 어느 날인지 이미 안다.
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.25)
+                .onEnded { _ in beginDrag(at: day) })
         .accessibilityLabel(label(for: day))
         .accessibilityValue(value(for: day))
         .accessibilityAddTraits(isEndpoint(day) ? [.isButton, .isSelected] : .isButton)
-        .accessibilityHint(isThisMonth && !isPast ? nextActionHint : "")
-        // 이웃 달·지난 날짜는 눌러도 아무 일이 없어 정지점만 늘린다
+        .accessibilityHint(selectable ? nextActionHint : "")
+        // 이웃 달·지난 날짜는 눌러도 아무 일이 없어 정지점만 늘린다.
+        //  **다른 일정 날짜는 감추지 않는다** — 왜 못 고르는지 알려 줘야 하고,
+        //  값에 "다른 일정 있음" 이 실려 있다(`value(for:)`).
         .accessibilityHidden(!isThisMonth || isPast)
     }
 
@@ -241,6 +277,9 @@ struct PlanDateRangeCalendar: View {
         if isEndpoint(day) { return .textPrimary }
         // 고를 수 없는 칸(이웃 달·지난 날짜)만 회색이다. 정보가 아니라 "여기는 없다"는 표시다.
         if !isThisMonth || isPast { return .iconGray }
+        // 다른 일정 칸은 `iconGray` 로 두지 않는다 — `#E6E6E6` 알약 위에서 1.9:1 이라
+        //  읽을 수 없다. 시안도 이 칸의 날짜를 `#4D4D4D` 로 그려 둔다(7.4:1).
+        if isBusy(day) { return .textSecondary }
         return .textPrimary
     }
 
@@ -346,7 +385,11 @@ struct PlanDateRangeCalendar: View {
     /// 출발일 → 도착일 순으로 채운다. 이미 둘 다 정해졌거나 출발일보다 앞을 누르면
     /// 그 날짜를 새 출발일로 삼는다 — 끝을 앞으로 당기는 조작을 따로 배우지 않아도 되게.
     private func select(_ day: Date) {
-        if let start = startDate, endDate == nil, day >= start {
+        // 다른 일정을 사이에 끼운 기간은 만들 수 없다. 이때 몰래 짧게 줄이면 **누른 날짜와
+        //  다른 기간**이 생겨 더 헷갈린다 — 그 날짜를 새 출발일로 삼는다(아래 `else` 와 같다).
+        //  드래그는 반대로 벽에서 멈추는 쪽이 자연스러워 `reachable(towards:from:)` 로 자른다.
+        if let start = startDate, endDate == nil, day >= start,
+           calendar.isDate(reachable(towards: day, from: start), inSameDayAs: day) {
             endDate = day
         } else {
             startDate = day
@@ -354,6 +397,71 @@ struct PlanDateRangeCalendar: View {
         }
         // 격자를 보지 않는 사용자에게는 여기가 유일한 확인 지점이다.
         UIAccessibility.post(notification: .announcement, argument: summaryValue)
+    }
+
+    // MARK: - 드래그로 기간 정하기
+
+    /// 날짜 칸을 **꾹 누른 뒤 끌어** 기간을 잡는다(2026-09-07 요청).
+    ///
+    /// ⚠️ **그냥 드래그로 두면 달력이 스크롤되지 않는다.** 격자가 세로 `ScrollView` 안에 있어
+    /// 두 제스처가 같은 방향을 다툰다. 그래서 **누름을 앞에 세운다**(칸의 `LongPressGesture`,
+    /// 0.25초) — iOS 가 목록 재정렬에 쓰는 것과 같은 방식이고, 짧은 탭은 그대로 각 칸의
+    /// `Button` 이 받는다. 이 드래그는 `dragAnchor` 가 잡혔을 때만 움직이므로, 그냥 스크롤할
+    /// 때는 아무 일도 하지 않는다.
+    ///
+    /// 끌다가 **다른 일정에 닿으면 거기서 멈춘다**(`reachable(towards:from:)`) — 벽에 막히는
+    /// 느낌이 되어, 못 넘어간다는 것을 손으로 알게 된다.
+    private var dragGesture: some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.gridSpace))
+            .onChanged { drag in
+                guard let anchor = dragAnchor else { return }
+                // 다른 일정 위에서는 그대로 둔다 — 벽에 손이 닿아 있는 동안 값이 튀지 않는다.
+                guard let target = day(at: drag.location) else { return }
+                let reachable = reachable(towards: target, from: anchor)
+                withoutAnimation {
+                    startDate = min(anchor, reachable)
+                    endDate = calendar.isDate(anchor, inSameDayAs: reachable)
+                        ? nil : max(anchor, reachable)
+                }
+            }
+            .onEnded { _ in
+                guard dragAnchor != nil else { return }
+                dragAnchor = nil
+                // 격자를 보지 않는 사용자에게는 여기가 유일한 확인 지점이다(`select` 와 같다).
+                UIAccessibility.post(notification: .announcement, argument: summaryValue)
+            }
+    }
+
+    /// 칸을 꾹 눌렀다 — 그 날짜를 기준점으로 삼고 기간을 다시 시작한다.
+    private func beginDrag(at day: Date) {
+        dragAnchor = day
+        withoutAnimation {
+            startDate = day
+            endDate = nil
+        }
+    }
+
+    /// 손끝 좌표 아래의 날짜. 고를 수 없는 칸은 위치를 올리지 않으므로 자연히 걸러진다.
+    private func day(at point: CGPoint) -> Date? {
+        dayFrames.first { $0.value.contains(point) }?.key
+    }
+
+    /// 기준점에서 목표 날짜 **쪽으로 하루씩 걸어가** 닿을 수 있는 마지막 날.
+    /// 다른 일정이나 지난 날짜에 막히면 그 앞에서 멈춘다.
+    ///
+    /// ⚠️ **기준점에서 걸어야 한다.** 범위의 아래쪽 끝에서 걸으면 위로 끌 때와 아래로 끌 때가
+    /// 달라진다 — 26일에서 왼쪽으로 끌면 22~25일 벽을 뛰어넘어 21일이 잡혔다(실측 버그).
+    /// 방향은 기준점이 정한다.
+    private func reachable(towards target: Date, from anchor: Date) -> Date {
+        let step = target >= anchor ? 1 : -1
+        var last = anchor
+        while !calendar.isDate(last, inSameDayAs: target) {
+            guard let next = calendar.date(byAdding: .day, value: step, to: last),
+                  next >= today, !isBusy(next)
+            else { break }
+            last = next
+        }
+        return last
     }
 
     private var nextActionHint: String {
@@ -376,6 +484,16 @@ struct PlanDateRangeCalendar: View {
             return ""
         }()
         return [state, busy].filter { !$0.isEmpty }.joined(separator: ", ")
+    }
+}
+
+/// 날짜 칸의 위치를 격자 좌표계로 모은다 — 드래그가 손끝 아래 날짜를 찾는 데 쓴다.
+/// **고를 수 있는 칸만** 올라오므로 지난 날짜·이웃 달·다른 일정은 드래그에도 안 걸린다.
+private struct DayFrames: PreferenceKey {
+    static let defaultValue: [Date: CGRect] = [:]
+
+    static func reduce(value: inout [Date: CGRect], nextValue: () -> [Date: CGRect]) {
+        value.merge(nextValue()) { _, new in new }
     }
 }
 
