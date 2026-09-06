@@ -38,6 +38,10 @@ struct PlanDateRangeCalendar: View {
     @State private var dayFrames: [Date: CGRect] = [:]
     /// 드래그를 시작한 날짜. 드래그 중에만 값이 있다.
     @State private var dragAnchor: Date?
+    /// 벽에 부딪힌 횟수. 늘어날 때마다 햅틱이 한 번 울린다(`sensoryFeedback`).
+    @State private var wallHits = 0
+    /// 지금 벽에 붙어 있는지 — 붙어 있는 동안 계속 울리지 않게 한다.
+    @State private var isAgainstWall = false
     private static let gridSpace = "PlanDateGrid"
 
     var body: some View {
@@ -63,10 +67,16 @@ struct PlanDateRangeCalendar: View {
                 .padding(.bottom, 12)
                 .coordinateSpace(name: Self.gridSpace)
                 .onPreferenceChange(DayFrames.self) { dayFrames = $0 }
-                // 탭은 각 칸의 `Button` 이 받는다 — 이 제스처는 **꾹 누른 뒤**에만 깨어난다.
-                .simultaneousGesture(dragGesture)
+                // 가로로 끌 때만 깨어나는 팬. 이 뷰가 곧 격자 좌표계의 기준이라
+                //  넘어오는 좌표를 그대로 `dayFrames` 와 맞출 수 있다.
+                .background {
+                    PlanHorizontalPan(onChange: panChanged, onEnd: panEnded)
+                }
             }
         }
+        // 벽에 막히는 것을 **손으로도** 알린다. 눈으로만 알리면 화면을 보지 않는 사람에게는
+        //  아무 일도 일어나지 않은 것과 같다(값 변화가 없으므로 낭독도 안 된다).
+        .sensoryFeedback(.impact(weight: .medium, intensity: 0.7), trigger: wallHits)
     }
 
     // MARK: - 요약 줄
@@ -255,12 +265,6 @@ struct PlanDateRangeCalendar: View {
         }
         .buttonStyle(.plain)
         .disabled(!selectable)
-        // 기준점은 **칸이 스스로 알린다.** 좌표로 되짚으면 안 된다 —
-        //  `DragGesture.startLocation` 은 누른 점이 아니라 **누른 뒤 첫 이동 지점**으로
-        //  들어와서, 출발 칸을 지나쳐 버린다(실측). 여기서는 이 칸이 어느 날인지 이미 안다.
-        .simultaneousGesture(
-            LongPressGesture(minimumDuration: 0.25)
-                .onEnded { _ in beginDrag(at: day) })
         .accessibilityLabel(label(for: day))
         .accessibilityValue(value(for: day))
         .accessibilityAddTraits(isEndpoint(day) ? [.isButton, .isSelected] : .isButton)
@@ -402,47 +406,50 @@ struct PlanDateRangeCalendar: View {
 
     // MARK: - 드래그로 기간 정하기
 
-    /// 날짜 칸을 **꾹 누른 뒤 끌어** 기간을 잡는다(2026-09-07 요청).
+    /// 날짜를 **끌어서** 기간을 잡는다(2026-09-07 요청). 누르고 기다릴 필요가 없다.
     ///
-    /// ⚠️ **그냥 드래그로 두면 달력이 스크롤되지 않는다.** 격자가 세로 `ScrollView` 안에 있어
-    /// 두 제스처가 같은 방향을 다툰다. 그래서 **누름을 앞에 세운다**(칸의 `LongPressGesture`,
-    /// 0.25초) — iOS 가 목록 재정렬에 쓰는 것과 같은 방식이고, 짧은 탭은 그대로 각 칸의
-    /// `Button` 이 받는다. 이 드래그는 `dragAnchor` 가 잡혔을 때만 움직이므로, 그냥 스크롤할
-    /// 때는 아무 일도 하지 않는다.
+    /// 손이 처음 닿은 칸이 기준점이고, 거기서 양쪽으로 늘어난다. 끌다가 **다른 일정이나
+    /// 지난 날짜에 닿으면 거기서 멈추고 햅틱이 한 번 울린다.**
     ///
-    /// 끌다가 **다른 일정에 닿으면 거기서 멈춘다**(`reachable(towards:from:)`) — 벽에 막히는
-    /// 느낌이 되어, 못 넘어간다는 것을 손으로 알게 된다.
-    private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.gridSpace))
-            .onChanged { drag in
-                guard let anchor = dragAnchor else { return }
-                // 다른 일정 위에서는 그대로 둔다 — 벽에 손이 닿아 있는 동안 값이 튀지 않는다.
-                guard let target = day(at: drag.location) else { return }
-                let reachable = reachable(towards: target, from: anchor)
-                withoutAnimation {
-                    startDate = min(anchor, reachable)
-                    endDate = calendar.isDate(anchor, inSameDayAs: reachable)
-                        ? nil : max(anchor, reachable)
-                }
+    /// 세로 스크롤과 어떻게 나누는지는 `PlanHorizontalPan` 에 적어 두었다 — 짧게 말하면
+    /// SwiftUI `DragGesture` 로는 스크롤이 죽어서 UIKit 인식기로 내려갔다.
+    private func panChanged(origin: CGPoint, location: CGPoint) {
+        guard let anchor = dragAnchor ?? day(at: origin) else { return }
+        if dragAnchor == nil {
+            dragAnchor = anchor
+            withoutAnimation {
+                startDate = anchor
+                endDate = nil
             }
-            .onEnded { _ in
-                guard dragAnchor != nil else { return }
-                dragAnchor = nil
-                // 격자를 보지 않는 사용자에게는 여기가 유일한 확인 지점이다(`select` 와 같다).
-                UIAccessibility.post(notification: .announcement, argument: summaryValue)
-            }
-    }
+        }
 
-    /// 칸을 꾹 눌렀다 — 그 날짜를 기준점으로 삼고 기간을 다시 시작한다.
-    private func beginDrag(at day: Date) {
-        dragAnchor = day
+        // 다른 일정 위에서는 그대로 둔다 — 벽에 손이 닿아 있는 동안 값이 튀지 않는다.
+        guard let target = day(at: location) else { return }
+        let reachable = reachable(towards: target, from: anchor)
+
+        // 벽에 **처음 닿는 순간**에만 울린다. 붙어 있는 동안 계속 울리면 소음이 된다.
+        let blocked = !calendar.isDate(reachable, inSameDayAs: target)
+        if blocked, !isAgainstWall { wallHits += 1 }
+        isAgainstWall = blocked
+
         withoutAnimation {
-            startDate = day
-            endDate = nil
+            startDate = min(anchor, reachable)
+            endDate = calendar.isDate(anchor, inSameDayAs: reachable)
+                ? nil : max(anchor, reachable)
         }
     }
 
-    /// 손끝 좌표 아래의 날짜. 고를 수 없는 칸은 위치를 올리지 않으므로 자연히 걸러진다.
+    private func panEnded() {
+        let wasDragging = dragAnchor != nil
+        dragAnchor = nil
+        isAgainstWall = false
+        guard wasDragging else { return }
+        // 격자를 보지 않는 사용자에게는 여기가 유일한 확인 지점이다(`select` 와 같다).
+        UIAccessibility.post(notification: .announcement, argument: summaryValue)
+    }
+
+    /// 격자 좌표계에서 그 지점에 있는 날짜.
+    /// 고를 수 없는 칸은 위치를 올리지 않으므로 자연히 걸러진다.
     private func day(at point: CGPoint) -> Date? {
         dayFrames.first { $0.value.contains(point) }?.key
     }
