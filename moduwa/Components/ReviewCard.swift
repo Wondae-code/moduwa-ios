@@ -39,6 +39,15 @@ struct ReviewCard: View {
                             .font(.caption12)
                             .foregroundStyle(.textSecondary)
                     }
+
+                    Spacer(minLength: 8)
+
+                    // 게시글 카드와 같은 자리. 후기에는 시간이 없어서 같은 목록에서 게시글만
+                    //  "5시간 전" 을 달고 있었다 — 어느 것이 새 글인지 한쪽만 알 수 있었다
+                    //  (2026-09-07 요청).
+                    Text(RelativeTimeText.string(from: review.createdAt))
+                        .font(.caption12)
+                        .foregroundStyle(.textSecondary)
                 }
 
                 // 사진이 있을 때 뱃지는 사진 위에 얹힌다. 사진이 없으면 얹을 곳이 사라지므로
