@@ -64,8 +64,12 @@ struct PlanEditView: View {
                             //  조작이라(완료 전) 한 번 더 확인시킬 일이 아니다.
                             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                 Button(role: .destructive) { remove(item.id) } label: {
-                                    Label("빼기", systemImage: "trash")
+                                    // 글자를 빼고 아이콘만 둔다 — "빼기" 가 아이콘 아래
+                                    //  붙으면서 그림이 행 가운데보다 위로 밀렸다(2026-09-07).
+                                    //  뜻은 `accessibilityLabel` 이 그대로 지고 있다.
+                                    Image(systemName: "trash")
                                 }
+                                .accessibilityLabel("빼기")
                             }
                     case .distance(_, let text):
                         distanceRow(text)
@@ -130,6 +134,35 @@ struct PlanEditView: View {
               let leg = TravelLeg.straightLine(from: current.place, to: next.place)
         else { return nil }
         return leg.distanceText
+    }
+
+    /// 항목 하나를 한 칸 위/아래로 옮긴다 — **스크린리더 전용 동작**이다.
+    ///
+    /// ⚠️ 편집 모드를 끄면서 시스템 핸들이 사라졌고, 그와 함께 **VoiceOver 가 주던 재정렬
+    /// 수단도 사라졌다.** 화면에 그린 `☰` 는 눈에 보이는 힌트일 뿐이라 그걸 대신하지 못한다.
+    /// 꾹 눌러 끄는 동작은 스크린리더로 흉내 낼 수 없으므로, 각 행에 "위로/아래로 옮기기"
+    /// 동작을 직접 달아 준다(`PlanEditStopRow` 호출부).
+    ///
+    /// 한 칸은 **평평한 목록 기준**이다 — 거리 줄과 날짜 머리글을 건너뛰므로, 날 경계에서는
+    /// 자연히 다른 날로 넘어간다(`rebuild` 가 머리글을 경계로 다시 나눈다).
+    private func nudge(_ itemID: UUID, by offset: Int) {
+        guard let from = rows.firstIndex(where: { row in
+            if case .item(_, let item) = row { return item.id == itemID }
+            return false
+        }) else { return }
+
+        // 옮겨 갈 자리도 항목이어야 한다 — 머리글·거리 줄은 건너뛴다.
+        let step = offset > 0 ? 1 : -1
+        var target: Int?
+        var cursor = from + step
+        while rows.indices.contains(cursor) {
+            if case .item = rows[cursor] { target = cursor; break }
+            cursor += step
+        }
+        guard let target else { return }
+
+        // `move(fromOffsets:toOffset:)` 는 아래로 옮길 때 목적지가 한 칸 뒤다.
+        move(from: IndexSet(integer: from), to: step > 0 ? target + 1 : target)
     }
 
     private func move(from source: IndexSet, to destination: Int) {
@@ -320,12 +353,18 @@ struct PlanEditView: View {
     @ViewBuilder
     private func row(for item: PlanDayItem, in day: PlanDay) -> some View {
         let index = day.items.firstIndex(where: { $0.id == item.id }) ?? 0
-        switch item {
-        case .stop(let stop):
-            PlanEditStopRow(number: day.stopNumber(at: index) ?? 0, stop: stop)
-        case .memo(let memo):
-            PlanEditMemoRow(memo: memo)
+        let itemID = item.id
+        return Group {
+            switch item {
+            case .stop(let stop):
+                PlanEditStopRow(number: day.stopNumber(at: index) ?? 0, stop: stop)
+            case .memo(let memo):
+                PlanEditMemoRow(memo: memo)
+            }
         }
+        // 화면의 `☰` 는 눈으로 보는 힌트다. 스크린리더에는 이 두 동작이 그 자리를 대신한다.
+        .accessibilityAction(named: "위로 옮기기") { nudge(itemID, by: -1) }
+        .accessibilityAction(named: "아래로 옮기기") { nudge(itemID, by: 1) }
     }
 
     /// 장소 사이의 거리 한 줄. 상세 화면과 같은 자리·같은 글씨다.
@@ -406,6 +445,8 @@ private struct PlanEditStopRow: View {
             .overlay {
                 RoundedRectangle(cornerRadius: 12).stroke(Color.cardStroke, lineWidth: 1)
             }
+
+            DragHandleHint()
         }
         .padding(.vertical, 5)
         .accessibilityElement(children: .combine)
@@ -413,19 +454,46 @@ private struct PlanEditStopRow: View {
     }
 }
 
+/// 시안(`519:987`)의 드래그 손잡이. **그림일 뿐 컨트롤이 아니다.**
+///
+/// ⚠️ 시스템 핸들은 편집 모드에서만 나오는데, 그 모드에서는 `swipeActions` 가 안 먹는다
+/// (`PlanEditView.remove(_:)` 주석). 스와이프로 빼기를 살리려면 모드를 꺼야 했고, 그러면
+/// 손잡이가 사라져 **순서를 바꿀 수 있다는 사실 자체가 화면에서 지워졌다.**
+///
+/// 그래서 모양만 되살린다. **거짓말은 아니다** — 편집 모드가 꺼진 목록은 행 어디를 꾹 눌러도
+/// 끌리므로, 이 자리를 잡고 끌면 실제로 끌린다. 다만 **누르자마자** 끌리지는 않는다(꾹
+/// 눌러야 한다) — 시스템 핸들과 다른 점이고, 그래서 색을 옅게 두어 "잡는 곳" 보다
+/// "여기서 끌 수 있다" 는 힌트로 읽히게 했다.
+///
+/// 스크린리더에는 감춘다 — 잡을 수 없는 그림이라 정지점만 늘린다. 대신 행마다
+/// "위로/아래로 옮기기" 동작이 붙어 있다(`PlanEditView.nudge(_:by:)`).
+private struct DragHandleHint: View {
+    var body: some View {
+        Image(systemName: "line.3.horizontal")
+            .font(.system(size: 16, weight: .medium))
+            .foregroundStyle(Color.iconGray)
+            .frame(width: 24)
+            .accessibilityHidden(true)
+    }
+}
+
 private struct PlanEditMemoRow: View {
     let memo: PlanMemo
 
     var body: some View {
-        Text(memo.text)
-            .font(.notoSans(14, .regular, relativeTo: .subheadline))
-            .foregroundStyle(Color.textSecondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(Color.photoPlaceholder, in: RoundedRectangle(cornerRadius: 12))
-            .padding(.leading, 38)
-            .padding(.vertical, 5)
+        HStack(spacing: 14) {
+            Text(memo.text)
+                .font(.notoSans(14, .regular, relativeTo: .subheadline))
+                .foregroundStyle(Color.textSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(Color.photoPlaceholder, in: RoundedRectangle(cornerRadius: 12))
+
+            DragHandleHint()
+        }
+        .padding(.leading, 38)
+        .padding(.vertical, 5)
     }
 }
 
