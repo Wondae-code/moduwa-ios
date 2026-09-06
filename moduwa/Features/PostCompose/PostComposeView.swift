@@ -295,10 +295,17 @@ struct PostComposeView: View {
 
     // MARK: - 툴바
 
-    /// 시안은 사진·장소를 왼쪽에, 전송을 오른쪽 끝에 둔다.
-    /// 아이콘 크기는 시안값 그대로(카메라 28×22.4, 지도 26, 전송 17.9) — 탭 영역은 44 로 넓힌다.
+    /// 시안 `1003:225`(쓴 상태) · `642:2639`(빈 상태) — **글자가 든 알약 셋**이다.
+    ///
+    /// ⚠️ **아이콘만 있던 줄을 바꿨다**(2026-09-07). 앱은 옛 시안을 보고 카메라·지도핀·
+    /// 종이비행기 아이콘 셋만 두고 있었는데, 그러면 **눌러 보기 전까지 무엇인지 알 수 없다** —
+    /// 특히 종이비행기가 "등록" 이라는 것과 지도핀이 "장소추가" 라는 것은 짐작에 기댄다.
+    /// 새 시안은 셋 다 글자를 달았고, 무장애가 주제인 앱에서 그쪽이 맞다.
+    ///
+    /// 시안 값: 줄 높이 **35**, 알약 사이 **10**, 좌우 패딩 **13**, 글자 **14**.
+    /// 사진추가만 아이콘이 붙고(28×22, 글자와 간격 3) **장소추가에는 아이콘이 없다.**
     private var toolbar: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 10) {
             // 카메라를 쓰지 않는다 — `PhotosPicker` 는 사진 라이브러리 권한조차 요청하지 않고
             // 사용자가 고른 사진만 앱에 전달한다(후기 작성과 같은 판단).
             PhotosPicker(
@@ -307,26 +314,25 @@ struct PostComposeView: View {
                 matching: .images,
                 photoLibrary: .shared()
             ) {
-                Image("compose_camera")
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 28, height: 22.4)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
+                HStack(spacing: 3) {
+                    Image("compose_camera")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 28, height: 22.4)
+
+                    Text("사진추가")
+                }
+                .modifier(ComposeToolPill(isFilled: false))
             }
             .disabled(photos.count >= Self.photoLimit || isPreparingPhotos)
             .accessibilityLabel("사진 추가")
             .accessibilityHint("남은 자리 \(Self.photoLimit - photos.count)장")
 
+            // 시안에 아이콘이 없다 — 글자만 둔다.
             Button { isPickingPlace = true } label: {
-                Image("plan_map")
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 26, height: 26)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
+                Text("장소추가")
+                    .modifier(ComposeToolPill(isFilled: false))
             }
             .buttonStyle(.plain)
             .accessibilityLabel("장소 추가")
@@ -337,18 +343,13 @@ struct PostComposeView: View {
                 Task { await submit() }
             } label: {
                 ZStack {
-                    Image("compose_send")
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 18, height: 18)
+                    Text(isEditing ? "수정" : "등록")
                         .opacity(isSubmitting ? 0 : 1)
-                    if isSubmitting { ProgressView().tint(.deepGreen) }
+                    if isSubmitting {
+                        ProgressView().tint(canSubmit ? .white : Color.textSecondary)
+                    }
                 }
-                // 보낼 수 없는 상태를 색만으로 알리지 않는다 — 흐려지고, 스크린리더에도 실린다.
-                .opacity(canSubmit ? 1 : 0.35)
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
+                .modifier(ComposeToolPill(isFilled: true, isEnabled: canSubmit))
             }
             .buttonStyle(.plain)
             .disabled(!canSubmit || isSubmitting)
@@ -356,6 +357,7 @@ struct PostComposeView: View {
                                              : (isEditing ? "수정 완료" : "게시하기"))
             .accessibilityHint(canSubmit ? "" : "내용을 입력하면 게시할 수 있어요")
         }
+        .font(.notoSans(14, .medium))
         .foregroundStyle(Color.deepGreen)
         .padding(.top, 16)
         .padding(.bottom, 14)
@@ -690,4 +692,41 @@ struct PostComposeView: View {
 #Preview("닉네임 없음") {
     NavigationStack { PostComposeView() }
         .onAppear { UserDefaults.standard.removeObject(forKey: ReviewAuthorStore.nicknameKey) }
+}
+
+
+/// 글쓰기 툴바의 알약 — 시안 `1003:225` 의 `Camera/Place/Upload Button`.
+///
+/// 높이 35, 반지름 999, 좌우 13. **테두리형**(사진·장소추가)은 딥그린 1pt 선에 딥그린 글자,
+/// **채움형**(등록)은 딥그린 바탕에 흰 글자다.
+///
+/// ⚠️ **못 누르는 등록의 글자색은 시안(`#B3B3B3`)을 따르지 않는다.** `#E6E6E6` 바탕에서
+/// 1.6:1 이라 무슨 버튼인지 읽을 수 없다 — 지금 눌러야 할 것을 못 찾는 사람에게 가장
+/// 필요한 글자다. `textSecondary`(#4D4D4D)면 같은 바탕에서 7.4:1 이다. 바탕색은 시안대로
+/// 두므로 "지금은 못 누른다" 는 신호는 그대로 남고, 색만으로 전하지도 않는다(스크린리더에
+/// 힌트가 실린다).
+private struct ComposeToolPill: ViewModifier {
+    let isFilled: Bool
+    var isEnabled = true
+
+    func body(content: Content) -> some View {
+        content
+            .lineLimit(1)
+            .foregroundStyle(foreground)
+            .padding(.horizontal, 13)
+            .frame(minHeight: 35)
+            .background {
+                if isFilled {
+                    Capsule().fill(isEnabled ? Color.deepGreen : Color.cardStroke)
+                } else {
+                    Capsule().stroke(Color.deepGreen, lineWidth: 1)
+                }
+            }
+            .contentShape(Capsule())
+    }
+
+    private var foreground: Color {
+        guard isFilled else { return .deepGreen }
+        return isEnabled ? .white : .textSecondary
+    }
 }
