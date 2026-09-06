@@ -54,7 +54,6 @@ struct PlaceReviewsView: View {
     @State private var entryRating = 0
     @State private var isComposingReview = false
     /// 헤더 ☰ — 대응 기능이 없어 "준비 중" popover만 띄운다
-    @State private var showsMenuNotice = false
 
     private enum Tab: String, CaseIterable, Hashable {
         case reviews = "방문 후기"
@@ -116,22 +115,9 @@ struct PlaceReviewsView: View {
 
             Spacer()
 
-            // 장소 상세는 이 자리를 빈 버튼으로 두었지만, 눌러도 아무 일이 없으면 고장으로 읽힌다.
-            // 후기 행의 팔로우·더보기와 같은 방식(기본 popover)으로 준비 중임을 말해 준다.
-            Button { showsMenuNotice = true } label: {
-                Image("hamburger")
-                    .renderingMode(.template)
-                    .frame(width: 26, height: 26)
-            }
-            .accessibilityLabel("메뉴")
-            .popover(isPresented: $showsMenuNotice) {
-                Text("메뉴는 아직 준비 중이에요")
-                    .font(.notoSans(14, .medium, relativeTo: .subheadline))
-                    .foregroundStyle(Color.textPrimary)
-                    .padding(16)
-                    // 없으면 iPhone(compact)에서 popover가 시트로 바뀐다
-                    .presentationCompactAdaptation(.popover)
-            }
+            // ⚠️ **☰ 를 지웠다**(2026-09-07). 눌러도 "메뉴는 아직 준비 중이에요" 만 뜨는
+            //  버튼이었다. 장소 상세에서는 QA #9 로 같은 것을 이미 지웠는데(시안에 ☰ 가
+            //  없다) 이 화면에 하나 남아 있었다. 시안에도 없고, 담을 메뉴도 없다.
         }
         .foregroundStyle(.textPrimary)
         .padding(.leading, 28)
