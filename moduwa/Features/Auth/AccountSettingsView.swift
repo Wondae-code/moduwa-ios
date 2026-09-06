@@ -182,9 +182,7 @@ struct AccountSettingsView: View {
         AuthorAvatar(
             name: session.account?.nickname ?? "",
             avatarURL: session.account?.avatarURL,
-            diameter: 100,
-            background: Color.moduwaGreen.opacity(0.3),
-            foreground: .deepGreen
+            diameter: 100
         )
     }
 

@@ -17,9 +17,12 @@ struct AuthorAvatar: View {
     var avatarURL: URL?
     var diameter: CGFloat = 40
     /// 이니셜 원의 배경. 자리에 따라 딥그린·라임을 쓴다.
-    var background: Color = .deepGreen
+    /// 원 색. 기본은 **연한 라임** — 앱의 모든 아바타가 같은 색이다(2026-09-07 요청).
+    /// 예전에는 목록만 딥그린 원 + 흰 실루엣, 프로필만 라임 원 + 딥그린 실루엣이었다.
+    /// 딥그린 실루엣이 이 배경에서 **7:1** 로 또렷하다(WCAG 비텍스트 3:1 을 넘는다).
+    var background: Color = Color.moduwaGreen.opacity(0.3)
     /// 이니셜 글자색. 라임처럼 밝은 배경에서는 흰 글자가 읽히지 않아 딥그린을 넘긴다.
-    var foreground: Color = .white
+    var foreground: Color = .deepGreen
 
     var body: some View {
         Group {
@@ -64,10 +67,7 @@ struct AuthorAvatar: View {
         AuthorAvatar(name: "효도여행중")
         AuthorAvatar(name: "김민수", diameter: 32)
         AuthorAvatar(name: "이서연", avatarURL: URL(string: "https://example.com/none.jpg"))
-        // 내 프로필 자리 — 라임 원에 딥그린.
-        AuthorAvatar(
-            name: "원대", diameter: 100,
-            background: Color.moduwaGreen.opacity(0.3), foreground: .deepGreen)
+        AuthorAvatar(name: "원대", diameter: 100)
     }
     .padding()
 }
