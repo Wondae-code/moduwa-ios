@@ -3,7 +3,7 @@ import SwiftUI
 /// 새 플랜 만들기 6단계 — Figma "02-2. 새 플랜 플로우"(372:409 · 391:96 · 519:1219 · 519:1343)와
 /// 4/6~6/6 기획 스케치(532:169).
 ///
-/// 목록의 "+ 새 플랜 계획하기"에서 전체 화면으로 열린다. 6/6에서 "혼자 짜볼래요"를 누르면
+/// 목록의 "+ 새 플랜 계획하기"에서 전체 화면으로 열린다. 6/6에서 "혼자 짜볼게요"를 누르면
 /// 그때 **한 번만** 서버에 저장하고(`PUT /v1/plans/:id`) 방금 만든 플랜 상세로 넘긴다 —
 /// 단계마다 저장하면 중간에 그만둔 사용자의 목록에 반쯤 만든 플랜이 남는다.
 struct PlanCreateFlowView: View {
@@ -20,6 +20,13 @@ struct PlanCreateFlowView: View {
     /// 4/6·5/6 선택지. 못 받으면 두 단계를 통째로 건너뛴다 — 문구를 앱에서 지어낼 수 없다.
     @State private var options = PlanOptions.empty
     @State private var optionsFailed = false
+
+    /// 이미 만들어 둔 플랜이 차지한 날짜 구간(3/6 달력의 "다른 일정", 시안 `958:462`).
+    ///
+    /// **못 받으면 그냥 안 그린다.** 이 표시는 도움말이지 제약이 아니다 — 겹치는 날짜도
+    /// 고를 수 있다(하루에 두 여행을 계획할 수도 있고, 서버도 막지 않는다). 실패했다고
+    /// 달력을 못 쓰게 하거나 오류를 띄우면 없던 규칙을 만드는 셈이 된다.
+    @State private var busyRanges: [ClosedRange<Date>] = []
 
     @State private var isSaving = false
     /// 저장 실패 사유 — 서버가 준 한국어 문장을 그대로 띄운다
@@ -53,6 +60,7 @@ struct PlanCreateFlowView: View {
         }
         .background(Color.appBackground)
         .task { await loadOptions() }
+        .task { await loadBusyRanges() }
         // 단계가 바뀌면 화면이 통째로 바뀐 것과 같다 — 포커스를 새 화면으로 옮기며 질문을 읽어 준다.
         .onChange(of: step) { _, new in
             UIAccessibility.post(
@@ -72,7 +80,8 @@ struct PlanCreateFlowView: View {
             scrolling { PlanRegionStep(region: $draft.region) }
         case .dates:
             // 달력이 스스로 스크롤한다 (요약 줄과 구분선은 위에 고정된다)
-            PlanDateRangeCalendar(startDate: $draft.startDate, endDate: $draft.endDate)
+            PlanDateRangeCalendar(startDate: $draft.startDate, endDate: $draft.endDate,
+                                  busyRanges: busyRanges)
         case .themes:
             scrolling {
                 if options.themes.isEmpty {
@@ -118,7 +127,17 @@ struct PlanCreateFlowView: View {
 
     // MARK: - 6/6
 
-    /// 스케치는 질문 아래에 "네!"와 "혼자 짜볼래요" 두 버튼만 둔다 — 완료/건너뛰기가 없다.
+    /// 시안 `958:865` — 질문 아래에 "네!"(라임 320×47)와 "혼자 짜볼게요"(흰 배경 + 라임 테두리
+    /// 320×49) 두 버튼만 둔다. 완료/건너뛰기가 없다.
+    ///
+    /// ⚠️ **라임 테두리는 흰 배경에서 1.5:1 이라 WCAG 1.4.11(비텍스트 3:1)에 못 미친다.**
+    /// 시안을 따르기로 한 결정이고(2026-09-07), 버튼임을 알리는 것은 테두리만이 아니라 안의
+    /// 문구다 — 글자는 `textPrimary` 라 대비가 충분하다. 테두리만 보고 눌러야 하는 자리가
+    /// 아니라서 정보 손실은 없지만, 경계선이 흐릿하다는 사실은 남는다.
+    ///
+    /// 글자는 시안이 Medium 16 인데 **Bold 로 둔다** — 같은 플로우의 "다음으로" 와 맞춘 것이고
+    /// 그쪽은 2026-08-31 에 그렇게 정했다. 색은 시안이 `#000000` 인데 `textPrimary`(#0B2A1C)를
+    /// 쓴다(앱 전체가 그 검정을 쓴다, 눈으로는 구별되지 않는다).
     private var finishStep: some View {
         VStack(spacing: 12) {
             Spacer(minLength: 0)
@@ -139,13 +158,13 @@ struct PlanCreateFlowView: View {
                     Text(pendingCourse == nil ? "네!" : "이대로 담을게요")
                         .font(.notoSans(16, .bold, relativeTo: .headline))
                         .tracking(-0.4)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.textPrimary)
                         .opacity(isRecommending ? 0 : 1)
-                    if isRecommending { ProgressView().tint(.white) }
+                    if isRecommending { ProgressView().tint(Color.textPrimary) }
                 }
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: 55)
-                .background(Capsule().fill(Color.deepGreen))
+                .frame(maxWidth: 320)
+                .frame(minHeight: 47)
+                .background(Capsule().fill(Color.moduwaGreen))
             }
             .buttonStyle(.plain)
             .disabled(isSaving || isRecommending)
@@ -154,21 +173,21 @@ struct PlanCreateFlowView: View {
 
             Button { Task { await save() } } label: {
                 ZStack {
-                    Text("혼자 짜볼래요")
+                    Text("혼자 짜볼게요")
                         .font(.notoSans(16, .bold, relativeTo: .headline))
                         .tracking(-0.4)
-                        .foregroundStyle(Color.deepGreen)
+                        .foregroundStyle(Color.textPrimary)
                         .opacity(isSaving ? 0 : 1)
-                    if isSaving { ProgressView().tint(.deepGreen) }
+                    if isSaving { ProgressView().tint(Color.textPrimary) }
                 }
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: 55)
+                .frame(maxWidth: 320)
+                .frame(minHeight: 49)
                 .background(Capsule().fill(Color.appBackground))
-                .overlay(Capsule().stroke(Color.deepGreen, lineWidth: 1.5))
+                .overlay(Capsule().stroke(Color.moduwaGreen, lineWidth: 1))
             }
             .buttonStyle(.plain)
             .disabled(isSaving)
-            .accessibilityLabel(isSaving ? "플랜 저장 중" : "혼자 짜볼래요")
+            .accessibilityLabel(isSaving ? "플랜 저장 중" : "혼자 짜볼게요")
             .accessibilityHint("플랜을 만들고 상세 화면으로 넘어갑니다")
         }
         .padding(.horizontal, 24)
@@ -287,6 +306,18 @@ struct PlanCreateFlowView: View {
 
     // MARK: - 선택지
 
+    /// 다른 플랜이 잡아 둔 날짜. 조용히 실패한다(위 `busyRanges` 주석).
+    private func loadBusyRanges() async {
+        guard let plans = try? await planService.fetchPlans() else { return }
+        let calendar = Calendar.current
+        busyRanges = plans.compactMap { plan in
+            let start = calendar.startOfDay(for: plan.startDate)
+            let end = calendar.startOfDay(for: plan.endDate)
+            guard start <= end else { return nil }
+            return start...end
+        }
+    }
+
     private func loadOptions() async {
         do {
             options = try await planService.fetchPlanOptions()
@@ -301,7 +332,7 @@ struct PlanCreateFlowView: View {
     /// 6/6 "네!" — 고른 조건으로 코스를 받아 온다.
     ///
     /// 지역은 서버가 후보를 고르는 전제라 없으면 부를 수 없다. 2/6 은 건너뛸 수 있는
-    /// 단계이므로, 막지 않고 **무엇이 필요한지 알려 주고** "혼자 짜볼래요"를 남긴다.
+    /// 단계이므로, 막지 않고 **무엇이 필요한지 알려 주고** "혼자 짜볼게요"를 남긴다.
     private func recommend() async {
         guard !isRecommending, !isSaving else { return }
         guard let region = draft.region else {
@@ -366,7 +397,7 @@ struct PlanCreateFlowView: View {
         let authorNm = typed.isEmpty ? nil : typed
 
         do {
-            // 추천 코스를 받았으면 그 일정을 담아 저장한다. "혼자 짜볼래요"는 빈 채로 만든다.
+            // 추천 코스를 받았으면 그 일정을 담아 저장한다. "혼자 짜볼게요"는 빈 채로 만든다.
             var plan = draft.makePlan()
             plan.days = days
             let saved = try await planService.savePlan(plan, authorNm: authorNm)

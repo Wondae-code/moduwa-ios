@@ -93,7 +93,7 @@ enum PlanCreateStep: Int, CaseIterable, Identifiable {
         case .dates: "언제 여행하시나요?"
         case .themes: "선호하는 테마를 선택해 주세요"
         case .budget: "예산은 어떻게 생각 중이신가요?"
-        case .finish: "거의 다 됐어요!\n모두와 추천 코스를 보러 갈까요?"
+        case .finish: "거의 다 왔어요!\n모두와 추천 코스를 보러 가볼까요?"
         }
     }
 }

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 새 플랜 플로우 3/6의 날짜 범위 달력 — Figma 519:1343
+/// 새 플랜 플로우 3/6의 날짜 범위 달력 — Figma `958:462`(옛 스케치 `519:1343`·`532:146`)
 ///
 /// **구현 방식 판단 — `DatePicker` 두 개가 아니라 직접 만든 달력이다.**
 ///  ① 시안이 "2일 부터 6일 까지"를 한 화면에서 잇는 띠로 보여 준다. `DatePicker` 두 개로는
@@ -17,6 +17,9 @@ import SwiftUI
 struct PlanDateRangeCalendar: View {
     @Binding var startDate: Date?
     @Binding var endDate: Date?
+    /// 이미 만든 플랜이 잡아 둔 날짜 — 시안의 회색 알약 + "다른 일정" 범례(`958:462`).
+    /// **막지 않는다.** 겹치는 날짜도 고를 수 있고, 이건 알려 주기만 하는 표시다.
+    var busyRanges: [ClosedRange<Date>] = []
 
     /// 시안은 이번 달과 다음 달을 이어 붙여 스크롤한다. 1년치를 그려 두면
     /// 내년 여행까지 스크롤만으로 닿는다 (달 넘김 버튼이 시안에 없다).
@@ -50,17 +53,28 @@ struct PlanDateRangeCalendar: View {
 
     // MARK: - 요약 줄
 
-    /// 시안 532:146 — "8월 2일 부터 —— 8월 6일 까지". 아직 안 고른 쪽은 밑줄 자리로 남긴다.
+    /// 시안 `958:462` — **두 줄**이다. "가는 날"(Regular 14 `#4D4D4D`) 아래에
+    /// "8월 2일 (일)"(Bold 18 `#0B2A1C`)이 오고, 두 열 사이를 가는 선이 잇는다.
+    ///
+    /// 옛 스케치(`532:146`)는 "8월 2일 부터 —— 8월 6일 까지" 한 줄이었고 앱이 그쪽을 따르고
+    /// 있었다. 두 줄로 바뀌면서 **"부터/까지" 라는 말이 라벨로 올라갔다** — 같은 뜻을
+    /// 날짜 옆이 아니라 제목 자리에서 말한다.
     private var summary: some View {
-        HStack(spacing: 10) {
-            endpointText(startDate, suffix: "부터")
+        // ⚠️ 두 열을 화면 끝까지 벌리지 않는다. 시안의 `Group 1` 은 폭 **259** 짜리 덩어리가
+        //  가운데 놓인 것이고(393 화면에서 좌우 66/68), 선은 그 안에서 **73**을 차지한다.
+        //  `maxWidth: .infinity` 로 두면 날짜가 좌우 끝에 붙어 한 쌍으로 안 읽힌다.
+        // 선 57 + 양옆 8 = 시안의 73.
+        HStack(alignment: .bottom, spacing: 8) {
+            endpointColumn("가는 날", date: startDate)
 
             Rectangle()
                 .fill(Color.iconGray)
-                .frame(width: 37, height: 1)
+                .frame(width: 57, height: 1)
+                // 선은 날짜 줄 높이에 걸린다(시안에서 두 날짜 사이를 잇는다).
+                .padding(.bottom, 11)
                 .accessibilityHidden(true)
 
-            endpointText(endDate, suffix: "까지")
+            endpointColumn("오는 날", date: endDate)
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 24)
@@ -69,36 +83,26 @@ struct PlanDateRangeCalendar: View {
         .accessibilityValue(summaryValue)
     }
 
-    private func endpointText(_ date: Date?, suffix: String) -> some View {
-        HStack(spacing: 3) {
-            if let date {
-                let parts = calendar.dateComponents([.month, .day], from: date)
-                numberText("\(parts.month ?? 0)")
-                unitText("월")
-                numberText("\(parts.day ?? 0)")
-                unitText("일")
-            } else {
-                // 아직 안 고른 쪽. 빈 자리를 그대로 두면 무엇이 빠졌는지 보이지 않는다.
-                numberText("–")
-                unitText("월")
-                numberText("–")
-                unitText("일")
-            }
-            unitText(suffix).foregroundStyle(Color.textSecondary)
+    private func endpointColumn(_ title: String, date: Date?) -> some View {
+        VStack(spacing: 12) {
+            Text(title)
+                .font(.notoSans(14, .regular, relativeTo: .subheadline))
+                .foregroundStyle(Color.textSecondary)
+
+            Text(dateText(date))
+                .font(.notoSans(18, .bold, relativeTo: .headline))
+                .foregroundStyle(Color.textPrimary)
         }
         .fixedSize(horizontal: false, vertical: true)
+        .multilineTextAlignment(.center)
     }
 
-    private func numberText(_ text: String) -> some View {
-        Text(text)
-            .font(.notoSans(18, .bold, relativeTo: .headline))
-            .foregroundStyle(Color.textPrimary)
-    }
-
-    private func unitText(_ text: String) -> some View {
-        Text(text)
-            .font(.notoSans(15, .medium, relativeTo: .subheadline))
-            .foregroundStyle(Color.textPrimary)
+    /// "8월 2일 (일)" — 아직 안 고른 쪽은 빈 자리를 그대로 두지 않고 밑줄 자리로 남긴다.
+    private func dateText(_ date: Date?) -> String {
+        guard let date else { return "– 월 – 일" }
+        let parts = calendar.dateComponents([.month, .day, .weekday], from: date)
+        let weekday = Self.weekdaySymbols[((parts.weekday ?? 1) - 1) % 7]
+        return "\(parts.month ?? 0)월 \(parts.day ?? 0)일 (\(weekday))"
     }
 
     private var summaryValue: String {
@@ -140,10 +144,13 @@ struct PlanDateRangeCalendar: View {
             VStack(spacing: 3) {
                 weekdayRow
                 ForEach(Array(weeks(of: month).enumerated()), id: \.offset) { _, week in
-                    HStack(spacing: 0) {
-                        ForEach(week, id: \.self) { day in
-                            dayCell(day, in: month)
+                    VStack(spacing: 0) {
+                        HStack(spacing: 0) {
+                            ForEach(week, id: \.self) { day in
+                                dayCell(day, in: month)
+                            }
                         }
+                        busyCaption(for: week, in: month)
                     }
                 }
             }
@@ -199,6 +206,7 @@ struct PlanDateRangeCalendar: View {
             withoutAnimation { select(day) }
         } label: {
             ZStack {
+                busyBand(for: day, in: month)
                 rangeBand(for: day)
 
                 Text("\(calendar.component(.day, from: day))")
@@ -207,7 +215,10 @@ struct PlanDateRangeCalendar: View {
                     .frame(width: 32, height: 32)
                     .background {
                         if isEndpoint(day) {
-                            Circle().fill(Color.deepGreen)
+                            // 시안 `958:462` 의 시작일·종료일은 **라임**이다(딥그린으로 그리고
+                            //  있었다). 위에 얹히는 날짜가 `textPrimary` 라 대비도 라임 쪽이
+                            //  낫다 — 흰 글자를 라임에 올리면 1.6:1 로 읽을 수 없다.
+                            Circle().fill(Color.moduwaGreen)
                         }
                     }
             }
@@ -226,7 +237,8 @@ struct PlanDateRangeCalendar: View {
     }
 
     private func dayColor(isThisMonth: Bool, isPast: Bool, day: Date) -> Color {
-        if isEndpoint(day) { return .white }
+        // 라임 원 위의 날짜는 시안이 Bold `#0B2A1C` 다(흰 글자였다 — 라임 위에서 1.6:1).
+        if isEndpoint(day) { return .textPrimary }
         // 고를 수 없는 칸(이웃 달·지난 날짜)만 회색이다. 정보가 아니라 "여기는 없다"는 표시다.
         if !isThisMonth || isPast { return .iconGray }
         return .textPrimary
@@ -240,6 +252,74 @@ struct PlanDateRangeCalendar: View {
             Rectangle().fill(fillsTrailingHalf(day) ? Color.moduwaGreen.opacity(0.25) : .clear)
         }
         .frame(height: 32)
+    }
+
+    // MARK: - 다른 일정 (시안 958:462)
+
+    /// 이미 만든 플랜이 잡아 둔 날짜를 잇는 **회색 알약**. 시안은 `#E6E6E6` 한 덩어리로
+    /// 그려 두었고, 여기서는 칸마다 알약 + 좌우 반쪽 이음새로 같은 모양을 만든다
+    /// (`rangeBand` 와 같은 방식이다 — 끝은 둥글고 가운데는 이어진다).
+    ///
+    /// 이웃 달 칸에는 그리지 않는다. 그 칸은 어차피 못 고르는 자리라 회색이 두 뜻이 된다.
+    @ViewBuilder
+    private func busyBand(for day: Date, in month: Date) -> some View {
+        if calendar.isDate(day, equalTo: month, toGranularity: .month), isBusy(day) {
+            ZStack {
+                HStack(spacing: 0) {
+                    Rectangle().fill(isBusy(dayBefore: day) ? Color.cardStroke : .clear)
+                    Rectangle().fill(isBusy(dayAfter: day) ? Color.cardStroke : .clear)
+                }
+                Capsule().fill(Color.cardStroke).frame(width: 32)
+            }
+            .frame(height: 32)
+        }
+    }
+
+    /// 회색 알약이 걸린 주 아래에 붙는 **"다른 일정"** 범례(시안 Regular 12 `#B3B3B3`).
+    ///
+    /// 7칸을 그대로 다시 깔고 알약의 가운데 칸에만 글자를 둔다 — 칸보다 글자가 넓어
+    /// `fixedSize` 로 옆으로 흘려 보낸다(시안의 범례도 한 칸보다 넓다).
+    @ViewBuilder
+    private func busyCaption(for week: [Date], in month: Date) -> some View {
+        let columns = week.indices.filter {
+            calendar.isDate(week[$0], equalTo: month, toGranularity: .month) && isBusy(week[$0])
+        }
+        if let first = columns.first, let last = columns.last {
+            let center = (first + last) / 2
+            HStack(spacing: 0) {
+                ForEach(0..<7, id: \.self) { column in
+                    Group {
+                        if column == center {
+                            Text("다른 일정")
+                                .font(.notoSans(12, .regular, relativeTo: .caption))
+                                .foregroundStyle(Color.iconGray)
+                                .fixedSize()
+                        } else {
+                            Color.clear
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            .frame(height: 17)
+            // 위 날짜 칸들이 이미 "다른 일정 있음" 을 값으로 읽어 준다.
+            .accessibilityHidden(true)
+        }
+    }
+
+    private func isBusy(_ day: Date) -> Bool {
+        let start = calendar.startOfDay(for: day)
+        return busyRanges.contains { $0.contains(start) }
+    }
+
+    private func isBusy(dayBefore day: Date) -> Bool {
+        guard let previous = calendar.date(byAdding: .day, value: -1, to: day) else { return false }
+        return isBusy(previous)
+    }
+
+    private func isBusy(dayAfter day: Date) -> Bool {
+        guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { return false }
+        return isBusy(next)
     }
 
     private func fillsLeadingHalf(_ day: Date) -> Bool {
@@ -287,10 +367,15 @@ struct PlanDateRangeCalendar: View {
     }
 
     private func value(for day: Date) -> String {
-        if let start = startDate, calendar.isDate(start, inSameDayAs: day) { return "출발일" }
-        if let end = endDate, calendar.isDate(end, inSameDayAs: day) { return "도착일" }
-        if isInRange(day) { return "여행 기간" }
-        return ""
+        // 회색 알약은 눈으로만 보인다 — 값에 함께 실어야 화면을 안 보고도 알 수 있다.
+        let busy = isBusy(day) ? "다른 일정 있음" : ""
+        let state: String = {
+            if let start = startDate, calendar.isDate(start, inSameDayAs: day) { return "출발일" }
+            if let end = endDate, calendar.isDate(end, inSameDayAs: day) { return "도착일" }
+            if isInRange(day) { return "여행 기간" }
+            return ""
+        }()
+        return [state, busy].filter { !$0.isEmpty }.joined(separator: ", ")
     }
 }
 

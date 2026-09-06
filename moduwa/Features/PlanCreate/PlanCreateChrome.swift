@@ -85,7 +85,8 @@ struct PlanCreateHeader: View {
                     .frame(width: geometry.size.width * progress)
             }
         }
-        .frame(height: 8)
+        // 시안 `Line 6`·`Line 7` 의 stroke 가 **5** 다(8 로 그리고 있었다).
+        .frame(height: 5)
     }
 }
 
