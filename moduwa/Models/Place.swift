@@ -49,6 +49,32 @@ extension PlaceCategory: Codable {
     }
 }
 
+/// 무장애 축. **같은 다섯 축이 서버에 세 벌의 다른 이름으로 저장돼 있다** — 이 enum 이 그
+/// 세 벌을 다 들고 있는 유일한 자리다(2026-09-07 서버팀 052 회신에서 드러났다):
+///
+/// ```
+/// 축     rawValue(이 파일)          serverAccessGroup   visitorTagCode
+///        authors/posts.access_features   ?access=       review_tag_defs
+/// 지체   wheelchairAccessible        wheelchair         visit_wheelchair
+/// 시각   visuallyImpairedFriendly    visual             visit_visual
+/// 청각   hearingFriendly             hearing            visit_hearing
+/// 유아   childFriendly               infant             visit_infant   ← 어간이 다르다
+/// 고령   elderlyFriendly             elderly            visit_elderly
+/// ```
+///
+/// ⚠️ **세 벌 사이를 문자열 규칙으로 오갈 수 없다.** `visit_` 를 떼면 둘이 맞는 것처럼
+/// 보이는데 그건 다섯 중 넷이 우연히 겹친 것이고, **유아 축은 `childFriendly` ↔ `infant`
+/// 라 어떤 접두어·접미어 규칙으로도 못 간다.** 붙이거나 떼서 맞히려 들지 말 것 —
+/// 아래 세 개의 `switch` 가 규칙이고, 표를 뒤집어 찾는 것(`init?(visitorTagCode:)`)이 규칙이다.
+///
+/// ⚠️ **이름을 바꾸면 세 곳에 정반대로 도착한다**(서버 `sql/052_tag_defs_restrict.sql` 주석과
+/// 같은 내용을 반대 방향에서 적는다): `review_tag_defs` 는 FK 가 막아 **에러가 나고**,
+/// `?access=` 는 필터가 그냥 **안 걸리고**, `access_features` 는 검증할 표가 없어 옛 문자열이
+/// **그대로 남아 아무것과도 안 맞는다.** 셋 중 마지막이 050 에서 민감정보로 분류한 열이다.
+/// 축 이름을 손대기 전에 서버팀에 알린다(양방향 약속, 2026-09-07).
+///
+/// `rawValue` 가 곧 서버 값이라 **case 이름을 바꾸는 것이 곧 스키마 변경이다** —
+/// `APIAuthService` 와 `APIPostService` 가 `.map(\.rawValue)` 로 그대로 싣는다.
 enum AccessibilityFeature: String, Sendable, Decodable, CaseIterable {
     case wheelchairAccessible
     case flatPath
