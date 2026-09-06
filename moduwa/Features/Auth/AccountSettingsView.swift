@@ -11,8 +11,8 @@ import SwiftUI
 /// 내 게시글 · 접근성 · 고객센터 · 서비스 이용약관. 구 서랍의 "설정"(화면 이름과 겹친다)과
 /// "이용 가이드"는 시안에서 빠졌다.
 ///
-/// ⚠️ 시안에 **로그아웃 자리가 없다.** 로그아웃·이메일 인증·비밀번호 변경은 `AccountInfoView`
-/// 하나에 모여 있어서 **프로필 편집 화면 안**으로 옮겼다(이름 옆 연필 → 프로필 편집 → 회원정보 수정).
+/// ⚠️ 시안에 **로그아웃 자리가 없다.** 로그아웃·이메일 인증·비밀번호 변경은
+/// `AccountInfoSection` 하나에 모여 **프로필 편집 화면 안**에 있다(헤더 우상단 "프로필 편집").
 /// 빼면 앱에서 로그아웃할 길이 사라진다.
 struct AccountSettingsView: View {
     @Environment(SessionStore.self) private var session
@@ -50,6 +50,7 @@ struct AccountSettingsView: View {
             ScrollView {
                 VStack(spacing: 0) {
                     profile
+                    accessFeatureIcons
                     accessProfileRow
                     thickDivider
                     menu
@@ -112,6 +113,20 @@ struct AccountSettingsView: View {
                 .accessibilityAddTraits(.isHeader)
 
             Spacer(minLength: 0)
+
+            // 시안에는 연필이 **이름 옆**에 있지만(`Edit Button` 977:662, 38×38) 여기로
+            //  옮겼다(2026-09-07 QA #17). 시안 헤더의 오른쪽은 비어 있어 자리가 남는다.
+            //  그림 하나보다 **글자**가 무엇을 여는 버튼인지 분명하다.
+            if session.account != nil {
+                Button { row = .profileEdit } label: {
+                    Text("프로필 편집")
+                        .font(.notoSans(14, .medium))
+                        .tracking(-0.4)
+                        .foregroundStyle(.deepGreen)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
         }
         .padding(.horizontal, 24)
         .frame(height: 49)
@@ -128,41 +143,15 @@ struct AccountSettingsView: View {
         VStack(spacing: 0) {
             avatar
 
-            // 시안(983:1192·983:1191): **이름은 화면 가운데**, 연필은 그 오른쪽이다.
-            //  연필을 이름과 한 줄에 그냥 이어 붙이면 둘의 합이 가운데로 잡혀 이름이 왼쪽으로
-            //  밀린다. 반대편에 같은 크기의 빈 자리를 두어 이름의 중심을 화면 중심에 맞춘다.
-            HStack(spacing: 6) {
-                if session.account != nil {
-                    // ⚠️ `EmptyView` 는 크기를 줘도 자리를 차지하지 않는다(레이아웃에서 없는
-                    //  것으로 취급된다 — 실측: 이름이 연필 폭의 절반만큼 왼쪽으로 밀렸다).
-                    //  `Color.clear` 는 실제로 자리를 잡는다.
-                    pencilSlot { Color.clear }
-                }
-
-                Text(session.account?.nickname ?? "로그인이 필요해요")
-                    .font(.notoSans(20, .bold, relativeTo: .title3))
-                    .tracking(-0.08)
-                    .foregroundStyle(.textSecondary)
-                    .accessibilityAddTraits(.isHeader)
-
-                // 시안의 연필 = 프로필 편집(사진·닉네임). 계정을 다루는 화면(회원정보·인증·
-                //  로그아웃)은 그 화면 안에서 이어진다 — 설정 시안 다섯 줄에 자리가 없다.
-                if session.account != nil {
-                    Button { row = .profileEdit } label: {
-                        pencilSlot {
-                            Image("detail_pencil")
-                                .renderingMode(.template)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 17, height: 17)
-                                .foregroundStyle(.textSecondary)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("프로필 편집")
-                }
-            }
-            .padding(.top, 4)
+            // 이름만 남는다 — 연필이 헤더 우상단으로 갔다(QA #17).
+            //  예전에는 이름을 화면 가운데 맞추려고 **연필 반대편에 같은 크기의 빈 자리**를
+            //  두는 트릭이 있었는데(`Color.clear` 38×38), 연필이 빠지면서 함께 사라졌다.
+            Text(session.account?.nickname ?? "로그인이 필요해요")
+                .font(.notoSans(20, .bold, relativeTo: .title3))
+                .tracking(-0.08)
+                .foregroundStyle(.textSecondary)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.top, 4)
 
             // 시안은 로그인한 상태만 그린다. 비로그인이면 이 자리에서 로그인으로 보낸다 —
             //  아래 줄들(접근성·고객센터·약관)은 계정 없이도 쓸 수 있어 그대로 둔다.
@@ -177,14 +166,6 @@ struct AccountSettingsView: View {
         .frame(maxWidth: .infinity)
         .padding(.top, 33)
         .padding(.bottom, 20)
-    }
-
-    /// 연필이 앉는 자리. 이름 반대편에 **같은 크기**의 빈 자리를 두어 이름을 화면 가운데로
-    /// 맞추는 데도 쓴다(시안 983:1191 의 38×38).
-    private func pencilSlot<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        content()
-            .frame(width: 38, height: 38)
-            .contentShape(Rectangle())
     }
 
     /// 라임 원 100 + 우하단 딥그린 뱃지. 뱃지의 픽토그램은 **지금 고른 무장애 항목**이다 —
@@ -223,6 +204,58 @@ struct AccountSettingsView: View {
     }
 
     // MARK: - 줄
+
+    /// 지금 저장된 무장애 항목 — **아이콘만**(2026-09-07 QA #18, 요청자가 고른 표현).
+    ///
+    /// 편집 줄 위에 둔다. 예전에는 아바타 우하단 뱃지에 **첫 항목 하나만** 픽토그램으로 떴고,
+    /// 나머지는 편집 화면에 들어가야 알 수 있었다 — 무엇이 저장돼 있는지 프로필에서 다 보이게 한다.
+    ///
+    /// 딥그린 원 + 흰 픽토그램은 바로 위 아바타 뱃지와 같은 말이라, 둘이 한 세트로 읽힌다.
+    ///
+    /// ⚠️ **아이콘만으로는 스크린리더가 아무것도 못 읽는다** — 줄 전체를 한 요소로 묶고
+    /// 이름을 읽어 준다. 아이콘은 눈으로 훑는 사람을 위한 것이고, 뜻은 라벨이 진다.
+    @ViewBuilder
+    private var accessFeatureIcons: some View {
+        let features = session.accessFeatures
+        // ⚠️ **로그인과 무관하게 그린다.** 무장애 항목은 온보딩에서 고른 값이 기기에 남고
+        //  (`OnboardingProfileStore`) 로그인하지 않아도 추천에 쓰인다. 아래 "내 무장애정보 편집"
+        //  줄도 비로그인에 보이므로, 여기만 감추면 무엇을 고쳐야 하는지 알 수 없다.
+        //  (바로 위 아바타 뱃지도 같은 값을 로그인과 무관하게 그린다.)
+        Group {
+            HStack(spacing: 8) {
+                if features.isEmpty {
+                    // 아이콘이 없을 때 빈 자리로 두면 저장이 안 된 것인지 원래 없는 것인지
+                    //  알 수 없다. 아이콘만 쓰기로 했어도 **없음**은 글자라야 전해진다.
+                    Text("아직 고르지 않았어요")
+                        .font(.notoSans(14, .regular, relativeTo: .subheadline))
+                        .foregroundStyle(.textSecondary)
+                } else {
+                    ForEach(features, id: \.self) { feature in
+                        let size = feature.iconSize(height: 15)
+                        Circle()
+                            .fill(Color.deepGreen)
+                            .frame(width: 28, height: 28)
+                            .overlay {
+                                Image(feature.iconName)
+                                    .renderingMode(.template)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: size.width, height: size.height)
+                                    .foregroundStyle(.white)
+                            }
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, Self.rowInset)
+            .padding(.bottom, 10)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(
+                features.isEmpty
+                    ? "내 무장애 정보: 아직 고르지 않았어요"
+                    : "내 무장애 정보: " + features.map(\.label).joined(separator: ", "))
+        }
+    }
 
     /// "내 무장애정보 편집" — 시안 978:1034. 제목이 Bold 이고 부제가 붙는다(다른 줄은 Medium).
     private var accessProfileRow: some View {

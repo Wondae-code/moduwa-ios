@@ -108,11 +108,12 @@
 				LastUpgradeCheck = 1430;
 			};
 			buildConfigurationList = 7F771E286795CEEBB2D77CB3 /* Build configuration list for PBXProject "moduwa" */;
-			developmentRegion = en;
+			developmentRegion = ko;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				Base,
 				en,
+				ko,
 			);
 			mainGroup = CDC1BF3C769ADE9BF173DDDC;
 			minimizedProjectReferenceProxies = 1;

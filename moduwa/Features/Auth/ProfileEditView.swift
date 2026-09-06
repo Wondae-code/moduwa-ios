@@ -13,15 +13,16 @@ import SwiftUI
 /// 갖지 않으므로, 아바타 전용 업로드를 한 벌 더 두는 것보다 재사용이 낫다.
 ///
 /// 로그아웃·이메일 인증·비밀번호 변경은 계정을 다루는 일이라 **여기 아래 줄**에서 이어진다
-/// (`AccountInfoView`). 설정 시안의 다섯 줄에는 그 자리가 없고, 빼면 로그아웃할 길이 사라진다.
+/// (`AccountInfoSection`). 설정 시안의 다섯 줄에는 그 자리가 없고, 빼면 로그아웃할 길이 사라진다.
 struct ProfileEditView: View {
     @Environment(SessionStore.self) private var session
     @Environment(\.feedService) private var feedService
     @Environment(\.dismiss) private var dismiss
 
-    /// 회원정보 수정으로 들어간 뒤 그 안에서 이어지는 화면들.
+    /// 이 화면에서 이어지는 화면들. **`accountInfo` 가 없다** — 그 화면을 이 화면 안으로
+    /// 들였다(QA #2, `accountSection`).
     private enum SubRoute: Hashable, Identifiable {
-        case accountInfo, verifyEmail, resetPassword, deleteAccount
+        case verifyEmail, resetPassword, deleteAccount
 
         var id: Self { self }
     }
@@ -63,7 +64,7 @@ struct ProfileEditView: View {
                     photoBlock
                     nicknameBlock
                     AuthErrorLine(message: errorMessage)
-                    accountInfoRow
+                    accountSection
                 }
                 .padding(.horizontal, Self.inset)
                 .padding(.top, 28)
@@ -228,24 +229,23 @@ struct ProfileEditView: View {
 
     // MARK: - 계정
 
-    /// 로그아웃·이메일 인증·비밀번호 변경으로 가는 줄. 설정 시안에 자리가 없어 여기 둔다.
-    private var accountInfoRow: some View {
-        Button { route = .accountInfo } label: {
-            HStack {
-                Text("회원정보 수정")
-                    .font(.notoSans(16, .medium, relativeTo: .headline))
-                    .tracking(-0.4)
-                    .foregroundStyle(.textSecondary)
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(.textSecondary)
-            }
-            .frame(minHeight: 65)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
+    /// 계정 덩어리 — 이름·이메일·인증, 비밀번호 변경, 로그아웃, 회원 탈퇴.
+    ///
+    /// **한 단 줄였다**(2026-09-07 QA #2). 예전에는 여기 "회원정보 수정" 줄이 있고 눌러야
+    /// 별도 화면이 열렸다 — `설정 → 프로필 편집 → 회원정보 수정` 3단이라 로그아웃
+    /// 한 번에 세 번 들어가야 했다. 그 화면의 내용을 이 자리로 들였다(`AccountInfoSection`).
+    ///
+    /// 비밀번호 변경·이메일 인증·회원 탈퇴는 **여전히 화면을 민다** — 그것들은 메뉴 한 단이
+    /// 아니라 각자 할 일이 있는 화면이다(입력·확인).
+    private var accountSection: some View {
+        AccountInfoSection(
+            onVerifyEmail: { route = .verifyEmail },
+            onChangePassword: { route = .resetPassword },
+            onDeleteAccount: { route = .deleteAccount }
+        )
+        .padding(.top, Spacing.s)
         .overlay(alignment: .top) {
+            // 사진·닉네임(내가 보이는 모습)과 계정(로그인 수단)은 성격이 다르다 — 선으로 가른다.
             Rectangle().fill(Color.photoPlaceholder).frame(height: 1)
         }
     }
@@ -271,18 +271,10 @@ struct ProfileEditView: View {
     @ViewBuilder
     private func destination(_ route: SubRoute) -> some View {
         switch route {
-        case .accountInfo:
-            AccountInfoView(
-                // 로그아웃했으면 프로필을 고칠 계정이 없다 — 이 화면도 함께 닫는다.
-                // 하위 화면만 닫는다. 이 화면을 닫는 일은 아래 `onChange` 가 한다 —
-                //  둘을 같은 틱에 부르면 부모의 dismiss 가 삼켜져 프로필 편집이 남는다(실측).
-                onSignedOut: { self.route = nil },
-                onVerifyEmail: { self.route = .verifyEmail },
-                onChangePassword: { self.route = .resetPassword },
-                onDeleteAccount: { self.route = .deleteAccount }
-            )
         case .verifyEmail:
-            EmailVerifyCodeView { self.route = .accountInfo }
+            // 인증을 마치면 이 화면으로 돌아온다 — 예전에는 "회원정보 수정" 으로 돌아갔지만
+            //  그 화면이 이 화면 안으로 들어왔다(QA #2).
+            EmailVerifyCodeView { self.route = nil }
         case .deleteAccount:
             // 탈퇴하면 계정이 없다 — 이 스택 전체가 닫혀야 한다. 하위만 닫으면 프로필 편집이
             //  남고, 이 화면의 `onChange(of: session.account == nil)` 이 그때 부모를 닫는다.

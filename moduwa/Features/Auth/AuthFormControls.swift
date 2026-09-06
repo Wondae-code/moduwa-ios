@@ -441,7 +441,7 @@ struct CodeField: View {
 /// 인증 화면의 오류 한 줄 (시안 868:527 "exclamanation message" — ⓘ 24pt + 12 Medium `#BF1414`).
 ///
 /// 아이콘은 시안이 vuesax info-circle 을 쓰지만 이 앱은 같은 성격의 글리프를 SF Symbol 로
-/// 통일해 왔다(`AccountInfoView` 의 인증 상태 표시와 같은 규칙).
+/// 통일해 왔다(`AccountInfoSection` 의 인증 상태 표시와 같은 규칙).
 struct AuthInlineError: View {
     let message: String
 
@@ -501,7 +501,21 @@ struct SocialSignInSection: View {
 
                 // 애플 버튼. `.signInWithAppleButtonStyle(.black)` 은 시안의 어두운 CTA 톤과
                 //  맞고, 흰 배경에서 대비도 가장 높다.
-                SignInWithAppleButton(.signIn) { request in
+                //
+                // ⚠️ **글자는 우리가 못 정한다.** 종류가 문구를 정하고 애플이 지역화한다 —
+                //  `.signIn`="Apple로 로그인" · `.continue`="Apple로 계속하기" ·
+                //  `.signUp`="Apple로 가입하기". 옆 버튼들처럼 "Apple로 시작하기" 로 쓰려면
+                //  직접 그려야 하는데, 승인된 문구 밖의 말을 쓰는 것은 브랜드 지침 위반이라
+                //  심사에서 걸린다(규칙 4.8). **`.continue` 가 그중 "시작하기"에 가장 가깝고**,
+                //  처음 누르면 계정이 만들어지는 이 화면의 실제 동작과도 맞는다(2026-09-07 QA #5).
+                //
+                // ⚠️ **영어로 나오던 이유는 앱 언어가 en 이었기 때문이다.** 화면 글자는 다
+                //  한국어인데 지역화를 선언한 적이 없어서(`developmentRegion = en`, `.lproj`
+                //  없음) 애플 버튼만 개발 언어를 따라 "Sign in with Apple" 로 떴다 —
+                //  긴 영어 문장이 큰 글자로 들어가 혼자 튀어 보였다. Info.plist 에
+                //  `CFBundleLocalizations = [ko]` 를 선언해 고쳤다.
+                //  글자 **크기**는 애플이 버튼 높이에 비례해 정하므로 손댈 수 없다.
+                SignInWithAppleButton(.continue) { request in
                     // 이름·이메일을 요청한다. **이름은 첫 로그인에만** 돌아온다.
                     request.requestedScopes = [.fullName, .email]
                 } onCompletion: { result in
@@ -512,7 +526,7 @@ struct SocialSignInSection: View {
                 .frame(height: AuthMetrics.buttonHeight)
                 .clipShape(RoundedRectangle(cornerRadius: Radius.card))
                 .disabled(isBusy)
-                .accessibilityLabel("Apple로 시작하기")
+                .accessibilityLabel("Apple로 계속하기")
 
                 if GoogleSignInFlow.isConfigured {
                     // 라벨은 **화면에 적힌 그대로** 둔다 — 보이는 말과 VoiceOver 가 읽는 말이

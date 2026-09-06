@@ -1,18 +1,20 @@
 import SwiftUI
 
-/// 회원정보 수정 — 설정 화면의 이름 옆 연필(`AccountSettingsView`)에서 들어온다.
+/// 계정을 다루는 덩어리 — 이름·이메일·인증 상태, 비밀번호 변경, 로그아웃, 회원 탈퇴.
+///
+/// **화면이 아니라 섹션이다**(2026-09-07 QA #2). 예전에는 "회원정보 수정" 이라는 별도 화면이었고
+/// `설정 → 프로필 편집 → 회원정보 수정` 3단이었다 — 로그아웃 한 번 하려고 세 번 들어가야 했다.
+/// 프로필 편집 안으로 들여 2단으로 줄였다. 파일을 따로 두는 이유는 `ProfileEditView` 가 이미
+/// 360줄이라서다(사진 고르기·닉네임 검사·저장이 다 거기 있다).
 ///
 /// **로그아웃이 여기 있다.** 시안(821:103)에는 로그아웃 줄이 없고 "비로그인시" 화면도 없어서,
-/// 계정 자체를 다루는 이 줄 안에 두었다 — 이메일 인증과 같은 자리가 맞다. 서랍 첫 화면에
-/// 두면 메뉴 다섯 줄 사이에 성격이 다른 동작 하나가 튄다.
+/// 계정 자체를 다루는 이 덩어리 안에 두었다 — 이메일 인증과 같은 자리가 맞다.
 ///
 /// 로그아웃하면 **저장 탭·플랜 탭이 비어야 한다** — 계정 데이터는 서버에 남고 다시 로그인하면
 /// 돌아오지만, 로그아웃한 기기에 남아 보이면 안 된다(`SessionStore.onSignedOut`).
-struct AccountInfoView: View {
-    /// 로그아웃했다. 서랍은 닫혀야 한다 — 로그아웃한 계정의 메뉴가 남아 있으면 안 된다.
-    var onSignedOut: () -> Void
-    /// 이메일 인증 화면으로. **경로는 서랍이 쥔다** — 밀어 넣는 스택이 하나여야 뒤로 가기가
-    /// 어긋나지 않는다(`AccountSettingsView.SubRoute`).
+struct AccountInfoSection: View {
+    /// 이메일 인증 화면으로. **경로는 감싸는 화면이 쥔다** — 밀어 넣는 스택이 하나여야
+    /// 뒤로 가기가 어긋나지 않는다(`ProfileEditView.SubRoute`).
     var onVerifyEmail: () -> Void
     var onChangePassword: () -> Void
     /// 회원 탈퇴 화면으로. **앱스토어 심사 필수**(5.1.1(v)) — 계정을 만들 수 있는 앱은 앱 안에서
@@ -22,38 +24,30 @@ struct AccountInfoView: View {
     @Environment(SessionStore.self) private var session
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: Spacing.xl) {
-                if let account = session.account {
-                    identityCard(account)
+        VStack(spacing: Spacing.xl) {
+            if let account = session.account {
+                identityCard(account)
 
-                    if !account.emailVerified, account.email != nil {
-                        AuthPrimaryButton(title: "이메일 인증하기", action: onVerifyEmail)
-                    }
-
-                    Button(action: onChangePassword) {
-                        Text("비밀번호 변경")
-                            .font(.notoSans(16, .bold, relativeTo: .headline))
-                            .foregroundStyle(.textPrimary)
-                            .frame(maxWidth: .infinity)
-                            .frame(minHeight: AuthMetrics.buttonHeight)
-                            .background(
-                                RoundedRectangle(cornerRadius: Radius.card)
-                                    .stroke(Color.cardStroke, lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
-
-                    signOutSection
-                    deleteAccountLink
+                if !account.emailVerified, account.email != nil {
+                    AuthPrimaryButton(title: "이메일 인증하기", action: onVerifyEmail)
                 }
+
+                Button(action: onChangePassword) {
+                    Text("비밀번호 변경")
+                        .font(.notoSans(16, .bold, relativeTo: .headline))
+                        .foregroundStyle(.textPrimary)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: AuthMetrics.buttonHeight)
+                        .background(
+                            RoundedRectangle(cornerRadius: Radius.card)
+                                .stroke(Color.cardStroke, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+
+                signOutSection
+                deleteAccountLink
             }
-            .padding(.horizontal, AuthMetrics.horizontal)
-            .padding(.top, Spacing.xl)
-            .padding(.bottom, Spacing.xxl)
         }
-        .background(.white)
-        .navigationTitle("회원정보 수정")
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     /// 되돌릴 수 없는 동작이라 **버튼처럼 두지 않는다** — 로그아웃보다 작고 조용한 글자 링크다.
@@ -111,7 +105,8 @@ struct AccountInfoView: View {
                 Task {
                     await session.signOut()
                     UIAccessibility.post(notification: .announcement, argument: "로그아웃했어요")
-                    onSignedOut()
+                    // 화면을 닫는 일은 감싸는 쪽이 한다 — `ProfileEditView` 가
+                    //  `onChange(of: session.account == nil)` 으로 보고 있다.
                 }
             } label: {
                 Text("로그아웃")
@@ -132,10 +127,12 @@ struct AccountInfoView: View {
     }
 }
 
-#Preview("회원정보 수정") {
-    NavigationStack {
-        AccountInfoView(onSignedOut: {}, onVerifyEmail: {}, onChangePassword: {},
-                        onDeleteAccount: {})
+#Preview("계정 섹션") {
+    ScrollView {
+        AccountInfoSection(onVerifyEmail: {}, onChangePassword: {}, onDeleteAccount: {})
+            .padding(.horizontal, AuthMetrics.horizontal)
+            .padding(.vertical, Spacing.xl)
     }
+    .background(.white)
     .environment(SessionStore(service: MockAuthService()))
 }

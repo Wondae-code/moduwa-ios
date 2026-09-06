@@ -2,12 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>UIAppFonts</key>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>ko</string>
+	<key>CFBundleLocalizations</key>
 	<array>
-		<string>NotoSansKR-Regular.ttf</string>
-		<string>NotoSansKR-Medium.ttf</string>
-		<string>NotoSansKR-SemiBold.ttf</string>
-		<string>NotoSansKR-Bold.ttf</string>
+		<string>ko</string>
 	</array>
 	<key>CFBundleURLTypes</key>
 	<array>
@@ -16,9 +15,6 @@
 			<string>com.waasegye.moduwa.kakao</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<!-- 카카오톡에서 로그인을 마치고 앱으로 돌아오는 길. 규칙은 카카오가 정한
-				     `kakao{네이티브 앱 키}` 이고, SDK 가 이 스킴으로 결과를 되돌려 준다.
-				     Secrets.plist 의 KAKAO_NATIVE_APP_KEY 를 바꾸면 여기도 함께 바꿔야 한다. -->
 				<string>kakao84ed8639fea7477559f5346c4b7ad5e4</string>
 			</array>
 		</dict>
@@ -27,9 +23,6 @@
 			<string>com.waasegye.moduwa.google-signin</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<!-- 구글 iOS 클라이언트의 리다이렉트 스킴 = **역방향 클라이언트 ID**(구글이 정한 규칙).
-				     GoogleSignInFlow 가 클라이언트 ID 를 뒤집어 같은 문자열을 만들어 쓴다 —
-				     Secrets.plist 의 GOOGLE_IOS_CLIENT_ID 를 바꾸면 이 값도 함께 바꿔야 한다. -->
 				<string>com.googleusercontent.apps.356992308499-84vtm5c6f3q9gt9tbi63ju2cgiiaio2m</string>
 			</array>
 		</dict>
@@ -38,20 +31,21 @@
 			<string>com.waasegye.moduwa.invite</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<!-- 카톡 등 인앱 웹뷰 폴백. 유니버설 링크(https://moduwa.app/…)는 인앱
-				     브라우저에서 앱을 못 여는데, 대체 페이지의 "앱에서 열기" 버튼이
-				     moduwa://i/CODE(초대)·moduwa://p/CONTENTID(장소) 로 앱을 연다 —
-				     커스텀 스킴은 웹뷰에서도 동작한다. -->
 				<string>moduwa</string>
 			</array>
 		</dict>
 	</array>
-	<!-- 카카오톡이 깔려 있는지 SDK 가 물어볼 수 있게 한다. 없으면 iOS 가 조회를 막아
-	     `isKakaoTalkLoginAvailable()` 이 항상 false 가 되고, 톡이 있어도 웹 로그인으로 간다. -->
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>kakaokompassauth</string>
 		<string>kakaolink</string>
+	</array>
+	<key>UIAppFonts</key>
+	<array>
+		<string>NotoSansKR-Regular.ttf</string>
+		<string>NotoSansKR-Medium.ttf</string>
+		<string>NotoSansKR-SemiBold.ttf</string>
+		<string>NotoSansKR-Bold.ttf</string>
 	</array>
 	<key>UILaunchScreen</key>
 	<dict>
