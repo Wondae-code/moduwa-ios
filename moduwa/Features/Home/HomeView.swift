@@ -22,7 +22,6 @@ struct HomeView: View {
     /// 홈 히어로 CTA → 새 플랜 플로우(플랜 탭이 연다).
     @Environment(\.planCreation) private var planCreation
     @State private var viewModel = HomeViewModel()
-    @State private var isSortPickerPresented = false
     /// 알림에서 온 게시글 상세. 목록에 없는 글일 수도 있어(다른 사람이 스크롤 밖의 글에
     /// 댓글을 달았다) 아이디로 받아 와 직접 민다.
     @State private var pushedPost: TravelPost?
@@ -348,57 +347,57 @@ struct HomeView: View {
         }
     }
 
-    // 시스템 Menu는 스크롤 뷰 안에서 라벨이 플로팅 레이어에 남아
-    // 스크롤과 어긋나게 움직이는 버그가 있어 버튼 + 팝오버로 구현한다.
+    /// 정렬 고르기 — **시스템 메뉴**(시안 129:84 닫힘 / 129:89 열림).
+    ///
+    /// 예전에는 버튼 + 팝오버로 직접 만들었다. 시스템 `Menu` 가 스크롤 뷰 안에서 라벨을
+    /// 플로팅 레이어에 남겨 스크롤과 어긋나게 움직였기 때문인데, **지금 iOS 에서는 그 증상이
+    /// 없다**(2026-09-07 실측 — 스크롤·열기·고르기 모두 확인). 직접 만든 것보다 시스템 것이
+    /// 나은 이유는 공짜로 따라오는 것들이다: 바깥을 눌러 닫기, 화면 끝에서 알아서 뒤집히기,
+    /// 다이나믹 타입·VoiceOver·고대비, 그리고 **사용자가 이미 아는 모양**.
+    ///
+    /// 안쪽을 `Picker` 로 두면 고른 항목에 **체크가 저절로** 붙고 VoiceOver 도 "선택됨"으로
+    /// 읽는다 — 시안에는 체크가 없지만 남긴다(무엇이 골라져 있는지 목록에서 알 수 없으면
+    /// 접근성이 주제인 앱에서 앞뒤가 안 맞는다).
+    ///
+    /// 시안의 "팔로잉"은 넣지 않았다 — 팔로우 기능이 앱에도 서버에도 없다(2026-09-07 결정).
     private var sortMenu: some View {
-        Button {
-            isSortPickerPresented = true
+        Menu {
+            Picker("리뷰 정렬", selection: sortBinding) {
+                ForEach(ReviewSort.allCases, id: \.self) { sort in
+                    Text(sort.rawValue).tag(sort)
+                }
+            }
         } label: {
+            // 시안 13:303 — 캡슐(radius 999), 흰 배경, 보더 #E6E6E6 1,
+            //  패딩 위아래 9 · 왼 14 · 오 10, 글자 간격 5, **Noto Sans Regular 14**.
             HStack(spacing: 5) {
                 Text(viewModel.reviewSort.rawValue)
-                    .font(.notoSans(14, .bold))
+                    .font(.notoSans(14))
+                // 시안은 Material Symbols 의 `expand_more` 다 — 그 폰트가 없어 같은 뜻의
+                //  SF 심볼을 쓴다. Regular 로는 너무 가늘어 한 단계만 올린다.
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.system(size: 13, weight: .medium))
             }
             .foregroundStyle(.deepGreen)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .padding(.vertical, 9)
+            .padding(.leading, 14)
+            .padding(.trailing, 10)
             .background(Capsule().fill(.white))
             .overlay(Capsule().stroke(Color.cardStroke, lineWidth: 1))
             .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
-        .popover(isPresented: $isSortPickerPresented, arrowEdge: .top) {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(ReviewSort.allCases, id: \.self) { sort in
-                    Button {
-                        isSortPickerPresented = false
-                        Task { await viewModel.selectSort(sort, using: feedService) }
-                    } label: {
-                        HStack {
-                            Text(sort.rawValue)
-                                .font(.chip14)
-                                .foregroundStyle(.textPrimary)
-                            Spacer()
-                            if sort == viewModel.reviewSort {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(.deepGreen)
-                            }
-                        }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(sort == viewModel.reviewSort ? .isSelected : [])
-                }
-            }
-            .frame(minWidth: 130)
-            .padding(.vertical, 4)
-            .presentationCompactAdaptation(.popover)
-        }
         .accessibilityLabel("리뷰 정렬: \(viewModel.reviewSort.rawValue)순")
+    }
+
+    /// 메뉴가 고른 값을 받아 목록을 다시 받는다. `Picker` 가 바인딩만 알면 되도록 감싼다.
+    private var sortBinding: Binding<ReviewSort> {
+        Binding(
+            get: { viewModel.reviewSort },
+            set: { sort in
+                guard sort != viewModel.reviewSort else { return }
+                Task { await viewModel.selectSort(sort, using: feedService) }
+            }
+        )
     }
 }
 
