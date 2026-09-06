@@ -19,13 +19,16 @@ struct PostCard: View {
                     .clipped()
             }
 
-            VStack(alignment: .leading, spacing: 8) {
+            // 줄 사이 4 · 패딩 16/20 — 시안 리뷰 카드와 같은 리듬으로 맞춘다
+            //  (게시글 카드는 시안이 따로 없다. 같은 목록에 나란히 서므로 리듬이 달라선 안 된다.)
+            VStack(alignment: .leading, spacing: 4) {
                 authorRow
 
                 Text(post.body)
                     .font(.notoSans(16))
                     .foregroundStyle(.textSecondary)
-                    .lineSpacing(6)
+                    // 시안 lineHeight 24(16pt 본문) — 리뷰 카드와 같은 값.
+                    .lineSpacing(3)
                     // 홈 카드는 미리보기다 — 긴 글은 잘라 두고 상세에서 다 읽게 한다.
                     .lineLimit(6)
 
@@ -52,12 +55,13 @@ struct PostCard: View {
     /// 사진 1장이면 꽉, 2장이면 좌우 분할, 3장 이상이면 좌 1 + 우 2 에 "+N".
     /// `ReviewCard` 보다 단순하게 두는 이유: 게시글 사진은 최대 5장이고 홈은 미리보기다.
     private var photoArea: some View {
-        HStack(spacing: 1) {
+        // 간격 0 — 시안 리뷰 카드와 같다(172+173=345 로 딱 붙는다).
+        HStack(spacing: 0) {
             photoSlot(0)
             if post.imageURLs.count == 2 {
                 photoSlot(1)
             } else if post.imageURLs.count > 2 {
-                VStack(spacing: 1) {
+                VStack(spacing: 0) {
                     photoSlot(1)
                     photoSlot(2, overflow: post.imageURLs.count - 3)
                 }
@@ -146,14 +150,15 @@ struct PostCard: View {
     /// 좋아요·댓글 수. 하트는 **표시만** 한다 — 카드에서 누르면 목록 전체가 다시 그려지고,
     /// 어느 글에 눌렀는지 눈으로 따라가기 어렵다. 누르는 것은 상세에서 한다.
     private var likeCommentRow: some View {
+        // 시안 리뷰 카드 `Review` — 두 묶음 사이 16, 아이콘과 숫자 사이 2.
         HStack(spacing: 16) {
-            HStack(spacing: 4) {
+            HStack(spacing: 2) {
                 Image(systemName: post.likedByMe ? "heart.fill" : "heart")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(post.likedByMe ? .moduwaGreen : .textSecondary)
                 Text("\(post.likeCount)")
             }
-            HStack(spacing: 4) {
+            HStack(spacing: 2) {
                 Image("chat_bubble")
                     .renderingMode(.template)
                     .foregroundStyle(.moduwaGreen)

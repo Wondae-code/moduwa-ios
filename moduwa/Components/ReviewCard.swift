@@ -19,12 +19,15 @@ struct ReviewCard: View {
                     .overlay(alignment: .topLeading) {
                         if review.isAccessibilityVerified {
                             AccessibilityBadge(feature: .wheelchairAccessible, style: .inverted)
-                                .padding(12)
+                                // 시안 `icon`(13:423) — 사진 좌상단에서 16.
+                                .padding(16)
                         }
                     }
             }
 
-            VStack(alignment: .leading, spacing: 8) {
+            // 시안 `프로필 댓글`(13:423) — 줄 사이 **4**, 패딩 16/20.
+            //  (16 + 프로필 36 + 4 + 본문 26 + 4 + 반응 20 + 16 = 122 = 시안 높이)
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 9) {
                     AuthorAvatar(name: review.author, avatarURL: review.authorAvatarURL,
                                  diameter: 36, fontSize: 14)
@@ -47,16 +50,19 @@ struct ReviewCard: View {
                 Text(review.body)
                     .font(.notoSans(16))
                     .foregroundStyle(.textSecondary)
-                    .lineSpacing(6)
+                    // 시안 lineHeight 24(16pt 본문). 6 은 그보다 성겼다
+                    //  (`PlaceDetailView.overviewSection` 에서 같은 이유로 5→3 으로 내렸다).
+                    .lineSpacing(3)
 
+                // 시안 `Review`(13:423) — 두 묶음 사이 16, 아이콘과 숫자 사이 **2**.
                 HStack(spacing: 16) {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 2) {
                         Image("favorite")
                             .renderingMode(.template)
                             .foregroundStyle(.moduwaGreen)
                         Text("\(review.likeCount)")
                     }
-                    HStack(spacing: 4) {
+                    HStack(spacing: 2) {
                         Image("chat_bubble")
                             .renderingMode(.template)
                             .foregroundStyle(.moduwaGreen)
@@ -86,7 +92,9 @@ struct ReviewCard: View {
     @ViewBuilder
     private var photoArea: some View {
         let count = review.imageURLs.count
-        HStack(spacing: 1) {
+        // 시안 `Frame 1`(13:423) — 172 + 173 = 345 로 **딱 붙는다**(간격 0). 1pt 를 두면
+        //  사진 사이에 흰 줄이 그어져 두 장이 따로 놓인 것으로 보인다.
+        HStack(spacing: 0) {
             photoSlot(0)
             switch count {
             case 2:
@@ -94,14 +102,14 @@ struct ReviewCard: View {
             case 1:
                 EmptyView()
             case 3:
-                VStack(spacing: 1) {
+                VStack(spacing: 0) {
                     photoSlot(1)
                     photoSlot(2)
                 }
             default:
-                VStack(spacing: 1) {
+                VStack(spacing: 0) {
                     photoSlot(1)
-                    HStack(spacing: 1) {
+                    HStack(spacing: 0) {
                         photoSlot(2)
                         photoSlot(3, overflow: count - 4)
                     }
@@ -121,10 +129,15 @@ struct ReviewCard: View {
                     AsyncImage(url: review.imageURLs[index]) { image in
                         image.resizable().scaledToFill()
                     } placeholder: {
-                        PhotoPlaceholder(label: "여행 사진")
+                        // 받는 중 — 곧 사진이 들어올 자리다(밝은 회색).
+                        Color.photoPlaceholder
                     }
                 } else {
-                    PhotoPlaceholder(label: "여행 사진")
+                    // 콜라주에서 남는 칸. 시안 `사진` 프레임의 바탕색이 #E6E6E6 이다.
+                    //
+                    // ⚠️ 예전에는 `PhotoPlaceholder(label: "여행 사진")` 이었다 — **개발용 자리
+                    //  표시라 "여행 사진" 이라는 글자가 사용자 화면에 그대로 보였다.**
+                    Color.cardPhotoEmpty
                 }
             }
             .overlay {
