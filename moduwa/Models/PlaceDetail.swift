@@ -39,8 +39,21 @@ struct PlaceDetail: Sendable {
 
     /// 원형 뱃지로 표시할 접근성 유형들
     var accessibilityFeatures: [AccessibilityFeature] { accessibilityGroups.map(\.feature) }
-    /// 추가정보 bullet 문장 전체
-    var accessibilityNotes: [String] { accessibilityGroups.flatMap(\.notes) }
+    /// 추가정보 bullet 문장 전체 — **그룹을 합치면서 같은 문장은 한 번만 남긴다.**
+    ///
+    /// ⚠️ 그냥 `flatMap` 하면 **같은 줄이 두 번 나온다.** 고령자는 관광공사 원본에 전용
+    /// 속성이 없어서 휠체어 대여·승강기·주차 원문을 **지체장애 그룹과 함께 쓴다**
+    /// (`APIFeedService` 의 그룹 표 주석). 한 장소가 두 유형에 다 해당하는 것은 맞지만,
+    /// 문장을 늘어놓는 자리에서까지 두 번 말할 이유는 없다 — 실측(라마다 구미):
+    /// "엘리베이터 있음"과 "장애인 주차장 있음(4면)"이 목록 끝에 그대로 다시 붙었다
+    /// (2026-09-06 QA #1 "중복 데이터 삭제"). 낭독도 이 목록을 읽어서 같은 문장을 두 번 읽었다.
+    ///
+    /// 뱃지를 눌렀을 때 뜨는 안내 칩은 **그룹의 `notes` 를 그대로** 쓰므로 영향이 없다 —
+    /// 고령자 뱃지를 누르면 승강기·주차 안내가 그대로 나온다. 합치는 이 자리에서만 걸러 낸다.
+    var accessibilityNotes: [String] {
+        var seen = Set<String>()
+        return accessibilityGroups.flatMap(\.notes).filter { seen.insert($0).inserted }
+    }
 
     /// 지도 버튼이 여는 카카오맵 링크.
     ///
