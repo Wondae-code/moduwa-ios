@@ -441,27 +441,25 @@ private struct PlanCard: View {
 private struct UpcomingPlanCard: View {
     let plan: Plan
 
-    /// 사진 표지인지 — 아니면 회색 기본 표지다(`PlanCoverPlaceholder`).
-    /// 스크림과 글자색이 여기서 갈린다.
-    private var hasPhoto: Bool { plan.cardImageURL != nil }
-
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             cover
 
             // 사진 위 흰 글씨의 가독성을 사진에 맡기지 않는다 — 밝은 사진에서도 읽혀야 한다.
             //
-            // ⚠️ **회색 기본 표지에는 걷는다.** 밝은 회색을 어둡게 만들어 딥그린 글자의
-            //  대비를 오히려 깎는다 — 스크림 없이 14:1 이다(`PlanCoverPlaceholder` 주석).
-            if hasPhoto {
-                LinearGradient(
-                    colors: [.black.opacity(0), .black.opacity(0.55)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 103)
-                .frame(maxHeight: .infinity, alignment: .bottom)
-            }
+            // ⚠️ **기본 표지(회색)에서는 이 스크림으로도 흰 글자가 충분히 뜨지 않는다.**
+            //  화면에서 픽셀을 직접 재 봤다(2026-09-07, iPhone 17 Pro): 제목 줄 배경이
+            //  `rgb(177,177,177)` 로 **2.14:1**, 날짜 줄이 `rgb(143,143,143)` 로 3.23:1 이다
+            //  (본문 최소 4.5:1). 스크림이 닿지 않는 카드 위쪽은 1.25:1 이다.
+            //  **흰 글자로 두기로 한 결정이다**(2026-09-07). 사진 표지에서는 문제가 없다 —
+            //  이 값은 기본 표지에서만 나온다.
+            LinearGradient(
+                colors: [.black.opacity(0), .black.opacity(0.55)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 103)
+            .frame(maxHeight: .infinity, alignment: .bottom)
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(plan.title)
@@ -472,7 +470,7 @@ private struct UpcomingPlanCard: View {
                     .font(.notoSans(14, .regular, relativeTo: .subheadline))
                     .tracking(-0.4)
             }
-            .foregroundStyle(hasPhoto ? .white : Color.textPrimary)
+            .foregroundStyle(.white)
             .multilineTextAlignment(.leading)
             .padding(.leading, 27)
             .padding(.bottom, 22)
@@ -505,8 +503,7 @@ private struct UpcomingPlanCard: View {
                         Color.photoPlaceholder
                     }
                 } else {
-                    // 담긴 장소에 사진이 하나도 없을 때의 기본 표지. **사진을 쓰지 않는**
-                    //  이유는 `PlanCoverPlaceholder` 주석에 있다.
+                    // 담긴 장소에 사진이 하나도 없을 때의 기본 표지(`PlanCoverPlaceholder`).
                     PlanCoverPlaceholder()
                 }
             }

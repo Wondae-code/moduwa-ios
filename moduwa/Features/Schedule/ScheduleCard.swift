@@ -30,16 +30,10 @@ struct ScheduleCard: View {
             .map { (number: $0.offset + 1, places: $0.element.placeNames) }
     }
 
-    /// 사진 표지인지 — 아니면 회색 기본 표지다(`PlanCoverPlaceholder`).
-    /// 흐림·스크림과 글자색이 여기서 갈린다.
-    private var hasPhoto: Bool { plan.cardImageURL != nil }
-
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             background
-            // ⚠️ **회색 기본 표지에는 스크림을 걷는다.** 밝은 회색을 어둡게 만들어 딥그린
-            //  글자의 대비를 오히려 깎는다 — 스크림 없이 14:1 이다(`PlanCoverPlaceholder` 주석).
-            if hasPhoto { scrim }
+            scrim
             content
         }
         .frame(height: Self.height)
@@ -72,9 +66,8 @@ struct ScheduleCard: View {
                         Color.photoPlaceholder
                     }
                 } else {
-                    // 담긴 장소에 사진이 하나도 없을 때의 기본 표지. **사진을 쓰지 않는**
-                    //  이유는 `PlanCoverPlaceholder` 주석에 있다.
-                    // 한 색이라 흐린 사본을 겹칠 것이 없다 — 그대로 채운다.
+                    // 담긴 장소에 사진이 하나도 없을 때의 기본 표지. 한 색이라 흐린
+                    //  사본을 겹칠 것이 없어 그대로 채운다(`PlanCoverPlaceholder`).
                     PlanCoverPlaceholder()
                 }
             }
@@ -155,14 +148,13 @@ struct ScheduleCard: View {
                     if dayLines.count > Self.visibleDayCount {
                         Text("…")
                             .font(.notoSans(14, .regular, relativeTo: .subheadline))
-                            .foregroundStyle((hasPhoto ? Color.white : .textPrimary)
-                                .opacity(0.85))
+                            .foregroundStyle(.white.opacity(0.85))
                     }
                 }
                 .padding(.top, 14)
             }
         }
-        .foregroundStyle(hasPhoto ? .white : Color.textPrimary)
+        .foregroundStyle(.white)
         .padding(.horizontal, 27)
         .padding(.bottom, 19)
         .frame(maxWidth: .infinity, alignment: .leading)
