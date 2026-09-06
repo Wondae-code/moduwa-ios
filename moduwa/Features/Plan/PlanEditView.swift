@@ -5,6 +5,9 @@ import SwiftUI
 /// 상세와 달리 지도가 없다. 순서를 바꾸는 화면이라 목록 전체가 한눈에 들어와야 하고,
 /// 드래그로 행을 옮기는 동안 지도가 계속 다시 그려지면 방해만 된다.
 ///
+/// **순서는 꾹 눌러 끌어서, 빼기는 왼쪽으로 밀어서** 한다 — 왜 이렇게 나뉘었는지는
+/// `remove(_:)` 주석에 적었다.
+///
 /// 편집 결과는 **완료를 눌러야** 호출부에 넘어간다 — 순서를 이리저리 바꿔 보다가 되돌리고 싶을 때
 /// 취소할 길이 있어야 한다.
 struct PlanEditView: View {
@@ -56,6 +59,14 @@ struct PlanEditView: View {
                             .listRowInsets(EdgeInsets(top: 0, leading: 36, bottom: 0, trailing: 24))
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.appBackground)
+                            // 왼쪽으로 밀어 뺀다(`remove(_:)` 주석에 편집 모드를 끈 이유가 있다).
+                            //  `allowsFullSwipe` 로 끝까지 밀면 바로 빠진다 — 되돌릴 수 있는
+                            //  조작이라(완료 전) 한 번 더 확인시킬 일이 아니다.
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) { remove(item.id) } label: {
+                                    Label("빼기", systemImage: "trash")
+                                }
+                            }
                     case .distance(_, let text):
                         distanceRow(text)
                             .listRowInsets(EdgeInsets(top: 0, leading: 36, bottom: 0, trailing: 24))
@@ -67,10 +78,8 @@ struct PlanEditView: View {
                     }
                 }
                 .onMove(perform: move)
-                .onDelete(perform: delete)
             }
             .listStyle(.plain)
-            .environment(\.editMode, .constant(.active))
             .scrollContentBackground(.hidden)
             .background(Color.appBackground)
         }
@@ -132,31 +141,34 @@ struct PlanEditView: View {
         UIAccessibility.post(notification: .announcement, argument: "순서를 옮겼어요")
     }
 
-    /// 항목을 지운다. 편집 모드의 표준 삭제(빨간 −)를 그대로 쓴다 — iOS 가 한 번 더
-    /// "삭제"를 눌러야 지워지게 해 주므로 별도 확인 창을 두지 않는다.
+    /// 항목 하나를 뺀다 — 왼쪽으로 밀면 나오는 "빼기" 가 부른다.
     ///
-    /// ⚠️ **시안(519:987)에는 삭제 어피던스가 없다**(드래그 핸들만). 그래도 두는 이유: 담은
-    /// 장소·메모를 뺄 길이 아예 없어 잘못 담으면 되돌릴 수 없었다. 날짜 머리글은
-    /// `deleteDisabled` 로 막았다.
+    /// ⚠️ **편집 모드를 끈 이유가 여기 있다.** 예전에는 `editMode` 를 `.active` 로 고정해
+    /// 드래그 핸들을 늘 보여 줬는데, 그러면 삭제가 **행마다 왼쪽에 빨간 `−`** 로 붙는다.
+    /// 화면에서 제일 센 색이 세로로 줄지어 서고, 정작 이 화면의 일은 순서다 — 시선이 순서가
+    /// 아니라 삭제로 먼저 갔다(2026-09-07 지적). 그런데 **편집 모드에서는 `swipeActions` 가
+    /// 아예 안 먹는다**(실측). 그래서 모드를 끄고 스와이프로 옮겼다.
     ///
-    /// 서버에는 지금 보내지 않는다 — 이 화면의 다른 편집(순서·날짜 이동)과 같이 "완료"를
-    /// 누를 때 한 번에 저장된다. 지우고 나가면 지워지지 않는다.
-    private func delete(at offsets: IndexSet) {
-        let targets = offsets.compactMap { index -> (dayIndex: Int, itemID: UUID)? in
-            guard case .item(let dayIndex, let item) = rows[index] else { return nil }
-            return (dayIndex, item.id)
-        }
-        guard !targets.isEmpty else { return }
+    /// **치른 값: 드래그 핸들이 사라진다.** 순서 바꾸기는 **꾹 눌러 끌기**로 살아 있지만
+    /// (실측) 눈에 보이는 손잡이는 없다. 시안(`519:987`)에는 핸들이 그려져 있으므로
+    /// 이 점은 시안과 어긋난다.
+    ///
+    /// **확인 창을 두지 않는다.** 서버에는 지금 보내지 않고, 이 화면의 다른 편집(순서·날짜
+    /// 이동)과 같이 "완료" 를 눌러야 한 번에 저장된다 — 잘못 밀었으면 뒤로 나가면 그만이다.
+    /// 되돌릴 수 있는 조작에 확인을 붙이면 매번 두 번 누르게 만들 뿐이다.
+    ///
+    /// 날짜 머리글과 거리 줄에는 스와이프가 없다(`deleteDisabled`) — 둘 다 편집 대상이
+    /// 아니라 다른 값에서 나온다.
+    private func remove(_ itemID: UUID) {
+        guard let dayIndex = days.firstIndex(where: { day in
+            day.items.contains { $0.id == itemID }
+        }) else { return }
 
         withAnimation(.snappy(duration: 0.25)) {
-            for target in targets {
-                days[target.dayIndex].items.removeAll { $0.id == target.itemID }
-            }
+            days[dayIndex].items.removeAll { $0.id == itemID }
         }
         // 목록에서 줄이 사라지는 것 말고는 결과를 알릴 자리가 없다.
-        UIAccessibility.post(notification: .announcement,
-                             argument: targets.count == 1 ? "항목을 지웠어요"
-                                                          : "\(targets.count)개를 지웠어요")
+        UIAccessibility.post(notification: .announcement, argument: "일정에서 뺐어요")
     }
 
     /// 옮겨진 평평한 목록을 다시 날짜별로 나눈다 — **머리글이 곧 경계**다.
