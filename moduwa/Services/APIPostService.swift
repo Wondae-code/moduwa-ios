@@ -290,6 +290,8 @@ struct APIPostService: PostService {
         let isMine: Bool?
         /// ISO8601 UTC
         let createdAt: String?
+        /// 좋아요를 누른 시각. **`liked=true` 목록에만 실린다** — 다른 목록에는 키가 없다.
+        var likedAt: String? = nil
         let authorInfo: AuthorInfoDTO?
 
         var post: TravelPost {
@@ -309,7 +311,8 @@ struct APIPostService: PostService {
                 createdAt: createdAt.flatMap { try? Date($0, strategy: .iso8601) } ?? .now,
                 // 없으면 false — 메뉴가 안 보이는 쪽으로 실패한다(남의 글에 보이는 것보다 낫다).
                 isMine: isMine ?? false,
-                authorUUID: authorInfo?.uuid
+                authorUUID: authorInfo?.uuid,
+                likedAt: likedAt.flatMap { try? Date($0, strategy: .iso8601) }
             )
         }
     }

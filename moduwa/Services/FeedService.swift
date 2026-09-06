@@ -88,6 +88,20 @@ protocol FeedService: Sendable {
     /// 그러면 **남이 쓴 후기가 "내 글" 로 뜬다.**
     func fetchMyReviews(page: Int) async throws -> [TravelReview]
 
+    /// 후기를 지운다 (`DELETE /v1/reviews/:reviewId`, 서버 2026-09-07) — 204.
+    ///
+    /// **수정은 없다.** 지우고 다시 쓰는 것이 유일한 길이다(서버가 그렇게 정했다 — 수정은
+    /// 신고 대상이 바뀌는 문제가 있어 삭제와 따로 봐야 한다).
+    ///
+    /// ⚠️ **남의 후기는 403 이 아니라 404 다.** 403 은 "그 후기가 있다" 를 알려 주기 때문이다
+    /// — 있는지 없는지도 남의 일이다(게시글 삭제와 같은 판단). 그래서 앱은 404 를 "이미
+    /// 없어졌다" 로 다룬다(`FeedServiceError.notFound`).
+    ///
+    /// 댓글·좋아요·태그는 함께 사라진다. 신고 내역은 남고 운영 화면이 "대상이 지워졌다" 로
+    /// 표시한다. 첨부 사진은 **아무 데서도 안 쓸 때만** 지워진다(같은 사진을 올린 사람이
+    /// 있으면 파일을 공유한다 — 이름이 내용의 sha256 이다).
+    func deleteReview(id: Int) async throws
+
     /// 좋아요한 후기 (`GET /v1/reviews?liked=true`, 서버 2026-09-07) — **내가 누른 순서**.
     ///
     /// ⚠️ **`sort` 를 보내지 않는다.** 서버는 `liked` 로 기본 정렬만 바꾸고, `sort` 를 주면
@@ -243,6 +257,9 @@ extension FeedService {
     func fetchMyReviews(page: Int) async throws -> [TravelReview] { [] }
 
     func fetchLikedReviews(page: Int) async throws -> [TravelReview] { [] }
+
+    /// 번들·목 소스에는 지울 대상이 없다.
+    func deleteReview(id: Int) async throws { throw FeedServiceError.writeUnsupported }
 
     func fetchSavedPlaces(accessFeatures: [AccessibilityFeature]) async throws -> [Place] { [] }
 

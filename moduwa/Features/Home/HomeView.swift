@@ -325,10 +325,13 @@ struct HomeView: View {
             ForEach(viewModel.feedItems) { item in
                 switch item {
                 case .review(let review):
-                    NavigationLink(value: review) {
-                        ReviewCard(review: review)
+                    // 상세에서 지운 후기는 목록에서 빠진다 — 게시글과 같은 규칙이다.
+                    if !postSignal.deletedReviewIDs.contains(review.serverId ?? -1) {
+                        NavigationLink(value: review) {
+                            ReviewCard(review: review)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 case .post(let post):
                     // 상세에서 지운 글은 목록에서 빠진다 — 남겨 두면 눌렀을 때 404 가 된다.
                     if !postSignal.deletedPostIDs.contains(post.id) {

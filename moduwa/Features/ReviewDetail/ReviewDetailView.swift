@@ -12,6 +12,8 @@ struct ReviewDetailView: View {
     /// 후기 작성 화면과 같은 저장소를 공유한다 — 기기에 한 번 정한 표시 이름을 다시 묻지 않는다.
     @AppStorage(ReviewAuthorStore.nicknameKey) private var savedNickname = ""
     @Environment(SessionStore.self) private var session
+    /// 지운 후기를 목록에서 걸러 내도록 알린다(게시글 삭제와 같은 길).
+    @Environment(PostInteractionSignal.self) private var postSignal
     @Environment(\.blockService) private var blockService
     @Environment(\.blockSignal) private var blockSignal
 
@@ -42,6 +44,11 @@ struct ReviewDetailView: View {
     @FocusState private var isCommentFocused: Bool
     /// 이 후기 신고 시트. 서버 후기일 때만 열린다.
     @State private var isReporting = false
+    /// 삭제 확인. **되돌릴 수 없는 일이라 한 번 묻는다**(게시글과 같은 규칙).
+    @State private var isConfirmingDelete = false
+    @State private var isDeleting = false
+    /// 삭제 실패 사유. 서버가 한국어로 주면 그대로 담는다.
+    @State private var deleteError: String?
     /// 댓글 신고 대상. 후기 신고와 시트는 같고 대상만 다르다.
     @State private var reportTarget: ReportTarget?
     /// 차단 결과 안내(되돌릴 수 있는 동작이라 미리 묻지 않는다 — 게시글 상세와 같은 규칙).
@@ -109,6 +116,20 @@ struct ReviewDetailView: View {
         } message: { _ in
             Text("지우면 되돌릴 수 없어요.")
         }
+        .confirmationDialog("이 후기를 삭제할까요?", isPresented: $isConfirmingDelete,
+                            titleVisibility: .visible) {
+            Button("삭제", role: .destructive) { Task { await deleteReview() } }
+            Button("취소", role: .cancel) {}
+        } message: {
+            Text("삭제하면 사진과 댓글도 함께 사라지고, 되돌릴 수 없어요.")
+        }
+        .alert("삭제하지 못했어요", isPresented: Binding(
+            get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })
+        ) {
+            Button("확인") { deleteError = nil }
+        } message: {
+            Text(deleteError ?? "")
+        }
         .sheet(isPresented: $isReporting) {
             if let serverId = review.serverId {
                 ReportSheet(target: .review(id: serverId))
@@ -152,12 +173,21 @@ struct ReviewDetailView: View {
             // ⚠️ **내가 쓴 후기에는 두지 않는다**(2026-09-07). 게시글이 이미 그렇게 하고 있다
             //  — 서버가 자기 것 신고를 무시해서(204) 눌러도 아무 일이 없는 버튼이 된다.
             //  자기 자신을 차단하는 것도 뜻이 없다.
-            if review.serverId != nil, !review.isMine(viewerUUID: session.account?.uuid) {
+            if review.serverId != nil {
                 Menu {
-                    Button("신고", systemImage: "flag") { isReporting = true }
-                    // 작성자 식별자가 없으면(번들 후기) 차단할 대상이 없다.
-                    if let uuid = review.authorUUID {
-                        Button("차단", systemImage: "hand.raised") { Task { await block(uuid) } }
+                    if review.isMine(viewerUUID: session.account?.uuid) {
+                        // ⚠️ **수정이 없다.** 서버가 삭제만 붙였다(2026-09-07) — 수정은 신고
+                        //  대상이 바뀌는 문제가 있어 따로 봐야 한다. 게시글과 달라 보이지만
+                        //  없는 것을 있는 척하는 것보다 낫다.
+                        Button("삭제", systemImage: "trash", role: .destructive) {
+                            isConfirmingDelete = true
+                        }
+                    } else {
+                        Button("신고", systemImage: "flag") { isReporting = true }
+                        // 작성자 식별자가 없으면(번들 후기) 차단할 대상이 없다.
+                        if let uuid = review.authorUUID {
+                            Button("차단", systemImage: "hand.raised") { Task { await block(uuid) } }
+                        }
                     }
                 } label: {
                     Image(systemName: "ellipsis")
@@ -497,6 +527,27 @@ struct ReviewDetailView: View {
 
     /// 사용자를 차단한다. 거르는 일은 서버가 하고, 앱은 신호를 올려 목록을 든 화면들이
     /// 다시 받게 한다(게시글 상세와 같은 규칙 — 이 화면은 닫지 않는다).
+    /// 후기를 지운다. 성공하면 목록을 든 화면들이 걸러 내도록 신호를 올리고 화면을 닫는다.
+    ///
+    /// **404 도 성공으로 다룬다** — 이미 없어졌다는 뜻이다(두 번 눌렸거나 다른 기기에서
+    /// 지웠다). 오류로 띄우면 "지웠는데 실패했다" 가 되어 같은 버튼을 또 누르게 만든다.
+    private func deleteReview() async {
+        guard !isDeleting, let serverId = review.serverId else { return }
+        isDeleting = true
+        do {
+            try await feedService.deleteReview(id: serverId)
+            postSignal.reviewDeleted(id: serverId)
+            dismiss()
+        } catch FeedServiceError.notFound {
+            postSignal.reviewDeleted(id: serverId)
+            dismiss()
+        } catch {
+            deleteError = (error as? LocalizedError)?.errorDescription
+                ?? "잠시 후 다시 시도해 주세요."
+        }
+        isDeleting = false
+    }
+
     private func block(_ uuid: String) async {
         do {
             try await blockService.block(uuid: uuid)

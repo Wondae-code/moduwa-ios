@@ -38,4 +38,11 @@ final class PostInteractionSignal {
 
     /// 후기 등록이 **서버에서 성공한 뒤에** 부른다.
     func reviewWritten() { reviewRevision += 1 }
+
+    /// 이 실행에서 지운 후기. 게시글의 `deletedPostIDs` 와 같은 뜻이다 — 목록을 다시 받지
+    /// 않고 걸러 낸다(스크롤 위치를 잃지 않는다).
+    private(set) var deletedReviewIDs: Set<Int> = []
+
+    /// 후기 삭제가 **서버에서 성공한 뒤에** 부른다.
+    func reviewDeleted(id: Int) { deletedReviewIDs.insert(id) }
 }

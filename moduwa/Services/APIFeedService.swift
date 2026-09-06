@@ -435,6 +435,8 @@ struct APIFeedService: FeedService {
         let tags: [ReviewTagDTO]?
         /// true / false / 미응답(null) 세 상태
         let wouldRevisit: Bool?
+        /// 좋아요를 누른 시각. **`liked=true` 목록에만 실린다** — 다른 목록에는 키가 없다.
+        var likedAt: String? = nil
 
         struct AuthorInfoDTO: Decodable {
             let nickname: String?
@@ -515,7 +517,8 @@ struct APIFeedService: FeedService {
             authorAvatarURL: URL(imageAddress: dto.authorInfo?.avatarUrl),
             tags: (dto.tags ?? []).map(\.tag),
             wouldRevisit: dto.wouldRevisit,
-            authorUUID: dto.authorInfo?.uuid
+            authorUUID: dto.authorInfo?.uuid,
+            likedAt: dto.likedAt.flatMap { try? Date($0, strategy: .iso8601) }
         )
     }
 
@@ -580,6 +583,16 @@ struct APIFeedService: FeedService {
             .init(name: "offset", value: "\(page * FeedPage.reviewSize)"),
         ])
         return dtos.map(Self.travelReview)
+    }
+
+    /// `DELETE /v1/reviews/:reviewId` — 204. 남의 것·없는 것은 404 다(403 이 아니다).
+    func deleteReview(id: Int) async throws {
+        guard !apiKey.isEmpty else { throw FeedServiceError.writeUnsupported }
+        var req = authorized(baseURL.appending(path: "/v1/reviews/\(id)"))
+        req.httpMethod = "DELETE"
+        let (data, resp) = try await session.data(for: req)
+        let status = (resp as? HTTPURLResponse)?.statusCode ?? -1
+        guard (200..<300).contains(status) else { throw failure(status: status, data: data) }
     }
 
     // MARK: - 장소별 후기 (집계 · 목록 · 등록)

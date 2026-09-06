@@ -272,6 +272,41 @@ struct CollectionView: View {
     /// ⚠️ 어느 상태든 남는 공간을 채워야 한다. 짧은 쪽이 내용 높이만 차지하면 바깥 `VStack` 이
     /// 짧아지고, SwiftUI 가 그 스택을 화면 가운데로 정렬하면서 **헤더까지 아래로 내려온다**
     /// (장소 후기의 "여행 게시글" 탭에서 실측한 것과 같은 함정).
+    /// 좋아요한 게시글과 후기를 한 줄로 세운 목록.
+    private enum LikedItem: Identifiable {
+        case post(TravelPost)
+        case review(TravelReview)
+
+        /// 두 종류의 id 가 겹치지 않게 접두사를 붙인다.
+        var id: String {
+            switch self {
+            case .post(let post): "post-\(post.id)"
+            case .review(let review): "review-\(review.id)"
+            }
+        }
+
+        /// 정렬 키. **없으면 맨 뒤로 보낸다** — 서버가 `liked=true` 에는 늘 싣지만,
+        /// 없는 값을 "아주 최근" 으로 읽으면 엉뚱한 것이 맨 위에 선다.
+        var likedAt: Date {
+            switch self {
+            case .post(let post): post.likedAt ?? .distantPast
+            case .review(let review): review.likedAt ?? .distantPast
+            }
+        }
+    }
+
+    /// 상세에서 지운 글은 곧바로 빠진다(전역 신호).
+    private var likedItems: [LikedItem] {
+        let posts = likedPosts
+            .filter { !postSignal.deletedPostIDs.contains($0.id) }
+            .map(LikedItem.post)
+        let reviews = likedReviews
+            .filter { !postSignal.deletedReviewIDs.contains($0.serverId ?? -1) }
+            .map(LikedItem.review)
+        return (posts + reviews)
+            .sorted { $0.likedAt > $1.likedAt }
+    }
+
     @ViewBuilder
     private var likedList: some View {
         if likedRequiresSignIn {
@@ -287,7 +322,7 @@ struct CollectionView: View {
         } else if likedLoadFailed && !didLoadLiked {
             likedFailedRow
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        } else if likedPosts.isEmpty && likedReviews.isEmpty {
+        } else if likedItems.isEmpty {
             VStack(spacing: 10) {
                 Text("좋아요한 게시물이 없어요")
                     .font(.notoSans(15, .bold))
@@ -304,22 +339,21 @@ struct CollectionView: View {
         } else {
             ScrollView {
                 LazyVStack(spacing: 16) {
-                    // 상세에서 지운 글은 곧바로 빠진다(전역 신호).
-                    ForEach(likedPosts.filter { !postSignal.deletedPostIDs.contains($0.id) }) { post in
-                        NavigationLink {
-                            PostDetailView(post: post)
-                        } label: {
-                            PostCard(post: post)
+                    ForEach(likedItems) { item in
+                        switch item {
+                        case .post(let post):
+                            NavigationLink {
+                                PostDetailView(post: post)
+                            } label: {
+                                PostCard(post: post)
+                            }
+                            .buttonStyle(.plain)
+                        case .review(let review):
+                            NavigationLink(value: review) {
+                                ReviewCard(review: review)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
-                    }
-
-                    // 후기는 게시글 **뒤에** 온다 — 둘을 섞을 기준이 없다(`loadLiked` 주석).
-                    ForEach(likedReviews) { review in
-                        NavigationLink(value: review) {
-                            ReviewCard(review: review)
-                        }
-                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal, 24)
@@ -347,14 +381,15 @@ struct CollectionView: View {
         .padding(.top, 80)
     }
 
-    /// 서버가 **내가 누른 순서**로 준다 — 앱에서 다시 줄 세우지 않는다.
+    /// 게시글과 후기를 **내가 누른 순서로 한 줄에** 세운다(`likedAt` 내림차순).
     ///
-    /// ⚠️ **게시글과 후기를 섞지 못한다.** 서버는 둘 다 좋아요 누른 시각으로 정렬해 주는데
-    /// (`post_likes.created_at` · `review_likes.created_at`) **그 값을 응답에 싣지 않는다.**
-    /// 각 목록은 맞는 순서인데 둘을 하나로 세울 기준이 없다 — `createdAt`(글 쓴 시각)으로
-    /// 섞으면 이 탭이 약속한 "누른 순서" 가 게시글 쪽에서도 깨진다.
-    /// 그래서 **게시글 묶음 다음에 후기 묶음**으로 둔다. 각 묶음 안은 누른 순서 그대로다.
-    /// 서버가 `likedAt` 을 실어 주면 그때 한 줄로 합친다(2026-09-07 요청).
+    /// 서버가 두 목록을 각각 그 시각으로 정렬해 주고, `liked=true` 일 때만 `likedAt` 을
+    /// 함께 실어 준다(2026-09-07). **서버의 `order by` 가 읽는 것과 같은 값이라** 앱이 다시
+    /// 세워도 서버 순서와 어긋나지 않는다 — 다르면 한 화면 안에서 순서가 흔들린다.
+    ///
+    /// ⚠️ **두 목록의 페이지가 따로 넘어간다.** 각각 30건씩 받아 합치므로 경계에서 어긋날 수
+    /// 있다(후기 30번째가 게시글 31번째보다 최근인 경우). 지금 규모에서는 걸리지 않는다 —
+    /// 걸리기 시작하면 서버에 합친 목록을 청해야 한다.
     private func loadLiked() async {
         guard !isLoadingLiked else { return }
         isLoadingLiked = true

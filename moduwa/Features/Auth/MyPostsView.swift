@@ -101,7 +101,11 @@ struct MyPostsView: View {
         let livePosts = posts
             .filter { !postSignal.deletedPostIDs.contains($0.id) }
             .map(MyItem.post)
-        return (livePosts + reviews.map(MyItem.review))
+        // 상세에서 지운 후기도 곧바로 빠진다 — 남겨 두면 눌렀을 때 404 가 된다.
+        let liveReviews = reviews
+            .filter { !postSignal.deletedReviewIDs.contains($0.serverId ?? -1) }
+            .map(MyItem.review)
+        return (livePosts + liveReviews)
             .sorted { $0.createdAt > $1.createdAt }
     }
 
