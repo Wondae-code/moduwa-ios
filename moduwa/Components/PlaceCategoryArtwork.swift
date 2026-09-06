@@ -12,13 +12,14 @@ import SwiftUI
 /// 딥그린 / 회색 + 옅은 딥그린 / "장소 사진" 상자). 같은 상황에 세 가지 답이 있으면 어느
 /// 하나를 고쳐도 나머지가 남는다.
 ///
-/// ⚠️ **아이콘은 흰색이고, 배경(`#FAFAFA`)과의 대비는 1.02:1 이다** — 거의 보이지 않는
+/// ⚠️ **아이콘은 흰색이고, 배경(`#F2F2F2`)과의 대비는 1.12:1 이다** — 거의 보이지 않는
 /// "유령" 표현이고 의도된 것이다(2026-09-07 요청). WCAG 1.4.11(비텍스트 3:1)에 걸리지 않는
 /// 이유는 이것이 **장식**이기 때문이다: 스크린리더에서 감추고(`accessibilityHidden`),
 /// 카테고리는 카드 본문에도 글자로 있다. 정보를 지고 있다면 이 대비로 둘 수 없다.
 ///
-/// 고대비를 켜면 배경만 짙어져 흰 아이콘이 살아난다(1.02:1 → 1.27:1). 큰 값은 아니지만
-/// 방향은 맞다 — 이 파일의 다른 회색 토큰들과 같은 판단이다(`Colors.swift`).
+/// 배경은 새 토큰을 만들지 않고 `photoPlaceholder` 를 쓴다 — 값이 같은 토큰을 둘 두면
+/// 한쪽만 바뀐다. 고대비를 켜면 그 토큰이 짙어져(#E4E4E4) 흰 아이콘이 살아난다
+/// (1.12:1 → 1.27:1). 큰 값은 아니지만 방향은 맞다.
 struct PlaceCategoryArtwork: View {
     /// **모르면 `nil`** — 그때는 배경만 그린다. `RelatedPlace` 에는 카테고리 필드가 없어서
     /// (`RelatedPlace.place` 가 `.attraction` 으로 고정해 두고 있다) 아이콘을 그리면 호텔에
@@ -28,7 +29,7 @@ struct PlaceCategoryArtwork: View {
     var iconSize: CGFloat = 34
 
     var body: some View {
-        Color.cardPhotoEmpty
+        Color.photoPlaceholder
             .overlay {
                 if let category {
                     Image(category.iconName)
