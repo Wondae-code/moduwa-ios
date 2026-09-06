@@ -200,19 +200,25 @@ struct PlanListView: View {
 
             Spacer(minLength: 0)
 
-            HStack(spacing: 16) {
-                // 초대 코드 수동 입력 — 링크가 앱을 못 열 때(카톡 인앱 웹뷰 등)의 폴백.
-                //
-                // ⚠️ **시안에 없는 아이콘이다.** 플랜 헤더(391:232)에는 제목만 있고, 파일 어디에도
-                //  공동 편집(초대·멤버) 화면이 없다 — 기능 자체가 시안 밖이다. 그래도 여기 두는
-                //  것으로 정했다(2026-08-31): 지우면 카톡에서 받은 초대를 넣을 길이 사라진다.
-                //  시안이 나오면 그 자리로 옮긴다.
-                Button(action: onJoinByCode) {
-                    Image(systemName: "ticket")
-                        .font(.system(size: 18, weight: .semibold))
-                }
-                .accessibilityLabel("초대 코드로 참여")
+            // 초대 코드 수동 입력 — 링크가 앱을 못 열 때(카톡 인앱 웹뷰 등)의 폴백.
+            //
+            // ⚠️ **시안에 없는 자리다.** 플랜 헤더(391:232)에는 제목만 있고, 파일 어디에도
+            //  공동 편집(초대·멤버) 화면이 없다 — 기능 자체가 시안 밖이다. 그래도 여기 두는
+            //  것으로 정했다(2026-08-31): 지우면 카톡에서 받은 초대를 넣을 길이 사라진다.
+            //  시안이 나오면 그 자리로 옮긴다.
+            //
+            // 티켓 아이콘이었는데 **글자로 바꿨다**(2026-09-07 요청). 시안에 없는 기능이라
+            //  익힐 그림이 없고, 티켓은 초대 코드를 뜻하는 관용 기호도 아니다 — 눌러 보기
+            //  전까지 무엇인지 알 수 없었다. 마이페이지의 "프로필 편집" 과 같은 규격이다.
+            Button(action: onJoinByCode) {
+                Text("초대코드 입력")
+                    .font(.notoSans(14, .medium))
+                    .tracking(-0.4)
+                    .foregroundStyle(.deepGreen)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityHint("초대 코드를 넣어 함께 짜는 플랜에 들어갑니다")
         }
         .foregroundStyle(Color.textPrimary)
         .padding(.horizontal, 24)
