@@ -629,16 +629,21 @@ struct PlaceDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, 22)
 
-            // 펼침/접힘 단일 토글 — withAnimation 밖에서 토글하고 .animation(nil)로 높이 변화 애니메이션을 차단해
-            // "더 보기" 시 글자가 밀려나는 애니메이션을 없앤다.
+            // 펼침/접힘 단일 토글. **움직임을 아예 없앤다** — 설명은 길어서, 스르륵 늘어나면
+            //  아래 내용이 한참 밀려 내려가는 것이 보인다.
+            //
+            // ⚠️ 예전에는 버튼에 `.animation(nil, value:)` 를 걸었다. 그건 **그 버튼 아래만**
+            //  덮는다 — 실제로 높이가 바뀌는 것은 위의 `JustifiedText` 다. 게다가 SwiftUI 는
+            //  상위에서 내려온 트랜잭션을 물려받으므로(시트 표시·`withAnimation` 등) 뷰 쪽에서
+            //  막는 것으로는 새는 길이 남는다. **바꾸는 쪽에서 끄는 것**이 확실하다
+            //  (`withoutAnimation` — `disablesAnimations` 로 명시적으로 끈다).
             LoadMoreButton(
                 title: isOverviewExpanded ? "설명 접기" : "설명 더보기",
                 pointsUp: isOverviewExpanded
             ) {
-                isOverviewExpanded.toggle()
+                withoutAnimation { isOverviewExpanded.toggle() }
             }
             .padding(.top, 18)
-            .animation(nil, value: isOverviewExpanded)
         }
     }
 

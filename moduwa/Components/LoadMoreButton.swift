@@ -17,6 +17,9 @@ struct LoadMoreButton: View {
                     .tracking(-0.4)
                 Image(systemName: pointsUp ? "chevron.up" : "chevron.down")
                     .font(.system(size: 13, weight: .bold))
+                    // 화살표가 뒤집힐 때 심볼이 갈아 끼워지며 애니메이션이 붙지 않게 못 박는다
+                    //  ("설명 더보기/접기" 는 움직임을 아예 없애기로 했다 — 2026-09-06 QA #8).
+                    .contentTransition(.identity)
             }
             .foregroundStyle(.deepGreen)
             .frame(maxWidth: .infinity)
