@@ -1,87 +1,57 @@
-App Store Connect → 심사 메시지 답장(Reply)에 붙여넣을 원문.
-(Notes 칸에는 4,000자 제한이 있어 따로 줄인 판을 씁니다 — AppReviewNotes.txt)
+App Store Connect → 심사 메시지 답장(Reply). 4,000자 제한이 있어 핵심만 남겼습니다.
 
 ────────────────────────────────────────────────────────────────
 
-Thank you for the review. Please find the requested information below.
+Answers to all six items below.
 
-■ 1. SCREEN RECORDING
+1. SCREEN RECORDING
 
-A screen recording captured on a physical iPhone running the latest iOS is available here. No sign-in is required to view it:
+Captured on a physical iPhone running the latest iOS. No sign-in needed:
 
 https://youtu.be/G1JJML0wtUA
 
-It starts from app launch and covers: onboarding, browsing without an account, account registration, sign-in, writing a review and a post (user-generated content), reporting and blocking another user's content, and account deletion.
+It starts at app launch and covers onboarding, browsing signed out, registration, sign-in, writing a review and a post, reporting and blocking another user's content, and account deletion.
 
-The recording was made on build 100. Please review that build — earlier builds also supported iPad, which is no longer the case.
+Made on build 100 — please review that build. Earlier builds supported iPad; they no longer do.
 
-■ 2. PURPOSE AND TARGET AUDIENCE
+2. PURPOSE AND AUDIENCE
 
-moduwa ("모두와" — Korean for "with everyone") helps people find travel destinations in South Korea that they can actually get into.
+moduwa helps people find travel destinations in South Korea they can actually get into. Public listings say a place exists, but not whether there is a ramp, an elevator, or a step at the entrance — the detail that decides whether a trip is possible for a wheelchair user, a parent with a stroller, or an older traveler.
 
-The problem: public tourism listings tell you a place exists, but not whether there is a ramp, an elevator, an accessible restroom, or a step at the entrance. For a wheelchair user, a parent with a stroller, an older traveler, or someone with a visual or hearing impairment, that missing detail decides whether a trip is possible. Today they have to call each venue individually.
+We combine the Korea Tourism Organization's official barrier-free dataset (10,000+ verified locations) with traveler reviews, ranked so that reviews by people with the SAME accessibility needs appear first.
 
-Target audience: travelers in South Korea with mobility, visual, or hearing impairments; families traveling with infants and strollers; older travelers; and the family members and caregivers who plan trips for them.
+Audience: travelers with mobility, visual or hearing impairments; families with strollers; older travelers; and those who plan trips for them.
 
-The value: we combine the Korea Tourism Organization's official barrier-free facility dataset (over 10,000 verified locations) with first-hand reviews from travelers, and we rank those reviews so that reviews written by people with the SAME accessibility needs appear first. A wheelchair user sees wheelchair-relevant experiences before anything else.
+3. SETUP AND ACCESS
 
-■ 3. SETUP AND ACCESS
+No account is needed for the core experience — browsing, search, place details, accessibility information and reading reviews all work signed out. Sign-in is only needed to write a post or review, create a plan, and save/like items. Demo credentials are in the Sign-In Information fields. Only ONE account type. No sample files, no paid content or in-app purchase.
 
-No account is required for the core experience. Browsing places, search, place details, accessibility facility information, and reading reviews all work signed out. An account is only needed to write a post or review, create a travel plan, and save/like items.
+Onboarding is three screens, no sign-up. On screen 2 you must pick an option before the button enables — 지체장애 (wheelchair), or 해당없음 (Not applicable) to skip — then 완료했어요 (Done). On screen 3 tap 둘러보기 (Browse) to enter signed out.
 
-Demo account credentials are in the Sign-In Information fields of App Review Information. There is only ONE account type — there are no admin, business, or premium tiers.
+To sign in: Home → gear icon (top right) → 로그인 → "이메일로 시작하기" (Continue with email). Sign in with Apple also works; Kakao needs the KakaoTalk app, so please use email or Apple. If an email-verification screen appears, tap 나중에 하기 (Do it later) — it blocks nothing, so the demo mailbox is not needed.
 
-First launch — three onboarding screens, no sign-up required:
-1. Welcome screen ("안녕하세요"). Tap the button to continue.
-2. "계획에 앞서, 여행자님을 위해 저희가 배려할 요소가 있다면 알려주세요" — you must select at least one option before the button enables. Select 지체장애 (mobility / wheelchair) to see our main feature, or 해당없음 (Not applicable) to skip. Then tap 완료했어요 (Done).
-3. Tap 둘러보기 (Browse) to enter the app without signing in.
-
-To sign in: Home → gear icon (top right) → 로그인 → "이메일로 시작하기" (Continue with email). Sign in with Apple also works. Kakao sign-in requires the KakaoTalk app, so please use email or Apple. If an email-verification screen appears, tap 나중에 하기 (Do it later) — it blocks nothing, and you do not need access to the demo mailbox.
-
-Key screens:
+Key screens, under the gear icon on Home, which opens 설정 (Settings):
 • Account deletion: 설정 → 프로필 편집 → 회원 탈퇴
-• Report / Block: open any post or review → ⋮ menu (top right) → 신고 (Report) / 차단 (Block). Your own content shows 삭제 (Delete) instead.
-• Blocked users list: 설정 → 차단한 사용자
-• Support: 설정 → 고객센터 → help@moduwa.app
-• Accessibility profile: 설정 → 내 무장애정보 편집
+• Report / Block: any post or review → ⋮ (top right) → 신고 / 차단. Own content shows 삭제 (Delete).
+• Blocked users: 설정 → 차단한 사용자 · Support: 설정 → 고객센터
+• Main feature: set needs at 설정 → 내 무장애정보 편집, then set Home sort to 추천 (Recommended).
 
-No sample files are needed. There is no paid content, no subscription, and no in-app purchase anywhere in the app.
+4. EXTERNAL SERVICES
 
-■ 4. EXTERNAL SERVICES
+• Korea Tourism Organization (한국관광공사) TourAPI — public open data: all place listings, barrier-free attributes and place photography. Attributed in-app at the bottom of 설정.
+• Our own REST API on Railway with PostgreSQL — accounts, reviews, posts, comments, plans and user photos. Photos sit on our own server volume; no third-party storage.
+• Sign in with Apple, Google Sign-In, Kakao Login. Kakao Maps SDK for maps. APNs for push, requested only when the user turns the toggle on at 설정 → 알림 설정.
 
-Data provider
-• Korea Tourism Organization (한국관광공사) TourAPI — public open data. Source of all place listings, barrier-free facility attributes, and place photography (tong.visitkorea.or.kr). Attribution is displayed in the app at the bottom of 설정.
+Not used: no payment processor, AI service, analytics SDK, advertising SDK or tracking. Our privacy manifest declares NSPrivacyTracking = false, as do all three bundled third-party components. No location, camera or photo-library permission is requested — photos use SwiftUI PhotosPicker.
 
-Our own backend
-• A REST API we operate ourselves, hosted on Railway (moduwa-backend-production.up.railway.app), with a PostgreSQL database. It stores accounts, reviews, posts, comments, travel plans, and user-uploaded photos. Photos are stored on our own server volume; no third-party storage service is used.
+5. REGIONAL DIFFERENCES
 
-Authentication
-• Sign in with Apple
-• Google Sign-In (accounts.google.com, oauth2.googleapis.com)
-• Kakao Login (kakao-ios-sdk)
+None. Distributed in South Korea only; behaviour is identical everywhere. No region-gated features, no region-specific pricing — the app is free.
 
-Maps
-• Kakao Maps SDK — renders the map on place detail and travel plan screens.
+6. REGULATED INDUSTRY / THIRD-PARTY
 
-Notifications
-• Apple Push Notification service (APNs). Permission is requested only when the user turns the notification toggle on at 설정 → 알림 설정; nothing is asked at launch.
+Not a regulated industry — a travel information and community app. No medical, diagnostic or treatment information, and not a medical device: "ramp at the entrance" describes a building, not a person's health.
 
-Not used: no payment processor (the app is free with no in-app purchases), no AI or machine-learning service, no analytics SDK, no advertising SDK, and no user tracking. The app's privacy manifest declares NSPrivacyTracking = false, and so do all three bundled third-party components.
+TourAPI data and photography come from Korea's national open data portal (data.go.kr) under terms permitting reuse, including commercial reuse, with attribution. We display that attribution in-app; documentation on request. All other content is written by us or submitted by our users under our Terms of Service (https://moduwa.app/terms).
 
-The app requests no location, camera, or photo-library permission. Photos are attached through the SwiftUI PhotosPicker, which requires no permission prompt.
-
-■ 5. REGIONAL DIFFERENCES
-
-There are none. The app behaves identically everywhere it is available.
-
-The app is distributed in South Korea only. All content is in Korean, and the underlying dataset covers South Korean destinations exclusively. There is no region-gated feature, no region-specific pricing (the app is free), and no content that varies by country or region.
-
-■ 6. REGULATED INDUSTRY / THIRD-PARTY MATERIAL
-
-The app does not operate in a regulated industry. It is a travel information and community app. It provides no medical, diagnostic, or treatment information and is not a medical device: accessibility attributes such as "ramp at the entrance" or "accessible restroom" describe a building's facilities, not a person's health or care.
-
-Third-party material: place data and photography come from the Korea Tourism Organization TourAPI, published through Korea's national open data portal (data.go.kr) under terms that permit reuse, including commercial reuse, with attribution. We comply with the attribution requirement — "관광 정보 출처: 한국관광공사 TourAPI" is displayed in the app at the bottom of 설정. Documentation of these terms can be provided on request.
-
-All other content in the app is either written by us or submitted by our own users, who grant us the right to display it under our Terms of Service (https://moduwa.app/terms).
-
-Please let us know if anything further would help. We can be reached at help@moduwa.app.
+Contact: help@moduwa.app
