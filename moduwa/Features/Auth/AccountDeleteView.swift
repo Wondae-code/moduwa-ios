@@ -43,7 +43,18 @@ struct AccountDeleteView: View {
         .navigationBarTitleDisplayMode(.inline)
         // ⚠️ 확인창은 **바깥 뷰**에 붙인다(플랜 상세에서 실측한 함정). 그리고 이 화면 자체가
         //  이미 설명이므로, 창은 마지막 되돌릴 수 없음만 다시 묻는다.
-        .confirmationDialog("정말 탈퇴할까요?", isPresented: $isConfirming, titleVisibility: .visible) {
+        //
+        // ⚠️ `confirmationDialog` 이 아니라 `alert` 인 이유 — **`PlanListView` 와 같은 이유다.**
+        //  iOS 26 의 확인 시트는 **누른 자리가 아니라 창을 붙인 뷰에 매달리는 말풍선**으로 뜬다.
+        //  여기서는 창을 화면 뿌리(`ScrollView`)에 붙였으므로 말풍선이 **스크롤뷰 맨 위**에
+        //  달라붙는다 — 정작 누른 버튼은 `safeAreaInset` 으로 화면 맨 아래에 있는데 창은 위에
+        //  뜨고, 아래로 흐른 "취소" 가 잘려 **선택지가 하나만 보였다**(2026-09-07 실측,
+        //  iPhone 17 Pro / iOS 26.4 — 심사 녹화 영상에서 드러났다).
+        //
+        //  버튼 쪽으로 창을 옮기면 말풍선 위치는 맞지만 위의 함정(사라지는 뷰가 액션을 잃는다)에
+        //  다시 다가선다. `alert` 은 **늘 화면 가운데**라 붙인 자리와 무관하고 두 선택지가 언제나
+        //  함께 보인다 — 되돌릴 수 없는 동작에는 그 편이 맞다.
+        .alert("정말 탈퇴할까요?", isPresented: $isConfirming) {
             Button("탈퇴하기", role: .destructive) { Task { await delete() } }
             Button("취소", role: .cancel) {}
         } message: {
