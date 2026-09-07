@@ -7,7 +7,13 @@ Thank you for the review. Please find the requested information below.
 
 ■ 1. SCREEN RECORDING
 
-A screen recording captured on a physical iPhone running the latest iOS is attached. It starts from app launch and covers: onboarding, browsing without an account, account registration, sign-in, writing a review and a post (user-generated content), reporting and blocking another user's content, and account deletion.
+A screen recording captured on a physical iPhone running the latest iOS is available here. No sign-in is required to view it:
+
+https://youtu.be/G1JJML0wtUA
+
+It starts from app launch and covers: onboarding, browsing without an account, account registration, sign-in, writing a review and a post (user-generated content), reporting and blocking another user's content, and account deletion.
+
+The recording was made on build 100. Please review that build — earlier builds also supported iPad, which is no longer the case.
 
 ■ 2. PURPOSE AND TARGET AUDIENCE
 
