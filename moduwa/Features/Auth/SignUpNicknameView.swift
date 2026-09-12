@@ -99,11 +99,15 @@ struct SignUpNicknameView: View {
                                      sensitiveConsent: sensitiveConsent)
             UIAccessibility.post(notification: .announcement, argument: "가입했어요")
             onSignedUp()
-        } catch AuthError.emailTaken {
+        } catch AuthError.emailTaken(let providers) {
             // 가입은 "이미 있는 이메일"을 알려 줘야 한다 — 안 알려 주면 사용자가 가입을 못 한다.
-            errorMessage = AuthError.emailTaken.errorDescription
-            UIAccessibility.post(
-                notification: .announcement, argument: AuthError.emailTaken.errorDescription)
+            //
+            // ⚠️ **어떤 방법으로 가입돼 있는지까지 말한다**(서버 2026-09-12의 `providers`).
+            //  소셜로만 가입된 주소는 비밀번호가 없어서, "로그인해 주세요" 라고만 하면
+            //  사용자는 이메일 로그인을 시도하고 반드시 실패한다.
+            let message = AuthError.emailTaken(providers: providers).errorDescription
+            errorMessage = message
+            UIAccessibility.post(notification: .announcement, argument: message)
         } catch {
             let message = (error as? AuthError)?.errorDescription
                 ?? "가입하지 못했어요. 잠시 후 다시 시도해 주세요."

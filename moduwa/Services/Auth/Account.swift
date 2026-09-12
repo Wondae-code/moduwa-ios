@@ -60,7 +60,14 @@ enum AuthError: LocalizedError, Equatable {
     case invalidPassword(message: String)
     case invalidNickname
     /// 409 — 이미 가입된 이메일. 가입 화면이 로그인으로 안내한다.
-    case emailTaken
+    ///
+    /// `providers` 는 그 주소가 **어떤 방법으로** 가입돼 있는지다(서버 2026-09-12):
+    /// `["email"]`, `["google"]`, `["email", "google"]` 처럼 온다.
+    ///
+    /// ⚠️ `"email"` 이 없으면 **그 계정에는 비밀번호가 없다.** "로그인해 주세요" 라고만 하면
+    /// 사용자는 이메일 로그인을 시도하고 반드시 실패한다 — 소셜 버튼을 가리켜야 한다.
+    /// 옛 서버는 이 필드를 주지 않으므로 빈 배열이면 예전처럼 이메일 로그인으로 안내한다.
+    case emailTaken(providers: [String])
     /// 401 — 이메일이 없는지 비밀번호가 틀린지 **서버가 구분해 주지 않는다**(가입 여부 유출 방지).
     case invalidCredentials
     /// 429 — 같은 IP 에서 시도가 잦다. 10분 창.
@@ -87,7 +94,7 @@ enum AuthError: LocalizedError, Equatable {
         case .invalidEmail: "이메일 형식이 올바르지 않아요."
         case .invalidPassword(let message): message
         case .invalidNickname: "이름은 1자 이상 40자 이하로 입력해 주세요."
-        case .emailTaken: "이미 가입된 이메일이에요. 로그인해 주세요."
+        case .emailTaken(let providers): Self.emailTakenMessage(providers: providers)
         case .invalidCredentials: "이메일 또는 비밀번호가 올바르지 않아요."
         case .tooManyAttempts: "시도가 많았어요. 잠시 후 다시 시도해 주세요."
         case .loginRequired: "로그인이 필요해요."
@@ -100,15 +107,38 @@ enum AuthError: LocalizedError, Equatable {
         }
     }
 
+    /// 가입된 방법을 사람이 읽는 말로. `"email"` 이 함께 있으면 비밀번호가 있다는 뜻이라
+    /// 예전처럼 이메일 로그인으로 보낸다. 소셜만 있으면 **그 버튼**을 가리켜야 한다.
+    ///
+    /// 모르는 코드가 와도 이름을 만들어 낸다(`naver` → `Naver`) — 서버가 로그인 방법을
+    /// 늘려도 앱이 "이미 가입된 이메일이에요" 로 얼버무리지 않게 한다.
+    private static func emailTakenMessage(providers: [String]) -> String {
+        let social = providers.filter { $0 != "email" }
+        guard !providers.contains("email"), !social.isEmpty else {
+            return "이미 가입된 이메일이에요. 로그인해 주세요."
+        }
+        let names = social.map { code -> String in
+            switch code {
+            case "google": "Google"
+            case "apple": "Apple"
+            case "kakao": "카카오"
+            default: code.prefix(1).uppercased() + code.dropFirst()
+            }
+        }.joined(separator: " · ")
+        return "\(names) 로그인으로 가입된 이메일이에요. 그 버튼으로 로그인해 주세요."
+    }
+
     /// 서버 응답의 사유 코드를 케이스로 바꾼다. 모르는 코드는 서버 문구를 그대로 살린다 —
     /// 앱이 서버보다 늦게 배포되어도 사용자는 최소한 무엇이 잘못됐는지 읽을 수 있다.
-    static func from(code: String?, message: String?, status: Int) -> AuthError {
+    static func from(
+        code: String?, message: String?, status: Int, providers: [String] = []
+    ) -> AuthError {
         let text = (message?.isEmpty == false) ? message! : nil
         switch code {
         case "invalid_email": return .invalidEmail
         case "invalid_password": return .invalidPassword(message: text ?? "비밀번호는 8자 이상이어야 해요.")
         case "invalid_nickname": return .invalidNickname
-        case "email_taken": return .emailTaken
+        case "email_taken": return .emailTaken(providers: providers)
         case "invalid_credentials": return .invalidCredentials
         case "too_many_attempts": return .tooManyAttempts
         case "login_required", "unauthenticated": return .loginRequired
@@ -133,4 +163,22 @@ struct AuthSession: Sendable {
     let account: Account
     /// 가입이었는지(`true`) 로그인이었는지. 환영 화면·온보딩 완료 처리 분기에 쓴다.
     let created: Bool
+
+    /// 소셜 로그인이 **기존 계정에 이어 붙었다**(서버 2026-09-12). 이메일로 가입한 주소와
+    /// 같은 주소로 소셜 로그인했을 때다 — 후기·플랜·프로필이 그대로 따라온다.
+    ///
+    /// `created` 와 **동시에 참이 되지 않는다**: 만들었거나, 이어 붙였거나, 그냥 로그인이다.
+    /// 요청에 실은 닉네임·무장애 항목은 서버가 무시하고 기존 계정 값을 지킨다.
+    ///
+    /// 카카오와 애플 "이메일 가리기" 는 주소를 검증받지 못하거나 릴레이 주소라 **이어 붙지
+    /// 않는다** — 같은 주소로 보여도 별개 계정이 된다.
+    var linked: Bool = false
+
+    /// 이어 붙이면서 서버가 **이메일 비밀번호를 지웠다**(서버 2026-09-12). 기존 이메일 계정이
+    /// 인증코드를 넣지 않은 상태였을 때만 일어난다 — 남의 주소로 선점 가입해 둔 계정이
+    /// 진짜 주인의 소셜 로그인을 가로채지 못하게 하는 안전장치다.
+    ///
+    /// 소셜 로그인은 그대로 되지만 **이메일 로그인은 이제 안 된다.** 비밀번호 찾기로 다시
+    /// 만들어야 한다는 것을 알려 주지 않으면, 다음에 이메일로 로그인하려다 막힌다.
+    var passwordReset: Bool = false
 }

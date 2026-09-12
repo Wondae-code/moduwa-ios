@@ -24,6 +24,9 @@ struct APIAuthService: AuthService {
         let message: String?
         /// `resend_too_soon` 에만 온다 — 버튼에 남은 초를 보여 준다.
         let retryAfter: Int?
+        /// `email_taken` 에만 온다(서버 2026-09-12) — 그 주소가 어떤 방법으로 가입돼 있는지.
+        /// 소셜만 있으면 그 계정에는 비밀번호가 없어 이메일 로그인이 늘 실패한다.
+        let providers: [String]?
     }
 
     /// 요청 한 건. 실패는 전부 `AuthError` 로 바꿔 던진다.
@@ -70,7 +73,8 @@ struct APIAuthService: AuthService {
             if let seconds = failure?.retryAfter, failure?.error == "resend_too_soon" {
                 throw AuthError.resendTooSoon(seconds: seconds)
             }
-            throw AuthError.from(code: failure?.error, message: failure?.message, status: http.statusCode)
+            throw AuthError.from(code: failure?.error, message: failure?.message,
+                                 status: http.statusCode, providers: failure?.providers ?? [])
         }
         return data
     }
@@ -257,13 +261,20 @@ struct APIAuthService: AuthService {
         let expiresAt: String?
         let author: AuthorDTO
         let created: Bool?
+        /// 소셜 로그인이 기존 계정에 이어 붙었다(서버 2026-09-12). 이메일 가입·로그인 응답에도
+        /// 같은 필드가 오지만 늘 `false` 다. 구 서버에는 없다 — 없으면 `false`.
+        let linked: Bool?
+        /// 이어 붙이면서 이메일 비밀번호가 지워졌다(서버 2026-09-12).
+        let passwordReset: Bool?
 
         var session: AuthSession {
             AuthSession(
                 token: token,
                 expiresAt: expiresAt.flatMap(APIAuthService.date(fromISO8601:)),
                 account: author.account,
-                created: created ?? false
+                created: created ?? false,
+                linked: linked ?? false,
+                passwordReset: passwordReset ?? false
             )
         }
     }

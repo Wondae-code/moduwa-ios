@@ -26,6 +26,14 @@ final class SessionStore {
     /// `nil` 이면 시트를 닫는다.
     var prompt: AuthPrompt?
 
+    /// 로그인 직후 한 번만 알릴 말. 지금은 **소셜 로그인이 기존 계정에 이어 붙었을 때**만 찬다
+    /// (서버 2026-09-12).
+    ///
+    /// ⚠️ **로그인 화면이 아니라 여기에 두는 이유**: 로그인이 성공하면 `onSignedIn()` 이
+    /// 시트를 곧바로 닫는다. 시트 안에서 알리면 사용자가 읽기 전에 화면째 사라진다.
+    /// 시트 밖(`RootView`)에서 띄워야 남는다.
+    var signInNotice: String?
+
     /// 이메일 인증을 아직 안 마쳤는지. 가입 직후 인증 화면으로 이어 줄 때 쓴다.
     var needsEmailVerification: Bool {
         guard let account else { return false }
@@ -290,10 +298,26 @@ final class SessionStore {
         account = result.account
         phase = .signedIn
         mirrorNickname(result.account.nickname)
+        noteLinkedAccount(result)
         // **로그인할 때마다** 기기 토큰을 다시 등록한다(서버 요청). 한 기기를 다른 계정으로
         //  로그인하면 소유자가 바뀌어야 하고, 안 그러면 앞사람에게 알림이 계속 간다.
         //  저장된 토큰으로 돌아오는 길(`bootstrap`)에도 같은 호출이 있다.
         PushRegistrar.shared.registerAfterSignIn()
+    }
+
+    /// 소셜 로그인이 **기존 계정에 이어 붙었으면** 한 번 알린다(서버 2026-09-12).
+    ///
+    /// 알리지 않으면 사용자는 새 계정이 생긴 줄 알거나, 반대로 아무 일도 없었다고 여긴다 —
+    /// 둘 다 틀리다. 계정은 하나로 합쳐졌고 후기·플랜·프로필이 그대로 따라왔다.
+    ///
+    /// `passwordReset` 이면 **이메일 비밀번호가 사라진 것**이라 더 급하다. 그대로 두면
+    /// 다음에 이메일로 로그인하려다 막히고, 이유를 알 길이 없다.
+    private func noteLinkedAccount(_ result: AuthSession) {
+        guard result.linked else { return }
+        signInNotice = result.passwordReset
+            ? "기존 계정에 연결했어요. 글과 플랜은 그대로예요.\n\n이메일 비밀번호는 지워졌어요 — 이메일로 로그인하려면 ‘비밀번호 찾기’로 다시 설정해 주세요."
+            : "기존 계정에 연결했어요. 글과 플랜은 그대로예요."
+        UIAccessibility.post(notification: .announcement, argument: signInNotice)
     }
 
     /// 계정 닉네임을 작성 화면의 입력칸 기본값(`@AppStorage`)에 비춘다.

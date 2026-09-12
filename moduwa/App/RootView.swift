@@ -117,6 +117,18 @@ struct RootView: View {
         .sheet(item: $session.prompt) { prompt in
             AuthFlowView(prompt: prompt)
         }
+        // 로그인 직후 한 번 알릴 말(지금은 "기존 계정에 연결했어요"). ⚠️ **시트 밖에 둔다** —
+        //  로그인이 성공하면 위 시트가 곧바로 닫혀서, 시트 안에서 알리면 읽기 전에 사라진다.
+        .alert(
+            "알려드려요",
+            isPresented: Binding(
+                get: { session.signInNotice != nil },
+                set: { if !$0 { session.signInNotice = nil } })
+        ) {
+            Button("확인") { session.signInNotice = nil }
+        } message: {
+            Text(session.signInNotice ?? "")
+        }
         // 온보딩은 로그인을 요구하지 않는다 — 고른 값은 기기에 있다가 가입할 때 계정으로 간다.
         .fullScreenCover(isPresented: $isOnboardingPresented) {
             OnboardingView { outcome in
