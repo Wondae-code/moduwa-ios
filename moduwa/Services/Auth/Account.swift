@@ -68,6 +68,24 @@ enum AuthError: LocalizedError, Equatable {
     /// 사용자는 이메일 로그인을 시도하고 반드시 실패한다 — 소셜 버튼을 가리켜야 한다.
     /// 옛 서버는 이 필드를 주지 않으므로 빈 배열이면 예전처럼 이메일 로그인으로 안내한다.
     case emailTaken(providers: [String])
+
+    /// 409 `link_required` — **카카오 전용**(서버 2026-09-12). 카카오 이메일이 기존 계정의
+    /// 주소와 같다. 서버는 아무것도 만들지 않고 앱이 묻게 한다.
+    ///
+    /// 구글·애플과 달리 카카오는 이메일을 검증해 주지 않아 자동으로 이어 붙일 수 없다.
+    /// 말없이 별도 계정을 만들면 사용자는 **후기·플랜이 빈 계정**을 보게 된다.
+    ///
+    /// ⚠️ **오류 줄로 보여 주지 않는다.** 이건 실패가 아니라 갈림길이라 다이얼로그로 묻는다
+    /// (`SessionStore.kakaoLink`). 여기 문구는 그 길이 막혔을 때의 대비다.
+    case linkRequired(providers: [String])
+
+    /// 409 `identity_in_use` — 그 소셜 계정이 **이미 다른 모두와 계정**에 붙어 있다.
+    /// 두 계정을 합치지는 않는다(후기·플랜의 주인을 옮기는 일이라 별도 설계가 필요하다).
+    case identityInUse
+
+    /// 409 `provider_already_linked` — 이 계정에 그 방식이 이미 붙어 있다.
+    /// 정상 흐름에서는 나오지 않는다.
+    case providerAlreadyLinked
     /// 401 — 이메일이 없는지 비밀번호가 틀린지 **서버가 구분해 주지 않는다**(가입 여부 유출 방지).
     case invalidCredentials
     /// 429 — 같은 IP 에서 시도가 잦다. 10분 창.
@@ -95,6 +113,9 @@ enum AuthError: LocalizedError, Equatable {
         case .invalidPassword(let message): message
         case .invalidNickname: "이름은 1자 이상 40자 이하로 입력해 주세요."
         case .emailTaken(let providers): Self.emailTakenMessage(providers: providers)
+        case .linkRequired: "이 이메일로 가입된 계정이 있어요. 다시 시도해 주세요."
+        case .identityInUse: "이 카카오 계정은 이미 다른 계정에 연결돼 있어요. 그 계정으로 로그인해 주세요."
+        case .providerAlreadyLinked: "이 계정에는 카카오가 이미 연결돼 있어요."
         case .invalidCredentials: "이메일 또는 비밀번호가 올바르지 않아요."
         case .tooManyAttempts: "시도가 많았어요. 잠시 후 다시 시도해 주세요."
         case .loginRequired: "로그인이 필요해요."
@@ -139,6 +160,9 @@ enum AuthError: LocalizedError, Equatable {
         case "invalid_password": return .invalidPassword(message: text ?? "비밀번호는 8자 이상이어야 해요.")
         case "invalid_nickname": return .invalidNickname
         case "email_taken": return .emailTaken(providers: providers)
+        case "link_required": return .linkRequired(providers: providers)
+        case "identity_in_use": return .identityInUse
+        case "provider_already_linked": return .providerAlreadyLinked
         case "invalid_credentials": return .invalidCredentials
         case "too_many_attempts": return .tooManyAttempts
         case "login_required", "unauthenticated": return .loginRequired

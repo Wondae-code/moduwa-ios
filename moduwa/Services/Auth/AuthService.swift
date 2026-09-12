@@ -66,9 +66,18 @@ protocol AuthService: Sendable {
     /// ⚠️ 카카오는 이메일을 **인증된 것으로 표시하지 않는다** — 토큰에 `email_verified` 에
     /// 해당하는 클레임이 없고 카카오계정에는 미인증 주소가 있을 수 있다. 그래서 카카오로
     /// 가입해도 앱은 이메일 인증(6자리 코드)을 권한다.
+    /// - Parameter newAccount: 409 `link_required` 를 받은 뒤 사용자가 **"새 계정으로 시작"**
+    ///   을 골랐을 때만 `true`. 그 외에는 서버가 무시한다.
     func signInWithKakao(
-        idToken: String, accessFeatures: [AccessibilityFeature]?
+        idToken: String, accessFeatures: [AccessibilityFeature]?, newAccount: Bool
     ) async throws -> AuthSession
+
+    /// 로그인한 계정에 다른 로그인 방식을 붙인다(서버 2026-09-12).
+    ///
+    /// 지금은 카카오 `link_required` 의 "기존 계정에 연결" 한 곳에서만 쓴다. 근거는 이메일이
+    /// 아니라 **지금 세션이 이 계정의 주인**이라는 사실이다.
+    /// - Returns: 갱신된 계정. 대표 이메일이 없던 계정은 이때 주소가 올라올 수 있다.
+    func linkIdentity(provider: String, idToken: String) async throws -> Account
 
     /// 무장애 프로필을 바꾼다(`PATCH /v1/auth/me`).
     ///
@@ -144,11 +153,16 @@ struct MockAuthService: AuthService {
     }
 
     func signInWithKakao(
-        idToken: String, accessFeatures: [AccessibilityFeature]?
+        idToken: String, accessFeatures: [AccessibilityFeature]?, newAccount: Bool
     ) async throws -> AuthSession {
         if let failure { throw failure }
         return AuthSession(token: "preview", expiresAt: nil,
                            account: account("preview@kakao.com"), created: true)
+    }
+
+    func linkIdentity(provider: String, idToken: String) async throws -> Account {
+        if let failure { throw failure }
+        return account("preview@kakao.com")
     }
 
     func signInWithApple(

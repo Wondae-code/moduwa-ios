@@ -135,9 +135,27 @@ struct APIAuthService: AuthService {
     }
 
     func signInWithKakao(
-        idToken: String, accessFeatures: [AccessibilityFeature]?
+        idToken: String, accessFeatures: [AccessibilityFeature]?, newAccount: Bool
     ) async throws -> AuthSession {
-        try await social("/v1/auth/kakao", idToken: idToken, accessFeatures: accessFeatures)
+        try await social("/v1/auth/kakao", idToken: idToken,
+                         accessFeatures: accessFeatures, newAccount: newAccount)
+    }
+
+    /// 로그인한 계정에 다른 로그인 방식을 붙인다(`POST /v1/auth/me/identities`, 서버 2026-09-12).
+    ///
+    /// 카카오 `link_required` 의 "기존 계정에 연결" 이 유일한 사용처다 — 기존 방식으로 로그인해
+    /// 세션을 얻은 뒤, 들고 있던 카카오 토큰을 여기로 보낸다.
+    ///
+    /// 근거는 이메일이 아니라 **지금 세션이 이 계정의 주인**이라는 사실이다. 그래서 주소가
+    /// 달라도 붙는다. 같은 소셜 계정을 다시 붙이는 것은 오류가 아니라 `alreadyLinked` 다.
+    ///
+    /// 돌려주는 `author` 로 계정을 갱신한다 — 카카오로 시작한 계정처럼 대표 이메일이 없던
+    /// 경우 서버가 이때 주소를 올려 주기 때문이다.
+    func linkIdentity(provider: String, idToken: String) async throws -> Account {
+        let dto: LinkIdentityDTO = try await send(
+            "POST", "/v1/auth/me/identities",
+            body: ["provider": provider, "idToken": idToken])
+        return dto.author.account
     }
 
     /// 소셜 로그인은 프로바이더마다 **경로만 다르고 본문은 같다**(서버가 그렇게 맞춰 뒀다).
@@ -145,12 +163,16 @@ struct APIAuthService: AuthService {
     private func social(
         _ path: String, idToken: String, nickname: String? = nil,
         authorizationCode: String? = nil,
-        accessFeatures: [AccessibilityFeature]?
+        accessFeatures: [AccessibilityFeature]?,
+        newAccount: Bool = false
     ) async throws -> AuthSession {
         var body: [String: Any] = [
             "idToken": idToken,
             "deviceId": deviceId,
         ]
+        // 카카오 `link_required`(409) 를 받은 뒤 "새 계정으로 시작" 을 고른 경우에만 붙인다.
+        //  평소 요청에 붙어도 서버가 무시하지만, 없는 편이 의도가 분명하다.
+        if newAccount { body["newAccount"] = true }
         // 애플만 보낸다 — 구글·카카오는 토큰에 이름이 들어 있다. 빈 문자열은 넣지 않는다
         //  (서버가 받은 이름으로 닉네임을 갱신하므로 빈 값은 실제 이름을 덮어쓴다).
         if let nickname, !nickname.isEmpty { body["nickname"] = nickname }
@@ -277,6 +299,12 @@ struct APIAuthService: AuthService {
                 passwordReset: passwordReset ?? false
             )
         }
+    }
+
+    /// `POST /v1/auth/me/identities` 응답. `linked`·`alreadyLinked`·`identities` 도 오지만
+    /// 앱이 쓰는 것은 **갱신된 `author`** 뿐이다 — 연결된 목록을 보여 주는 화면이 없다.
+    private struct LinkIdentityDTO: Decodable {
+        let author: AuthorDTO
     }
 
     private struct AuthorDTO: Decodable {

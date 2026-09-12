@@ -132,8 +132,16 @@ struct SignInGateView: View {
         errorMessage = nil
         do {
             switch provider {
-            case .google: try await session.signInWithGoogle()
-            case .kakao: try await session.signInWithKakao()
+            case .google:
+                try await session.signInWithGoogle()
+            case .kakao:
+                // ⚠️ `nil` 은 실패가 아니라 **갈림길**이다 — 카카오 주소로 가입된 계정이 이미
+                //  있어서 `AuthFlowView` 가 다이얼로그를 띄운다. 시트를 닫으면 그 창도 함께
+                //  사라지므로 여기서 끝내지 않는다.
+                guard try await session.signInWithKakao() != nil else {
+                    isBusy = false
+                    return
+                }
             }
             UIAccessibility.post(notification: .announcement, argument: "로그인했어요")
             onSignedIn()

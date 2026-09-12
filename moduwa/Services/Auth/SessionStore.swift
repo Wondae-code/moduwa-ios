@@ -34,6 +34,40 @@ final class SessionStore {
     /// 시트 밖(`RootView`)에서 띄워야 남는다.
     var signInNotice: String?
 
+    /// 카카오가 **기존 계정과 같은 주소**라 갈림길에 선 상태(서버 409 `link_required`,
+    /// 2026-09-12). `nil` 이 아니면 로그인 시트가 다이얼로그를 띄운다.
+    ///
+    /// ⚠️ **카카오 `idToken` 을 여기 들고 있는 것이 이 타입의 존재 이유다.** 사용자가
+    /// "기존 계정에 연결" 을 고르면 기존 방식으로 로그인한 **뒤에** 그 토큰을 서버로 보내야
+    /// 하는데, 그 사이에 로그인 화면을 한 번 지나므로 토큰을 놓을 자리가 필요하다.
+    /// 서버에는 아직 아무것도 만들어지지 않았다 — 취소하면 정말 아무 일도 없다.
+    var kakaoLink: KakaoLinkRequest?
+
+    struct KakaoLinkRequest: Identifiable, Equatable {
+        let id = UUID()
+        /// 다시 쓸 카카오 토큰. 버리면 처음부터 다시 로그인해야 한다.
+        let idToken: String
+        /// 그 주소가 이미 가진 로그인 방식(`["email"]`, `["google"]` 등).
+        let providers: [String]
+
+        /// 기존 계정으로 들어가려면 어느 길을 가리켜야 하는가.
+        var guidance: String {
+            if providers.contains("email") {
+                return "기존 계정의 비밀번호로 로그인한 뒤 카카오가 연결돼요."
+            }
+            let names = providers.map { code -> String in
+                switch code {
+                case "google": "Google"
+                case "apple": "Apple"
+                default: code.prefix(1).uppercased() + code.dropFirst()
+                }
+            }.joined(separator: " · ")
+            return names.isEmpty
+                ? "기존 방식으로 로그인한 뒤 카카오가 연결돼요."
+                : "\(names) 로그인으로 들어가면 카카오가 연결돼요."
+        }
+    }
+
     /// 이메일 인증을 아직 안 마쳤는지. 가입 직후 인증 화면으로 이어 줄 때 쓴다.
     var needsEmailVerification: Bool {
         guard let account else { return false }
@@ -130,13 +164,60 @@ final class SessionStore {
     }
 
     /// 카카오 로그인. 카카오톡이 깔려 있으면 앱으로 전환된다(`KakaoSignInFlow`).
+    ///
+    /// ⚠️ **여기서만 갈림길이 생긴다.** 카카오 이메일이 기존 계정의 주소와 같으면 서버가
+    /// 계정을 만들지 않고 409 `link_required` 를 준다(2026-09-12). 그때는 **오류로 던지지
+    /// 않고** `kakaoLink` 를 채워 로그인 시트가 묻게 한다 — 사용자가 잘못한 것이 없으므로
+    /// 빨간 줄을 보여 줄 일이 아니다. 토큰은 그 안에 담긴다(다음 단계에서 다시 쓴다).
     @discardableResult
-    func signInWithKakao() async throws -> AuthSession {
+    func signInWithKakao() async throws -> AuthSession? {
         let idToken = try await KakaoSignInFlow.idToken()
+        do {
+            let result = try await service.signInWithKakao(
+                idToken: idToken, accessFeatures: nil, newAccount: false)
+            adopt(result)
+            return result
+        } catch AuthError.linkRequired(let providers) {
+            kakaoLink = KakaoLinkRequest(idToken: idToken, providers: providers)
+            return nil
+        }
+    }
+
+    /// 갈림길에서 **"새 계정으로 시작"** 을 골랐다. 같은 토큰에 `newAccount` 를 붙여 다시 보낸다.
+    /// 별도 계정이 생기고, 그 계정의 이메일은 비어 있다(주소는 기존 계정 것이라 서버가 올리지 않는다).
+    @discardableResult
+    func startSeparateKakaoAccount() async throws -> AuthSession {
+        guard let request = kakaoLink else { throw AuthError.network }
         let result = try await service.signInWithKakao(
-            idToken: idToken, accessFeatures: nil)
+            idToken: request.idToken, accessFeatures: nil, newAccount: true)
+        kakaoLink = nil
         adopt(result)
         return result
+    }
+
+    /// 갈림길을 접는다. 서버에는 아무것도 만들어지지 않았으므로 정말 아무 일도 없다.
+    func cancelKakaoLink() {
+        kakaoLink = nil
+    }
+
+    /// 로그인이 끝난 직후, 들고 있던 카카오 토큰이 있으면 계정에 붙인다.
+    ///
+    /// `adopt` 가 부른다 — 이메일이든 구글이든 **어느 길로 들어왔든** 붙어야 하기 때문이다.
+    /// 결과는 `signInNotice` 로 알린다: 이 시점에는 로그인 시트가 이미 닫히는 중이라
+    /// 시트 안에서는 보여 줄 수 없다.
+    private func linkPendingKakao() async {
+        guard let request = kakaoLink else { return }
+        kakaoLink = nil
+        do {
+            account = try await service.linkIdentity(provider: "kakao", idToken: request.idToken)
+            signInNotice = "카카오를 계정에 연결했어요. 다음부터는 카카오로 바로 로그인돼요."
+        } catch {
+            // 연결만 실패했다 — **로그인은 이미 성공했다.** 그 사실을 먼저 말한다.
+            let reason = (error as? LocalizedError)?.errorDescription
+                ?? "카카오를 연결하지 못했어요."
+            signInNotice = "로그인은 됐는데 카카오 연결에 실패했어요.\n\n\(reason)"
+        }
+        UIAccessibility.post(notification: .announcement, argument: signInNotice)
     }
 
     /// - Parameter keepSignedIn: 시안 868:773 "로그인 상태 유지". 껐으면 토큰을 키체인에
@@ -299,6 +380,9 @@ final class SessionStore {
         phase = .signedIn
         mirrorNickname(result.account.nickname)
         noteLinkedAccount(result)
+        // 카카오 갈림길에서 "기존 계정에 연결" 을 고른 뒤 들어온 로그인이면 여기서 잇는다.
+        //  어느 길(이메일·구글)로 들어왔든 같아야 해서 각 로그인 메서드가 아니라 여기에 둔다.
+        if kakaoLink != nil { Task { await linkPendingKakao() } }
         // **로그인할 때마다** 기기 토큰을 다시 등록한다(서버 요청). 한 기기를 다른 계정으로
         //  로그인하면 소유자가 바뀌어야 하고, 안 그러면 앞사람에게 알림이 계속 간다.
         //  저장된 토큰으로 돌아오는 길(`bootstrap`)에도 같은 호출이 있다.
