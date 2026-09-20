@@ -12,8 +12,12 @@ struct ScheduleCard: View {
 
     /// 시안 카드 규격(631:146 / 631:150).
     private static let height: CGFloat = 378
-    /// 흐림·스크림이 걸리는 아래쪽 띠. 카드 높이의 46% 지점부터 시작한다.
-    private static let blurBandHeight: CGFloat = 204
+    /// 흐림·스크림이 걸리는 범위 — **카드 전체**다(시안 `Y start 0% → Y end 100%`).
+    ///
+    /// 한동안 아래 204 만 덮었다(카드의 46% 지점부터). 그랬더니 **제목이 띠 바로 위에 걸려**
+    /// 밝은 사진에서 거의 읽히지 않았다(2026-09-20, 전주 표지에서 실측 — 하늘 위 흰 글자).
+    /// 위는 어차피 흐림 0·스크림 0 이라 사진이 그대로 보인다 — 넓혀도 잃는 것이 없다.
+    private static let blurBandHeight: CGFloat = height
     /// 시안의 DAY 줄은 세 개다. 그보다 긴 여행은 마지막 줄을 "…"로 접는다 —
     /// 카드 높이가 고정이라 줄을 늘리면 아래가 잘린다.
     private static let visibleDayCount = 3
@@ -53,15 +57,18 @@ struct ScheduleCard: View {
     private var background: some View {
         Color.photoPlaceholder
             .overlay {
-                if let imageURL = plan.cardImageURL {
-                    AsyncImage(url: imageURL) { image in
+                // 무엇을 표지로 쓸지는 `Plan.coverSource` 가 정한다 — 플랜 탭과 같은 규칙이다.
+                switch plan.coverSource {
+                case .photo(let url):
+                    AsyncImage(url: url) { image in
                         layered { image.resizable().scaledToFill() }
                     } placeholder: {
                         Color.photoPlaceholder
                     }
-                } else {
-                    // 담긴 장소에 사진이 하나도 없을 때의 기본 표지. 한 색이라 흐린
-                    //  사본을 겹칠 것이 없어 그대로 채운다(`PlanCoverPlaceholder`).
+                case .region(let region):
+                    layered { PlanCoverPlaceholder(region: region, tall: true) }
+                case .blank:
+                    // 한 색이라 흐릴 것이 없다 — 사본을 겹치지 않는다.
                     PlanCoverPlaceholder()
                 }
             }

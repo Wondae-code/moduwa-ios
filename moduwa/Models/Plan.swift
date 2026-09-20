@@ -178,6 +178,29 @@ extension TravelRegion {
         case .pohangAndong: RegionMapCamera(latitude: 36.294, longitude: 129.036, zoomLevel: 8)
         }
     }
+
+    /// 플랜에 사진이 없을 때 쓰는 **지역 표지**(디자이너 에셋, 2026-09-20).
+    ///
+    /// 한동안 회색 한 장(`PlanCoverPlaceholder`)이었다. 그 전에는 경주 사진을 모든 플랜에
+    /// 깔았는데 **틀린 지역을 보여 주는 것**이라 뺐다(2026-09-07). 이제 지역마다 제 사진이
+    /// 있으니 그 걱정 없이 돌아올 수 있다.
+    ///
+    /// 두 벌인 이유는 카드 비율이 다르기 때문이다 — 플랜 목록 카드는 가로로 눕고(321×243)
+    /// 일정 탭 카드는 세로로 선다(321×378). 한 장을 잘라 쓰면 한쪽에서 피사체가 잘린다.
+    /// 에셋도 그 비율에 맞춰 왔다(963×729 / 963×1134, 각각 @3x 로 정확히 맞는다).
+    ///
+    /// - Parameter tall: 세로 카드(일정 탭)면 `true`.
+    func coverImageName(tall: Bool) -> String {
+        "cover_\(rawValue)\(tall ? "_tall" : "")"
+    }
+}
+
+/// 카드 표지의 출처. `Plan.coverSource` 가 정하고 두 카드가 그대로 그린다 —
+/// 각자 고르게 두면 같은 플랜이 탭에 따라 다른 표지를 갖는다(2026-08-16 에 한 번 겪었다).
+enum PlanCoverSource: Equatable {
+    case photo(URL)
+    case region(TravelRegion)
+    case blank
 }
 
 // MARK: - 공동 편집
@@ -377,6 +400,22 @@ extension Plan {
     /// 꽂으면 카드가 빈 채로 뜬다 — 추천 코스로 하루를 가득 채워 만들어도 마찬가지였다
     /// (2026-08-23). 저장 응답에는 `days` 가 실려 오므로 앱이 같은 값을 스스로 고를 수 있다.
     var cardImageURL: URL? { coverImageURL ?? fallbackImageURL ?? firstStopImageURL }
+
+    /// 카드 표지를 **무엇으로** 그릴지. 플랜 탭과 일정 탭이 같은 규칙을 쓴다.
+    ///
+    /// 순서에 뜻이 있다:
+    /// 1. **사용자가 고른 표지**가 있으면 그것. (고르는 화면이 아직 없어 지금은 안 온다.)
+    /// 2. **지역 표지**(디자이너 에셋, 2026-09-20). 장소 사진보다 **앞**이다 — 첫 장소 사진은
+    ///    고른 것이 아니라 **걸린 것**이라, 식당 간판이나 주차장이 여행의 얼굴이 되곤 했다.
+    ///    지역 사진은 골라서 찍은 것이고 같은 지역 플랜끼리 결이 맞는다.
+    /// 3. 지역을 고르지 않은 플랜은 그제야 **장소 사진**으로 간다 — 아무것도 없는 것보다는 낫다.
+    /// 4. 둘 다 없으면 회색.
+    var coverSource: PlanCoverSource {
+        if let coverImageURL { return .photo(coverImageURL) }
+        if let region { return .region(region) }
+        if let url = fallbackImageURL ?? firstStopImageURL { return .photo(url) }
+        return .blank
+    }
 
     /// 담긴 장소 중 사진이 있는 첫 곳. 목록 응답은 `days` 가 비어 있어 nil 이고,
     /// 그때는 서버가 준 `fallbackImageURL` 이 이미 같은 값을 들고 있다.

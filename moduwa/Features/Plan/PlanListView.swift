@@ -496,8 +496,9 @@ private struct UpcomingPlanCard: View {
     private var cover: some View {
         Color.photoPlaceholder
             .overlay {
-                // 표지가 없으면 첫 장소 사진으로 폴백한다(`Plan.cardImageURL`) — 일정 탭 카드와 같은 값.
-                if let url = plan.cardImageURL {
+                // 무엇을 표지로 쓸지는 `Plan.coverSource` 가 정한다 — 일정 탭과 같은 규칙이다.
+                switch plan.coverSource {
+                case .photo(let url):
                     AsyncImage(url: url) { image in
                         // ⚠️ 흐린 사본은 **여기 안에서** 만든다 — 밖에서 `AsyncImage` 를 하나
                         //  더 두면 같은 사진을 두 번 받는다(`CardCoverBlur` 주석).
@@ -505,9 +506,11 @@ private struct UpcomingPlanCard: View {
                     } placeholder: {
                         Color.photoPlaceholder
                     }
-                } else {
-                    // 담긴 장소에 사진이 하나도 없을 때의 기본 표지(`PlanCoverPlaceholder`).
-                    blurred { PlanCoverPlaceholder() }
+                case .region(let region):
+                    blurred { PlanCoverPlaceholder(region: region) }
+                case .blank:
+                    // 한 색이라 흐릴 것이 없다 — 사본을 겹치지 않는다.
+                    PlanCoverPlaceholder()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
