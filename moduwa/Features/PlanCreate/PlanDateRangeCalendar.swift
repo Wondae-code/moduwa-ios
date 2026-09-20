@@ -27,12 +27,23 @@ struct PlanDateRangeCalendar: View {
     /// 없기 때문이다(`clamped(_:from:)`).
     var busyRanges: [ClosedRange<Date>] = []
 
+    /// 고를 수 있는 **가장 이른 날**. 기본은 오늘이다 — 새 플랜은 지난 날로 떠날 수 없다.
+    ///
+    /// ⚠️ **이미 만든 플랜의 날짜를 고칠 때는 오늘보다 앞일 수 있다.** 어제 떠난 여행의
+    /// 기간을 고치려는데 달력이 오늘부터면 **지금 잡혀 있는 시작일조차 보이지 않는다** —
+    /// 고치러 들어와서 아무것도 못 하고 나가게 된다(`PlanDateEditView` 가 이 값을 내린다).
+    var earliestSelectable: Date?
+
     /// 시안은 이번 달과 다음 달을 이어 붙여 스크롤한다. 1년치를 그려 두면
     /// 내년 여행까지 스크롤만으로 닿는다 (달 넘김 버튼이 시안에 없다).
     private static let monthCount = 12
 
     private let calendar = Calendar.current
     private var today: Date { calendar.startOfDay(for: .now) }
+    /// 실제로 고를 수 있는 하한. `earliestSelectable` 이 없으면 오늘이다.
+    private var lowerBound: Date {
+        min(calendar.startOfDay(for: earliestSelectable ?? today), today)
+    }
 
     /// 드래그가 손끝 아래 날짜를 찾는 데 쓰는 칸 위치. 각 칸이 올려 준다(`DayFrames`).
     @State private var dayFrames: [Date: CGRect] = [:]
@@ -156,7 +167,9 @@ struct PlanDateRangeCalendar: View {
     // MARK: - 월
 
     private var months: [Date] {
-        let base = calendar.date(from: calendar.dateComponents([.year, .month], from: today)) ?? today
+        // 하한이 지난달이면 그 달부터 그린다 — 안 그리면 고치려는 날짜가 목록에 없다.
+        let anchor = lowerBound
+        let base = calendar.date(from: calendar.dateComponents([.year, .month], from: anchor)) ?? anchor
         return (0..<Self.monthCount).compactMap { calendar.date(byAdding: .month, value: $0, to: base) }
     }
 
@@ -227,7 +240,7 @@ struct PlanDateRangeCalendar: View {
     @ViewBuilder
     private func dayCell(_ day: Date, in month: Date) -> some View {
         let isThisMonth = calendar.isDate(day, equalTo: month, toGranularity: .month)
-        let isPast = day < today
+        let isPast = day < lowerBound
         let selectable = isThisMonth && !isPast && !isBusy(day)
 
         Button {
@@ -236,14 +249,16 @@ struct PlanDateRangeCalendar: View {
         } label: {
             ZStack {
                 busyBand(for: day, in: month)
-                rangeBand(for: day)
+                rangeBand(for: day, in: month)
 
                 Text("\(calendar.component(.day, from: day))")
                     .font(.notoSans(15, isEndpoint(day) ? .bold : .regular, relativeTo: .subheadline))
                     .foregroundStyle(dayColor(isThisMonth: isThisMonth, isPast: isPast, day: day))
                     .frame(width: 32, height: 32)
                     .background {
-                        if isEndpoint(day) {
+                        // 띠와 같은 이유로 **이웃 달 칸에는 원도 그리지 않는다** — 안 그러면
+                        //  10월 격자 앞줄의 9월 28·30 에 라임 원이 남는다.
+                        if isEndpoint(day), isThisMonth {
                             // 시안 `958:462` 의 시작일·종료일은 **라임**이다(딥그린으로 그리고
                             //  있었다). 위에 얹히는 날짜가 `textPrimary` 라 대비도 라임 쪽이
                             //  낫다 — 흰 글자를 라임에 올리면 1.6:1 로 읽을 수 없다.
@@ -297,12 +312,19 @@ struct PlanDateRangeCalendar: View {
 
     /// 시작·종료 두 원을 잇는 띠. 끝점 칸은 원의 **중심부터** 채워야 띠가 원에서 뻗어 나온 것처럼 보인다
     /// (시안 Rectangle 6이 46 → 247, 딱 두 원의 중심 사이다).
-    private func rangeBand(for day: Date) -> some View {
-        HStack(spacing: 0) {
-            Rectangle().fill(fillsLeadingHalf(day) ? Color.moduwaGreen.opacity(0.25) : .clear)
-            Rectangle().fill(fillsTrailingHalf(day) ? Color.moduwaGreen.opacity(0.25) : .clear)
+    /// ⚠️ **이웃 달 칸에는 그리지 않는다**(`busyBand` 와 같은 규칙). 9월 28~30 을 고르면
+    /// 10월 격자의 앞줄에도 같은 28·29·30 칸이 있는데, 거기까지 칠하면 **10월에도 그 기간이
+    /// 잡힌 것처럼** 보인다(2026-09-20 실측 — 날짜 수정 화면에서 드러났지만 새 플랜 3/6 에도
+    /// 있던 것이다). 그 칸은 어차피 못 고르는 자리다.
+    @ViewBuilder
+    private func rangeBand(for day: Date, in month: Date) -> some View {
+        if calendar.isDate(day, equalTo: month, toGranularity: .month) {
+            HStack(spacing: 0) {
+                Rectangle().fill(fillsLeadingHalf(day) ? Color.moduwaGreen.opacity(0.25) : .clear)
+                Rectangle().fill(fillsTrailingHalf(day) ? Color.moduwaGreen.opacity(0.25) : .clear)
+            }
+            .frame(height: 32)
         }
-        .frame(height: 32)
     }
 
     // MARK: - 다른 일정 (시안 958:462)
@@ -487,7 +509,7 @@ struct PlanDateRangeCalendar: View {
         var last = anchor
         while !calendar.isDate(last, inSameDayAs: target) {
             guard let next = calendar.date(byAdding: .day, value: step, to: last),
-                  next >= today, !isBusy(next)
+                  next >= lowerBound, !isBusy(next)
             else { break }
             last = next
         }

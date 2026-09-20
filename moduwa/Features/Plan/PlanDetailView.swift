@@ -24,6 +24,12 @@ struct PlanDetailView: View {
     @State private var isEditing = false
     @State private var isAddingMemo = false
     @State private var isEditingTitle = false
+    @State private var isEditingDates = false
+    /// 달력에 회색으로 칠할 **남의 일정**. 날짜 시트를 열 때 받아 둔다.
+    ///
+    /// **못 받으면 그냥 안 그린다.** 이 표시는 도움말이지 제약이 아니다 — 겹치는 날짜도
+    /// 고를 수 있다(새 플랜 쪽과 같은 규칙).
+    @State private var otherPlanRanges: [ClosedRange<Date>] = []
     @State private var isAddingPlace = false
     /// 서버에서 받아 온 상세(일정 포함). 저장에 성공하면 서버가 돌려준 값으로 갈아 끼운다.
     @State private var detail: Plan?
@@ -160,6 +166,14 @@ struct PlanDetailView: View {
         .navigationDestination(for: TravelReview.self) { ReviewDetailView(review: $0) }
         // 메모는 편집 화면을 거치지 않고 상세에서 바로 붙인다 — 시안의 버튼이 상세 하단에 있고,
         // 한 줄 적으러 편집 모드까지 들어가게 하면 순서까지 건드릴 수 있는 화면이 열린다.
+        .sheet(isPresented: $isEditingDates) {
+            PlanDateEditView(plan: current, busyRanges: otherPlanRanges) { start, end, days in
+                try await changeDates(start: start, end: end, days: days)
+            }
+            // 시트가 뜬 뒤에 받아도 된다 — 회색 칠은 도움말이라 늦게 나타나도 잃는 것이 없고,
+            //  상세를 열 때마다 목록을 한 번 더 받는 것보다 낫다.
+            .task { await loadOtherPlanRanges() }
+        }
         .sheet(isPresented: $isEditingTitle) {
             PlanTitleEditView(currentTitle: current.title) { try await renameTitle(to: $0) }
         }
@@ -249,6 +263,35 @@ struct PlanDetailView: View {
     /// 제목만 바꾼다. **`detail` 로만 저장한다** — 목록에서 온 플랜(`days` 가 빈 배열)으로 부르면
     /// PUT 이 본문을 통째로 갈아 끼우면서 서버의 일정이 지워진다.
     /// 실패는 그대로 던져 시트가 사유를 띄우고 열린 채 남게 한다 — 고쳐 쓴 제목을 잃지 않는다.
+    /// 날짜를 바꾼다. **기간 밖으로 밀려난 날은 `days` 에서 이미 빠져 온다**
+    /// (`PlanDateEditView` 가 계산하고 확인까지 받는다) — 서버는 받은 `days` 를 그대로 쓴다.
+    ///
+    /// 보고 있던 날 번호도 함께 되돌린다. 3일차를 보던 중에 2일로 줄이면 그 번호가 범위를
+    /// 벗어나 **빈 화면**이 된다(`selectedDay` 가 clamp 하긴 하지만, 보던 날이 사라졌는데
+    /// 마지막 날이 슬쩍 대신 뜨는 것보다 첫날로 돌아가는 편이 무슨 일이 있었는지 분명하다).
+    private func changeDates(start: Date, end: Date, days: [PlanDay]) async throws {
+        guard var target = detail else { throw PlanServiceError.unavailable }
+        target.startDate = start
+        target.endDate = end
+        target.days = days
+        try await persist(target)
+        selectedDayIndex = 0
+    }
+
+    /// 남의 일정을 받아 둔다. ⚠️ **이 플랜 자신은 뺀다** — 안 빼면 지금 잡혀 있는 날이
+    /// "이미 찼다" 로 막혀 제 날짜를 다시 고를 수조차 없다.
+    private func loadOtherPlanRanges() async {
+        guard let plans = try? await planService.fetchPlans() else { return }
+        let calendar = Calendar.current
+        otherPlanRanges = plans.compactMap { plan in
+            guard plan.id != current.id else { return nil }
+            let start = calendar.startOfDay(for: plan.startDate)
+            let end = calendar.startOfDay(for: plan.endDate)
+            guard start <= end else { return nil }
+            return start...end
+        }
+    }
+
     private func renameTitle(to newTitle: String) async throws {
         guard var target = detail else { throw PlanServiceError.unavailable }
         target.title = newTitle
@@ -460,9 +503,23 @@ struct PlanDetailView: View {
                 .font(.notoSans(20, .bold, relativeTo: .title3))
                 .tracking(-0.4)
 
-            Text(current.dateRangeText)
-                .font(.notoSans(16, .regular, relativeTo: .body))
-                .tracking(-0.4)
+            // 날짜 줄이 곧 수정 버튼이다. 헤더에 아이콘을 하나 더 두지 않는 이유는 이미 넷이
+            //  들어차 있어서이기도 하지만, **고치려는 값 바로 그 자리**가 가장 찾기 쉬워서다.
+            Button { isEditingDates = true } label: {
+                HStack(spacing: 4) {
+                    Text(current.dateRangeText)
+                        .font(.notoSans(16, .regular, relativeTo: .body))
+                        .tracking(-0.4)
+                    // 누를 수 있다는 것을 색이 아니라 **모양**으로 알린다 — 날짜 글자를
+                    //  파랗게 물들이면 제목과 한 덩어리로 읽히던 머리가 깨진다.
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.iconGray)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("여행 날짜 \(current.dateRangeText)")
+            .accessibilityHint("두 번 탭하면 날짜를 고칩니다")
         }
         .foregroundStyle(Color.textPrimary)
         .frame(maxWidth: .infinity, alignment: .leading)
