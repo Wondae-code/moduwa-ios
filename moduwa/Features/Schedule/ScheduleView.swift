@@ -13,7 +13,7 @@ struct ScheduleView: View {
 
     @State private var state: PlanListState = .loading
     @State private var selectedTab: ScheduleTab = .upcoming
-    /// 카드의 "수정"이 상세로 보내는 경로. 배열이 아니라 `NavigationPath`인 이유는
+    /// 카드를 눌러 상세로 가는 경로. 배열이 아니라 `NavigationPath`인 이유는
     /// 상세가 장소·후기 상세로도 이어지기 때문이다 — 배열 경로는 한 타입만 받는다.
     @State private var path = NavigationPath()
     /// 삭제 확인 대상. nil 이면 확인 창이 닫혀 있다.
@@ -23,6 +23,12 @@ struct ScheduleView: View {
     /// "플랜으로 되돌리기" 진행 중인 플랜.
     @State private var revertingID: Plan.ID?
     @State private var revertError: String?
+
+    /// "일정 수정" 대상. **상세를 받아 온 뒤에** 채운다(nil 이면 시트가 닫혀 있다).
+    @State private var infoTarget: Plan?
+    /// 상세를 받는 중인 카드. 두 번 누르는 것을 막고 카드에 진행 표시를 준다.
+    @State private var infoLoadingID: Plan.ID?
+    @State private var infoLoadError: String?
 
     /// 시안은 카드를 393폭 안에서 321로 두어 좌우 36을 남긴다(플랜 탭과 같다).
     private static let sideMargin: CGFloat = 36
@@ -62,6 +68,18 @@ struct ScheduleView: View {
             Button("취소", role: .cancel) {}
         } message: { plan in
             Text("‘\(plan.title)’의 일정과 메모가 함께 지워지고 되돌릴 수 없어요.")
+        }
+        .sheet(item: $infoTarget) { plan in
+            PlanInfoEditView(plan: plan) { title, start, end, days in
+                try await saveInfo(plan, title: title, start: start, end: end, days: days)
+            }
+        }
+        .alert("일정을 열지 못했어요", isPresented: Binding(
+            get: { infoLoadError != nil }, set: { if !$0 { infoLoadError = nil } })
+        ) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text(infoLoadError ?? "")
         }
         .alert("플랜으로 되돌리지 못했어요", isPresented: Binding(
             get: { revertError != nil }, set: { if !$0 { revertError = nil } })
@@ -145,16 +163,18 @@ struct ScheduleView: View {
             .buttonStyle(.plain)
             // 메뉴는 카드의 `accessibilityElement(children: .combine)`에 삼켜져 VoiceOver 로는
             // 닿지 않는다. 로터의 동작으로 같은 길을 낸다.
-            .accessibilityAction(named: "수정") { path = NavigationPath([plan]) }
+            // ⚠️ 메뉴와 **같은 곳**으로 가야 한다. 로터로는 상세, 눈으로는 시트가 열리면
+            //  같은 이름의 동작이 사람마다 다른 일을 하는 셈이다.
+            .accessibilityAction(named: "일정 수정") { Task { await openInfo(plan) } }
             .accessibilityAction(named: "삭제") { deleteTarget = plan }
 
             menu(for: plan)
         }
         // 지우는 동안 다시 누르지 못하게 한다 — 두 번째 요청은 404 로 돌아와 "실패"로 보인다.
-        .disabled(deletingID == plan.id || revertingID == plan.id)
-        .opacity(deletingID == plan.id || revertingID == plan.id ? 0.4 : 1)
+        .disabled(isBusy(plan))
+        .opacity(isBusy(plan) ? 0.4 : 1)
         .overlay {
-            if deletingID == plan.id || revertingID == plan.id {
+            if isBusy(plan) {
                 ProgressView().tint(.deepGreen)
             }
         }
@@ -162,9 +182,12 @@ struct ScheduleView: View {
 
     private func menu(for plan: Plan) -> some View {
         Menu {
-            // 시안의 "수정"이 어디로 가는지 지시가 없다. 상세가 편집을 모두 안고 있으므로
-            // (일정 순서·장소·메모·제목) 그리로 보낸다 — 카드를 탭한 것과 같은 목적지다.
-            Button("수정", systemImage: "pencil") { path = NavigationPath([plan]) }
+            // 플랜 탭 카드의 "플랜 수정" 과 같은 화면을 연다(2026-09-20) — 제목과 날짜다.
+            //  전에는 상세로 보냈는데 **카드를 탭한 것과 같은 목적지**라 메뉴에 둘 이유가 없었다.
+            //  일정 순서·장소·메모는 그대로 상세에서 고친다.
+            Button("일정 수정", systemImage: "square.and.pencil") {
+                Task { await openInfo(plan) }
+            }
             // 시안에 없는 항목이다. 확정이 한 방향뿐이면 잘못 누른 플랜이 플랜 탭에서
             // 영영 사라지므로 되돌아갈 길을 낸다.
             Button("플랜으로 되돌리기", systemImage: "arrow.uturn.backward") {
@@ -236,6 +259,39 @@ struct ScheduleView: View {
         } catch {
             state = .failed
         }
+    }
+
+    private func isBusy(_ plan: Plan) -> Bool {
+        deletingID == plan.id || revertingID == plan.id || infoLoadingID == plan.id
+    }
+
+    /// "일정 수정" — **상세를 받아 온 뒤에** 시트를 연다.
+    ///
+    /// ⚠️ 목록의 플랜은 `days` 가 비어 있다(카드의 DAY 줄은 `daySummaries` 가 그린다).
+    /// 그대로 열면 수정 화면이 "담아 둔 것이 사라진다" 를 셀 수 없어 **경고 없이 일정을
+    /// 통째로 지운다.** 상세가 실패하면 시트를 열지 않는다 — 여는 편이 더 나쁘다.
+    private func openInfo(_ plan: Plan) async {
+        guard infoLoadingID == nil else { return }
+        infoLoadingID = plan.id
+        defer { infoLoadingID = nil }
+        do {
+            infoTarget = try await planService.fetchPlan(id: plan.id)
+        } catch {
+            infoLoadError = (error as? PlanServiceError)?.errorDescription
+                ?? "네트워크 상태를 확인하고 다시 시도해 주세요."
+        }
+    }
+
+    /// 제목·날짜를 저장한다. 기간 밖으로 밀려난 날은 `days` 에서 이미 빠져 온다
+    /// (`PlanInfoEditView` 가 계산하고 확인까지 받는다).
+    private func saveInfo(_ plan: Plan, title: String, start: Date, end: Date,
+                          days: [PlanDay]) async throws {
+        var target = try await planService.fetchPlan(id: plan.id)
+        target.title = title
+        target.startDate = start
+        target.endDate = end
+        target.days = days
+        planSaved(try await planService.savePlan(target, authorNm: nil))
     }
 
     /// 확정을 풀어 플랜 탭으로 돌려보낸다. 서버가 성공한 뒤에만 목록에서 뺀다.
