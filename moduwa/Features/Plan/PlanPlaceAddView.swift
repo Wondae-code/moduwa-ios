@@ -68,6 +68,8 @@ struct PlanPlaceAddView: View {
 
             if !customPlaces.isEmpty { customSection }
 
+            if search.phase == .results { customPlaceBanner }
+
             // 검색 결과가 세로를 가장 많이 쓴다 — 여기만 늘어나고 CTA 는 자리를 지킨다.
             resultArea
                 .frame(maxHeight: .infinity)
@@ -229,6 +231,52 @@ struct PlanPlaceAddView: View {
                     .background(Capsule().stroke(Color.deepGreen, lineWidth: 1))
             }
             .buttonStyle(.plain)
+            .accessibilityHint("지도에서 위치를 골라 직접 장소를 만듭니다")
+        }
+    }
+
+    /// 검색 결과 **위에 붙박이로** 얹는 안내(2026-09-21 사용자 요청).
+    ///
+    /// ⚠️ 그 전에는 **결과가 있을 때 나만의 장소로 가는 길이 아예 없었다** — 검색 전(`idle`)과
+    /// 결과가 빈 때(`empty`)에만 버튼이 있었다. 정작 필요한 순간은 **스무 곳이 나왔는데 그중에
+    /// 찾던 곳이 없을 때**다. 그때 사용자가 할 수 있는 일은 검색어를 바꿔 보는 것뿐이었다.
+    ///
+    /// **목록 안(스크롤)에 넣지 않는다.** 결과가 틀렸다는 것은 한참 내려 본 뒤에 알게 되는데,
+    /// 그때 이 줄은 이미 화면 위로 사라진 뒤다. 붙박이면 깨닫는 순간 눈앞에 있다.
+    ///
+    /// 지역이 없는 플랜에서는 뜨지 않는다 — `customPlaceButton` 과 같은 이유로,
+    /// 지도를 띄울 자리가 없어 길 자체가 닫혀 있다.
+    @ViewBuilder
+    private var customPlaceBanner: some View {
+        if regionCamera != nil {
+            Button { isAddingCustomPlace = true } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "mappin.and.ellipse")
+                        .font(.system(size: 17, weight: .semibold))
+                        .accessibilityHidden(true)
+
+                    Text("혹시 찾으시는 장소가 없다면\n나만의 장소로 추가해 보세요!")
+                        .font(.notoSans(13, .medium, relativeTo: .footnote))
+                        .multilineTextAlignment(.leading)
+                        // 글자 크기를 키우면 두 줄이 세 줄이 된다 — 줄 수를 묶지 않는다.
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .accessibilityHidden(true)
+                }
+                .foregroundStyle(Color.deepGreen)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color.appBackground))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.deepGreen, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 24)
+            .padding(.top, 12)
+            // 두 줄을 그대로 읽으면 줄바꿈에서 끊긴다 — 한 문장으로 다시 적는다.
+            .accessibilityLabel("찾는 장소가 없다면 나만의 장소로 추가하기")
             .accessibilityHint("지도에서 위치를 골라 직접 장소를 만듭니다")
         }
     }
