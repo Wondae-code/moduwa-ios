@@ -240,7 +240,9 @@ struct PlanInfoEditView: View {
                 .accessibilityLabel("\(title.count)자 입력, 최대 \(Self.titleLimit)자")
         }
         .padding(.horizontal, 24)
-        .padding(.bottom, 14)
+        // 헤더 바로 아래 붙으면 제목 칸이 헤더의 일부처럼 읽힌다 — 띄워서 따로 선다.
+        .padding(.top, 16)
+        .padding(.bottom, 18)
     }
 
     private var footer: some View {
