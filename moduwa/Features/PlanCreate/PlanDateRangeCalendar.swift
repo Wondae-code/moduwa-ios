@@ -31,7 +31,7 @@ struct PlanDateRangeCalendar: View {
     ///
     /// ⚠️ **이미 만든 플랜의 날짜를 고칠 때는 오늘보다 앞일 수 있다.** 어제 떠난 여행의
     /// 기간을 고치려는데 달력이 오늘부터면 **지금 잡혀 있는 시작일조차 보이지 않는다** —
-    /// 고치러 들어와서 아무것도 못 하고 나가게 된다(`PlanDateEditView` 가 이 값을 내린다).
+    /// 고치러 들어와서 아무것도 못 하고 나가게 된다(`PlanInfoEditView` 가 이 값을 내린다).
     var earliestSelectable: Date?
 
     /// 시안은 이번 달과 다음 달을 이어 붙여 스크롤한다. 1년치를 그려 두면

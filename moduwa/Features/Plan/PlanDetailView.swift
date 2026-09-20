@@ -23,8 +23,9 @@ struct PlanDetailView: View {
     @State private var dragOffset: CGFloat = 0
     @State private var isEditing = false
     @State private var isAddingMemo = false
-    @State private var isEditingTitle = false
-    @State private var isEditingDates = false
+    /// 제목·날짜를 고치는 시트. 연필과 날짜 줄이 **같은 화면**을 연다 — 둘 다
+    /// "이 여행이 무엇인가" 를 적는 값이라 나눌 이유가 없다(2026-09-20).
+    @State private var isEditingInfo = false
     /// 달력에 회색으로 칠할 **남의 일정**. 날짜 시트를 열 때 받아 둔다.
     ///
     /// **못 받으면 그냥 안 그린다.** 이 표시는 도움말이지 제약이 아니다 — 겹치는 날짜도
@@ -166,16 +167,13 @@ struct PlanDetailView: View {
         .navigationDestination(for: TravelReview.self) { ReviewDetailView(review: $0) }
         // 메모는 편집 화면을 거치지 않고 상세에서 바로 붙인다 — 시안의 버튼이 상세 하단에 있고,
         // 한 줄 적으러 편집 모드까지 들어가게 하면 순서까지 건드릴 수 있는 화면이 열린다.
-        .sheet(isPresented: $isEditingDates) {
-            PlanDateEditView(plan: current, busyRanges: otherPlanRanges) { start, end, days in
-                try await changeDates(start: start, end: end, days: days)
+        .sheet(isPresented: $isEditingInfo) {
+            PlanInfoEditView(plan: current, busyRanges: otherPlanRanges) { title, start, end, days in
+                try await saveInfo(title: title, start: start, end: end, days: days)
             }
             // 시트가 뜬 뒤에 받아도 된다 — 회색 칠은 도움말이라 늦게 나타나도 잃는 것이 없고,
             //  상세를 열 때마다 목록을 한 번 더 받는 것보다 낫다.
             .task { await loadOtherPlanRanges() }
-        }
-        .sheet(isPresented: $isEditingTitle) {
-            PlanTitleEditView(currentTitle: current.title) { try await renameTitle(to: $0) }
         }
         // 담기는 화면들은 **날짜를 묻지 않는다**(2026-08-16 사용자 지시) — 지금 보고 있는 날에
         //  그대로 들어간다. 다른 날에 담고 싶으면 화살표로 그 날로 넘어간 뒤 누르면 된다.
@@ -263,14 +261,15 @@ struct PlanDetailView: View {
     /// 제목만 바꾼다. **`detail` 로만 저장한다** — 목록에서 온 플랜(`days` 가 빈 배열)으로 부르면
     /// PUT 이 본문을 통째로 갈아 끼우면서 서버의 일정이 지워진다.
     /// 실패는 그대로 던져 시트가 사유를 띄우고 열린 채 남게 한다 — 고쳐 쓴 제목을 잃지 않는다.
-    /// 날짜를 바꾼다. **기간 밖으로 밀려난 날은 `days` 에서 이미 빠져 온다**
-    /// (`PlanDateEditView` 가 계산하고 확인까지 받는다) — 서버는 받은 `days` 를 그대로 쓴다.
+    /// 제목·날짜를 한 번에 저장한다. **기간 밖으로 밀려난 날은 `days` 에서 이미 빠져 온다**
+    /// (`PlanInfoEditView` 가 계산하고 확인까지 받는다) — 서버는 받은 `days` 를 그대로 쓴다.
     ///
     /// 보고 있던 날 번호도 함께 되돌린다. 3일차를 보던 중에 2일로 줄이면 그 번호가 범위를
     /// 벗어나 **빈 화면**이 된다(`selectedDay` 가 clamp 하긴 하지만, 보던 날이 사라졌는데
     /// 마지막 날이 슬쩍 대신 뜨는 것보다 첫날로 돌아가는 편이 무슨 일이 있었는지 분명하다).
-    private func changeDates(start: Date, end: Date, days: [PlanDay]) async throws {
+    private func saveInfo(title: String, start: Date, end: Date, days: [PlanDay]) async throws {
         guard var target = detail else { throw PlanServiceError.unavailable }
+        target.title = title
         target.startDate = start
         target.endDate = end
         target.days = days
@@ -290,12 +289,6 @@ struct PlanDetailView: View {
             guard start <= end else { return nil }
             return start...end
         }
-    }
-
-    private func renameTitle(to newTitle: String) async throws {
-        guard var target = detail else { throw PlanServiceError.unavailable }
-        target.title = newTitle
-        try await persist(target)
     }
 
     /// 오갈 수 있는 날짜 — **여행 기간 전체**다. 화살표가 넘기는 범위이자 편집 화면에 넘기는 목록.
@@ -405,7 +398,7 @@ struct PlanDetailView: View {
                 //  기존 에셋을 그대로 쓴다.
                 //  시안은 26 박스 안에 21.4짜리 연필을 담지만 detail_pencil은 여백 없이 뽑혀 있다 —
                 //  26으로 그리면 아트워크가 21.5% 커져 획이 두꺼워지므로 원래 크기로 그린다.
-                headerIcon("detail_pencil", size: 21.41, slot: 26) { isEditingTitle = true }
+                headerIcon("detail_pencil", size: 21.41, slot: 26) { isEditingInfo = true }
                     .accessibilityLabel("제목 변경")
                     // 상세를 못 받았으면 저장할 원본이 없다 — 눌러도 되는 것처럼 보이면 안 된다.
                     .disabled(detail == nil)
@@ -505,7 +498,7 @@ struct PlanDetailView: View {
 
             // 날짜 줄이 곧 수정 버튼이다. 헤더에 아이콘을 하나 더 두지 않는 이유는 이미 넷이
             //  들어차 있어서이기도 하지만, **고치려는 값 바로 그 자리**가 가장 찾기 쉬워서다.
-            Button { isEditingDates = true } label: {
+            Button { isEditingInfo = true } label: {
                 HStack(spacing: 4) {
                     Text(current.dateRangeText)
                         .font(.notoSans(16, .regular, relativeTo: .body))
