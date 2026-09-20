@@ -1,52 +1,50 @@
 ■ WHAT THIS APP IS
 
-moduwa helps people find travel destinations in South Korea they can actually get into — public listings say a place exists, but not whether there is a ramp, an elevator, or a step at the entrance. We combine the Korea Tourism Organization's official barrier-free dataset (10,000+ verified locations) with traveler reviews, ranked so reviews by people with the SAME accessibility needs appear first.
+moduwa helps people find places in South Korea they can actually get into — listings say a place exists, but not whether there is a ramp, an elevator, or a step at the entrance. We combine the Korea Tourism Organization's official barrier-free dataset (10,000+ locations) with traveler reviews, ranked so reviews by people with the SAME accessibility needs come first.
 
-Audience: travelers with mobility, visual or hearing impairments; families with strollers; older travelers; and those who plan trips for them.
+■ WHAT CHANGED IN 1.1
 
-■ WORKS WITHOUT SIGNING IN
+Trip planning and sign-in only. No new permissions, services or paid content.
 
-Browsing, search, place details, accessibility information and reading reviews all work without an account. Sign-in is only needed to write a post or review, create a plan, and save/like items. Demo credentials are in the Sign-In Information fields above. Only ONE account type — no admin, business or premium tiers. No sample files needed, and no paid content, subscription or in-app purchase.
+• Trip dates can be edited after a plan exists. Shortening a trip drops days outside the new range, so the app counts what would be lost and asks again first.
+• The itinerary editor shows one day at a time, with arrows between days. To move a stop to another day, press and hold it and pick a date.
+• Tapping a stop's number in the list moves the map to that place, and the region list grew from 12 to 14.
+• Fixed: one email address used with email, Google and Kakao sign-in made separate accounts. Those paths now lead to one account.
 
-■ FIRST LAUNCH — 3 onboarding screens, no sign-up
+■ SIGNING IN
 
-1. Welcome screen — tap the button to continue.
-2. Accessibility-needs screen — you must select at least one option before the button enables. Select 지체장애 (mobility / wheelchair) to see our main feature, or 해당없음 (Not applicable) to skip. Then tap 완료했어요 (Done).
-3. Tap 둘러보기 (Browse) to enter without signing in.
+Browsing, search, place details, accessibility info and reviews work without an account. Sign-in is only needed to post or review, create a plan, and save/like items. Demo credentials are in the Sign-In Information fields above. There is only ONE account type — no admin, business or premium tiers, no paid content or in-app purchase, no sample files needed.
 
-To sign in: Home → gear icon (top right) → 로그인 → "이메일로 시작하기" (Continue with email). Sign in with Apple also works; Kakao needs the KakaoTalk app, so please use email or Apple. If an email-verification screen appears, tap 나중에 하기 (Do it later) — it blocks nothing, and you do not need the demo mailbox.
+Onboarding is 3 screens, no sign-up: welcome; accessibility needs (pick at least one to enable the button — 지체장애 = mobility/wheelchair shows our main feature, 해당없음 = Not applicable skips it — then 완료했어요/Done); then 둘러보기 (Browse) to enter.
 
-■ WHERE TO FIND THINGS
+To sign in: Home → gear icon → 로그인 → "이메일로 시작하기" (Continue with email). Sign in with Apple also works; Kakao needs the KakaoTalk app, so please use email or Apple. If an email-verification screen appears, tap 나중에 하기 (Do it later) — it blocks nothing. Signing in with Google or Kakao on an address that already has an account opens a link dialog; that is the 1.1 fix above and either choice is safe.
 
-All under the gear icon at the top right of Home, which opens 설정 (Settings).
+■ WHERE TO FIND THINGS (all under the gear icon on Home = 설정)
 
 • Account deletion (5.1.1(v)): 설정 → 프로필 편집 → 회원 탈퇴
-• Report / Block: any post or review → ⋮ menu (top right) → 신고 / 차단. Your own content shows 삭제 (Delete).
-• Blocked users: 설정 → 차단한 사용자
+• Report / Block: any post or review → ⋮ menu → 신고 / 차단 (your own content shows 삭제, Delete). Blocked users: 설정 → 차단한 사용자.
 • Support (1.2): 설정 → 고객센터 → help@moduwa.app · https://moduwa.app/support
 • Privacy policy: https://moduwa.app/privacy · Terms: 설정 → 서비스 이용약관
-• Main feature: set your needs at 설정 → 내 무장애정보 편집, then set the Home sort to 추천 (Recommended).
+• Main feature: set your needs at 설정 → 내 무장애정보 편집, then set Home sort to 추천 (Recommended).
 
-All content is in Korean. This is a new app, so the number of user-written reviews is still small — expected at launch, not a loading failure.
+All content is in Korean. The app is new, so user-written reviews are still few — expected at launch, not a loading failure.
 
 ■ EXTERNAL SERVICES
 
-• Korea Tourism Organization (한국관광공사) TourAPI — public open data: all place listings, barrier-free attributes and place photography. Attributed at the bottom of 설정.
-• Our own REST API on Railway with PostgreSQL — accounts, reviews, posts, comments, plans and user photos. Photos sit on our own server volume; no third-party storage.
-• Sign in with Apple, Google Sign-In, Kakao Login. Kakao Maps SDK for maps. APNs for push.
+• Korea Tourism Organization (한국관광공사) TourAPI — public open data: place listings, barrier-free attributes and photography. Attributed at the bottom of 설정.
+• Our own REST API on Railway with PostgreSQL — accounts, reviews, posts, comments, plans and user photos, on our own volume.
+• Sign in with Apple, Google Sign-In, Kakao Login. Kakao Maps SDK. APNs for push.
 
-Not used: no payment processor, AI service, analytics SDK, advertising SDK or tracking. Our privacy manifest declares NSPrivacyTracking = false, as do all three bundled third-party components.
+No payment processor, AI service, analytics, advertising SDK or tracking. Our privacy manifest declares NSPrivacyTracking = false, as do all three bundled components.
 
 ■ PERMISSIONS
 
-No location, camera or photo-library permission is requested — photos are attached through the SwiftUI PhotosPicker, which needs no prompt. The only permission requested is push notifications, and only when the user turns the toggle on at 설정 → 알림 설정. Nothing is asked at launch.
+No location, camera or photo-library permission is requested — photos are attached with the SwiftUI PhotosPicker, which needs no prompt. The only one requested is push notifications, and only when the user turns on the toggle at 설정 → 알림 설정. Nothing is asked at launch.
 
 ■ REGIONAL DIFFERENCES
 
-None. Distributed in South Korea only; behaviour is identical everywhere available. No region-gated features, no region-specific pricing (the app is free).
+None. South Korea only, identical everywhere available, no region-gated features, and the app is free.
 
 ■ REGULATED INDUSTRY / THIRD-PARTY
 
-Not a regulated industry — a travel information and community app. No medical, diagnostic or treatment information, and not a medical device: attributes like "ramp at the entrance" describe a building, not a person's health. TourAPI data comes from Korea's national open data portal (data.go.kr) under terms permitting reuse with attribution, which we display in-app; documentation on request. All other content is written by us or submitted by our users under our Terms of Service.
-
-Contact: help@moduwa.app
+Not a regulated industry — a travel and community app, not a medical device: "ramp at the entrance" describes a building, not a person's health. TourAPI data comes from Korea's open data portal (data.go.kr), which permits reuse with attribution; we show that in-app and can supply documentation. Other content is ours or user-submitted under our Terms.
