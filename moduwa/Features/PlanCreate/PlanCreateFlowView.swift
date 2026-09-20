@@ -360,6 +360,9 @@ struct PlanCreateFlowView: View {
                 startDate: plan.startDate,
                 endDate: plan.endDate,
                 party: draft.party.courseCodes,
+                // 1/6 에서 고른 이동 수단. 오래 물어만 보고 보내지 않던 값이다
+                //  (서버가 2026-09-20 부터 받는다) — 자차와 뚜벅이에게 같은 코스를 주고 있었다.
+                mobilities: draft.party.mobilities.map(\.rawValue).sorted(),
                 themes: draft.themes,
                 budget: draft.budget,
                 // 당일치기는 따로 묻지 않는다 — **날짜가 이미 답이다.** 하루짜리 여행에

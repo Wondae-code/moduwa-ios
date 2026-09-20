@@ -153,6 +153,7 @@ struct APIPlanService: PlanService {
         // 빈 배열은 보내지 않는다 — 서버는 "고르지 않음"과 "빈 목록"을 같게 다루지만,
         //  보내지 않는 편이 요청만 봐도 무엇을 고른 사람인지 분명하다.
         if !request.party.isEmpty { body["party"] = request.party }
+        if !request.mobilities.isEmpty { body["mobilities"] = request.mobilities }
         if !request.themes.isEmpty { body["themes"] = request.themes }
         if let budget = request.budget { body["budget"] = budget }
         http.httpBody = try JSONSerialization.data(withJSONObject: body)

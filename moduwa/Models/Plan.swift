@@ -174,7 +174,8 @@ extension TravelParty {
     ///
     /// 나이대도 함께 본다: 60대 이상을 골랐으면 `elderly` 다 — "부모님과"를 고르지 않아도
     /// 본인이 그 나이대일 수 있다.
-    /// ⚠️ 휠체어(`mobilities`)는 v1 서버가 받지 않는다. 무장애 필터는 별도 축이다.
+    /// ⚠️ 이동 수단(`mobilities`)은 여기 섞지 않는다 — **따로 보낸다**(`CourseRequest.mobilities`,
+    /// 서버 2026-09-20). 동반자와 이동 수단은 다른 축이고 서버도 따로 받는다.
     var courseCodes: [String] {
         var codes: [String] = []
         if companions.contains(.children) { codes.append("kids") }
