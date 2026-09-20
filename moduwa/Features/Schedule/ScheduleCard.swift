@@ -127,8 +127,16 @@ struct ScheduleCard: View {
         HStack(alignment: .firstTextBaseline, spacing: 14) {
             Text("DAY \(number)")
                 .font(.notoSans(14, .medium, relativeTo: .subheadline))
-                // 번호 폭을 고정해 장소 이름의 시작점이 줄마다 어긋나지 않게 한다.
-                .frame(width: 36, alignment: .leading)
+                // ⚠️ **폭을 고정하면 안 된다.** 36 으로 묶어 뒀더니 "DAY 1" 이 그 안에
+                //  안 들어가 **"DAY" / "1" 두 줄로 접혔다**(2026-09-20 지적, 시안은 한 줄이다).
+                //  글자 크기를 키우면 더 심해진다.
+                //
+                //  대신 **줄바꿈을 막고 최소 폭만** 준다 — 접히지 않으면서, 한 자리 숫자끼리는
+                //  36 에 맞춰 장소 이름의 시작점이 줄마다 나란히 선다. 열흘 넘는 여행에서
+                //  "DAY 10" 이 조금 넓어지는 것은 접히는 것보다 낫다.
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(minWidth: 36, alignment: .leading)
 
             placesText(places)
                 .tracking(-0.4)
