@@ -9,8 +9,12 @@ import Foundation
 
 // MARK: - 동반자 정보
 
-/// 새 플랜 플로우 1/6에서 수집하고 목록 카드의 "팀 수정"으로 다시 편집하는 여행 동반자 정보.
+/// 새 플랜 플로우 1/6 에서 수집하는 여행 동반자 정보.
 /// 세 축 모두 다중 선택이다 (시안 1/6 선택시에서 20대+30대가 동시에 켜져 있다).
+///
+/// ⚠️ **만든 뒤에는 고칠 길이 없다**(2026-09-20 결정). 목록 카드 ⋮ 의 "팀 수정" 이 있던
+/// 자리를 "플랜 수정"(제목·날짜)이 가져갔고, 동반자 편집 화면은 지웠다. 값은 그대로 살아
+/// 있다 — 플랜에 저장되고, 추천 요청의 `party`·`mobilities` 로 나가고, 제목을 짓는다.
 struct TravelParty: Hashable, Sendable, Codable {
     var ageGroups: Set<AgeGroup> = []
     var companions: Set<CompanionType> = []
