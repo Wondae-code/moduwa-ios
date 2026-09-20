@@ -266,6 +266,14 @@ struct APIPlanService: PlanService {
             let contentID: String?
             let name: String?
             let imageURL: String?
+            /// ⚠️ **숙소만 좌표가 없어 지도에 안 찍히고 있었다**(2026-09-21 지적).
+            /// `days[].items` 는 처음부터 `latitude`/`longitude` 를 싣는데 `stay` 에만 빠져 있었고,
+            /// 앱도 여기를 읽지 않고 `nil` 로 박아 두고 있었다 — 양쪽에 다 빠져 있어 오래 남았다.
+            ///
+            /// 서버가 실어 주기 전까지는 `nil` 이고, 그때는 지도에서 그 번호가 비어 보인다
+            /// (`PlanRouteMap.derive` — 번호를 당기지 않는다).
+            let latitude: Double?
+            let longitude: Double?
         }
 
         struct CourseDayDTO: Decodable {
@@ -292,7 +300,7 @@ struct APIPlanService: PlanService {
                     contentID: dto.contentID, name: name, categoryLabel: "숙소",
                     region: regionLabel.isEmpty ? nil : regionLabel, category: .stay,
                     imageURL: URL(imageAddress: dto.imageURL),
-                    latitude: nil, longitude: nil)
+                    latitude: dto.latitude, longitude: dto.longitude)
             }
 
             let planDays: [PlanDay] = (days ?? []).enumerated().map { index, day in
