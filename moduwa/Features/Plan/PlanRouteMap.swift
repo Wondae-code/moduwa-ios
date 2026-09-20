@@ -115,18 +115,33 @@ struct PlanRouteMap: UIViewRepresentable {
         }
 
         /// 좌표가 있는 정류지만 순서대로 뽑아 지도에 쓸 값으로 바꾼다.
+        ///
+        /// ⚠️ **번호는 걸러 내기 _전_ 의 자리다.** 예전에는 걸러 낸 배열에서 다시 세어
+        /// (`offset + 1`) 붙였는데, 그러면 **좌표가 없는 장소가 하나만 끼어도 그 뒤 번호가
+        /// 통째로 하나씩 당겨진다** — 목록에서 10번인 나만의 장소가 지도에서는 9번이었다
+        /// (2026-09-21 지적).
+        ///
+        /// 알아채기 어려운 어긋남이었다. 뱃지 **그림**은 목록과 같은 뷰를 구워 쓰므로
+        /// 모양·색이 똑같고, 틀린 것은 그 안의 숫자뿐이다.
+        ///
+        /// 이제 지도에는 **번호가 비어 보인다** — 좌표가 없어 찍을 수 없는 장소가 그 자리다.
+        /// 목록과 어긋난 번호를 주는 것보다 낫다.
         @MainActor
         private static func derive(
             from stops: [PlanStop]
         ) -> ([Coordinate], [MapPoint], [(point: MapPoint, image: UIImage?)]) {
-            let located = stops.compactMap { stop -> (Coordinate, Bool)? in
-                guard let latitude = stop.place.latitude, let longitude = stop.place.longitude else { return nil }
-                return (Coordinate(latitude: latitude, longitude: longitude), stop.place.isCustom)
-            }
-            let coordinates = located.map(\.0)
-            let points = located.map { MapPoint(longitude: $0.0.longitude, latitude: $0.0.latitude) }
-            let badges = zip(points, located.enumerated()).map { point, item in
-                (point: point, image: Self.badgeImage(number: item.offset + 1, isCustom: item.element.1))
+            let located = stops.enumerated()
+                .compactMap { index, stop -> (number: Int, coordinate: Coordinate, isCustom: Bool)? in
+                    guard let latitude = stop.place.latitude,
+                          let longitude = stop.place.longitude else { return nil }
+                    // `stops` 는 그 날의 장소만 순서대로 담고 있어 자리가 곧 목록의 번호다
+                    // (메모는 `PlanDay.stops` 에서 이미 빠져 있다).
+                    return (index + 1, Coordinate(latitude: latitude, longitude: longitude), stop.place.isCustom)
+                }
+            let coordinates = located.map(\.coordinate)
+            let points = located.map { MapPoint(longitude: $0.coordinate.longitude, latitude: $0.coordinate.latitude) }
+            let badges = zip(points, located).map { point, item in
+                (point: point, image: Self.badgeImage(number: item.number, isCustom: item.isCustom))
             }
             return (coordinates, points, badges)
         }
