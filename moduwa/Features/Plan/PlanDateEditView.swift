@@ -52,14 +52,17 @@ struct PlanDateEditView: View {
         var stopCount: Int { days.reduce(0) { $0 + $1.stops.count } }
         var memoCount: Int { days.reduce(0) { $0 + ($1.items.count - $1.stops.count) } }
 
-        /// "2일치 · 장소 5곳과 메모 1개" — 숫자로 말한다. "일부 일정" 같은 말로는
-        /// 무엇을 잃는지 가늠할 수 없어 사용자가 확인 버튼을 누를 근거가 없다.
-        var summary: String {
+        /// 무엇이 사라지는지 **숫자로** 적는다("장소 5곳과 메모 1개"). "일부 일정" 같은
+        /// 말로는 무엇을 잃는지 가늠할 수 없어 확인 버튼을 누를 근거가 없다.
+        ///
+        /// ⚠️ 뒤에 조사를 붙일 문장이므로 **끝 글자의 받침을 봐야 한다**(`withSubject`) —
+        /// "곳" 은 받침이 있어 "이", "개" 는 없어 "가" 다. 처음에 "가" 로 고정해 두었다가
+        /// "17곳가 지워져요" 가 나왔다(2026-09-20 지적).
+        var lostThings: String {
             var parts: [String] = []
             if stopCount > 0 { parts.append("장소 \(stopCount)곳") }
             if memoCount > 0 { parts.append("메모 \(memoCount)개") }
-            let what = parts.isEmpty ? "담긴 것" : parts.joined(separator: "과 ")
-            return "\(dayCount)일치 · \(what)"
+            return parts.isEmpty ? "담긴 것" : parts.joined(separator: "과 ")
         }
     }
 
@@ -122,11 +125,27 @@ struct PlanDateEditView: View {
         }
     }
 
-    /// 무엇이 얼마나 사라지는지 **숫자로** 적고, 되돌릴 수 없다는 것을 마지막에 말한다.
+    /// 말 뒤에 **주격 조사**를 붙인다 — 받침이 있으면 "이", 없으면 "가".
+    ///
+    /// 한글 음절은 유니코드에서 `가`(0xAC00)부터 28 개씩 묶여 있고, 그 안에서의 자리가
+    /// 곧 받침이다(0 이면 받침 없음). 한글이 아닌 글자로 끝나면 "가" 로 둔다 — 이 화면에
+    /// 들어올 말은 "곳"·"개"·"것" 뿐이라 그 경우가 없다.
+    private static func withSubject(_ word: String) -> String {
+        guard let last = word.unicodeScalars.last,
+              (0xAC00...0xD7A3).contains(last.value) else { return word + "가" }
+        return word + ((last.value - 0xAC00) % 28 == 0 ? "가" : "이")
+    }
+
+    /// 버튼 위에 미리 띄우는 한 줄.
+    static func lossLine(_ loss: Loss) -> String {
+        "여행에서 \(loss.dayCount)일이 빠지고, 담긴 \(withSubject(loss.lostThings)) 지워져요"
+    }
+
+    /// 확인 창 본문. 무엇이 왜 사라지는지 적고 되돌릴 수 없다는 것으로 닫는다.
     /// 뷰 본문에서 문자열을 이어 붙이면 타입 검사가 느려져 빌드가 멈춘다 — 밖에서 만든다.
     private static func confirmMessage(_ loss: Loss) -> String {
         """
-        기간이 줄어들면서 \(loss.summary)가 함께 지워져요. 되돌릴 수 없어요.
+        여행 기간에서 \(loss.dayCount)일이 빠져요. 그 날에 담긴 \(withSubject(loss.lostThings)) 함께 지워지고, 되돌릴 수 없어요.
         """
     }
 
@@ -159,7 +178,7 @@ struct PlanDateEditView: View {
             // 무엇을 잃는지 **버튼을 누르기 전에도** 보인다. 확인 창은 마지막 방어선이지
             //  처음 알리는 자리가 아니다 — 창이 떠서야 알면 이미 고른 날짜를 다시 재야 한다.
             if let loss {
-                Text("이 기간으로 줄이면 \(loss.summary)가 지워져요")
+                Text(Self.lossLine(loss))
                     .font(.notoSans(14, .regular, relativeTo: .subheadline))
                     .foregroundStyle(Color.errorRed)
                     .multilineTextAlignment(.center)
