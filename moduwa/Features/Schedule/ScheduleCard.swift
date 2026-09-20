@@ -14,9 +14,6 @@ struct ScheduleCard: View {
     private static let height: CGFloat = 378
     /// 흐림·스크림이 걸리는 아래쪽 띠. 카드 높이의 46% 지점부터 시작한다.
     private static let blurBandHeight: CGFloat = 204
-    private static var blurBandStart: CGFloat { (height - blurBandHeight) / height }
-    /// 시안 `BACKGROUND_BLUR` 의 최대 반경. 위(0)에서 아래(60)로 커지는 PROGRESSIVE 다.
-    private static let blurRadius: CGFloat = 60
     /// 시안의 DAY 줄은 세 개다. 그보다 긴 여행은 마지막 줄을 "…"로 접는다 —
     /// 카드 높이가 고정이라 줄을 늘리면 아래가 잘린다.
     private static let visibleDayCount = 3
@@ -48,14 +45,11 @@ struct ScheduleCard: View {
 
     // MARK: 배경
 
-    /// 사진 위에 **흐린 사본**을 겹친다 — 시안의 `BACKGROUND_BLUR`(PROGRESSIVE, 0→60)다.
+    /// 사진 위에 흐린 사본을 겹친다 — 시안의 `BACKGROUND_BLUR`(PROGRESSIVE, 0→60).
+    /// 왜 진짜 progressive 가 아닌지는 `CardCoverBlur` 에 적혀 있다.
     ///
-    /// SwiftUI 에는 반경이 위치에 따라 변하는 흐림이 없다. 그래서 한 가지 반경으로 흐린 사본을
-    /// 만들고 **마스크로 그 사본의 농도를 아래로 갈수록 올린다** — 반경이 커지는 대신 흐린 그림이
-    /// 점점 진하게 겹쳐지므로 눈에는 같은 방향으로 읽힌다.
-    ///
-    /// 사본을 `AsyncImage` 의 content 안에서 만드는 이유는 **같은 이미지를 두 번 받지 않기**
-    /// 위해서다. 밖에서 `AsyncImage` 를 하나 더 두면 네트워크 요청이 두 번 나간다.
+    /// ⚠️ 사본을 `AsyncImage` 의 **content 안에서** 만든다 — 밖에서 `AsyncImage` 를 하나 더
+    /// 두면 **같은 사진을 두 번 받는다**(`CardCoverBlur` 가 표지 클로저를 두 번 부른다).
     private var background: some View {
         Color.photoPlaceholder
             .overlay {
@@ -75,56 +69,14 @@ struct ScheduleCard: View {
             .accessibilityHidden(true)
     }
 
-    /// 표지와 **흐린 사본**을 겹친 한 장. 받아 온 사진과 기본 무늬가 같은 처리를 받게
-    /// 한 곳으로 모은다 — 두 번 적으면 한쪽만 바뀐다.
-    ///
-    /// `Image` 가 아니라 뷰를 받는다 — 기본 표지가 사진에서 **색**
-    /// (`PlanCoverPlaceholder`)으로 바뀌면서 둘의 타입이 갈렸기 때문이다.
-    private func layered<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        let cover = content()
-        return ZStack {
-            cover
-            cover
-                // opaque: true — 아니면 흐린 사본의 가장자리가 투명해져
-                // 카드 테두리에 밝은 띠가 생긴다.
-                .blur(radius: Self.blurRadius, opaque: true)
-                .mask(blurMask)
-        }
+    /// 표지와 흐린 사본을 겹친 한 장. 모양과 함정은 `CardCoverBlur` 가 안다 —
+    /// 플랜 목록의 다가오는 여행 카드가 같은 것을 쓴다.
+    /// ⚠️ `@escaping` 이다 — `CardCoverBlur` 가 이 클로저를 **저장**했다가 두 번 그린다.
+    private func layered<Content: View>(@ViewBuilder _ content: @escaping () -> Content) -> some View {
+        CardCoverBlur(cover: content, cardHeight: Self.height, bandHeight: Self.blurBandHeight)
     }
 
-    /// 흐림 띠의 농도. 위쪽(사진 그대로)에서 아래쪽(완전히 흐림)으로 넘어간다.
-    private var blurMask: LinearGradient {
-        LinearGradient(
-            stops: [
-                .init(color: .clear, location: 0),
-                .init(color: .clear, location: Self.blurBandStart),
-                .init(color: .black.opacity(0.55),
-                      location: Self.blurBandStart + (1 - Self.blurBandStart) * 0.45),
-                .init(color: .black, location: 1),
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
-
-    /// 흐림 위에 얹는 스크림. 시안 값 그대로다 — 그라디언트 자체의 불투명도가 0.5 라
-    /// 각 정지점의 알파에 0.5 를 곱한 값이 실제 농도다(검정 0.5→0.25, 검정 1.0→0.5).
-    /// 예전에 0.35/0.75 로 그려 시안보다 한참 어두웠다.
-    private var scrim: some View {
-        LinearGradient(
-            stops: [
-                .init(color: .clear, location: 0),
-                .init(color: .black.opacity(0.25), location: 0.173),
-                .init(color: .black.opacity(0.5), location: 1),
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        .frame(height: Self.blurBandHeight)
-        .frame(maxHeight: .infinity, alignment: .bottom)
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-    }
+    private var scrim: some View { CardCoverScrim(bandHeight: Self.blurBandHeight) }
 
     // MARK: 본문
 

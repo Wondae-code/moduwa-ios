@@ -441,6 +441,13 @@ private struct PlanCard: View {
 private struct UpcomingPlanCard: View {
     let plan: Plan
 
+    /// 시안 값 243 은 **최소 높이**다(아래 `.frame(minHeight:)` 주석 참고).
+    /// 흐림 띠 비율을 계산하는 기준으로도 쓴다.
+    private static let minHeight: CGFloat = 243
+    /// 흐림·스크림이 걸리는 아래쪽 띠. 기존 스크림 높이(103)를 그대로 쓴다 —
+    /// 어두워지는 범위가 달라지면 이미 재 둔 명암비가 흔들린다.
+    private static let blurBandHeight: CGFloat = 103
+
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             cover
@@ -453,13 +460,7 @@ private struct UpcomingPlanCard: View {
             //  (본문 최소 4.5:1). 스크림이 닿지 않는 카드 위쪽은 1.25:1 이다.
             //  **흰 글자로 두기로 한 결정이다**(2026-09-07). 사진 표지에서는 문제가 없다 —
             //  이 값은 기본 표지에서만 나온다.
-            LinearGradient(
-                colors: [.black.opacity(0), .black.opacity(0.55)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: 103)
-            .frame(maxHeight: .infinity, alignment: .bottom)
+            CardCoverScrim(bandHeight: Self.blurBandHeight)
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(plan.title)
@@ -478,7 +479,7 @@ private struct UpcomingPlanCard: View {
         }
         // 시안 값 243 은 **최소 높이**다. 고정으로 두면 제목이 길거나 글자 크기를 키웠을 때
         //  제목이 카드 안에서 잘린다(AX5 에서 "친구와 함께하는 여…" 로 잘리는 것을 실측).
-        .frame(minHeight: 243)
+        .frame(minHeight: Self.minHeight)
         .frame(maxWidth: .infinity)
         .clipShape(RoundedRectangle(cornerRadius: 18))
         .accessibilityElement(children: .combine)
@@ -498,17 +499,29 @@ private struct UpcomingPlanCard: View {
                 // 표지가 없으면 첫 장소 사진으로 폴백한다(`Plan.cardImageURL`) — 일정 탭 카드와 같은 값.
                 if let url = plan.cardImageURL {
                     AsyncImage(url: url) { image in
-                        image.resizable().scaledToFill()
+                        // ⚠️ 흐린 사본은 **여기 안에서** 만든다 — 밖에서 `AsyncImage` 를 하나
+                        //  더 두면 같은 사진을 두 번 받는다(`CardCoverBlur` 주석).
+                        blurred { image.resizable().scaledToFill() }
                     } placeholder: {
                         Color.photoPlaceholder
                     }
                 } else {
                     // 담긴 장소에 사진이 하나도 없을 때의 기본 표지(`PlanCoverPlaceholder`).
-                    PlanCoverPlaceholder()
+                    blurred { PlanCoverPlaceholder() }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
+    }
+
+    /// 표지 + 흐린 사본. 일정 탭 카드와 같은 것을 쓴다(`CardCoverBlur`).
+    ///
+    /// 카드 높이는 **최소 243** 이고 글자 크기에 따라 늘어난다. 흐림 띠 계산은 그중 고정값을
+    /// 쓰므로 카드가 늘어나면 띠가 상대적으로 짧아진다 — 글자는 아래에 붙어 있어 읽는 데는
+    /// 문제가 없다(늘어난 만큼 위쪽 사진이 더 보일 뿐이다).
+    /// ⚠️ `@escaping` 이다 — `CardCoverBlur` 가 이 클로저를 **저장**했다가 두 번 그린다.
+    private func blurred<Content: View>(@ViewBuilder _ content: @escaping () -> Content) -> some View {
+        CardCoverBlur(cover: content, cardHeight: Self.minHeight, bandHeight: Self.blurBandHeight)
     }
 }
 
