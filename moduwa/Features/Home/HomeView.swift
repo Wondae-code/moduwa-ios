@@ -287,6 +287,16 @@ struct HomeView: View {
             .padding(.horizontal, -Spacing.xl)
             .padding(.vertical, -6)
 
+            // 받아오기가 실패했을 때. 예전에는 빈 목록이 돼서 "이 카테고리에 아무것도 없다"로
+            //  읽혔다 — 보던 목록은 그대로 두고 이 줄만 얹는다.
+            if let message = viewModel.placesError {
+                Text(message)
+                    .font(.notoSans(14, relativeTo: .subheadline))
+                    .foregroundStyle(Color.errorRed)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityAddTraits(.isStaticText)
+            }
+
             LazyVGrid(columns: gridColumns, spacing: 14) {
                 ForEach(viewModel.places) { place in
                     NavigationLink(value: place) {

@@ -682,13 +682,9 @@ struct PlanDetailView: View {
                 }
             }
         }
-        .background(alignment: .topLeading) {
-            DashedVerticalLine()
-                .stroke(style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                .foregroundStyle(Color.cardStroke)
-                .frame(width: 1)
-                .padding(.leading, 11.5)
-        }
+        // 뱃지(23)의 중심. 모양은 `DashedVerticalLine` 이 한 곳에서 정한다 — 일정 편집이
+        //  같은 선을 쓰므로 여기서만 고치면 두 화면이 갈라진다.
+        .background(alignment: .topLeading) { DashedVerticalLine.track(leadingInset: 11.5) }
         .padding(.bottom, 16)
     }
 
@@ -857,17 +853,6 @@ private struct PlanMemoRow: View {
                 .padding(.vertical, 12)
                 .background(Color.photoPlaceholder, in: RoundedRectangle(cornerRadius: 12))
         }
-    }
-}
-
-// MARK: - 점선
-
-private struct DashedVerticalLine: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
-        return path
     }
 }
 

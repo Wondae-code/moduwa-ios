@@ -190,11 +190,17 @@ struct PlanCreateChip: View {
 ///  hidden 처리되고(958:639) 라임 "다음으로"(958:661)가 그 자리에 왔다. 스킵도 "다음에
 ///  할래요" → "나중에 할래요"(구 문구 958:638 은 hidden).
 ///
-/// ⚠️ **표시 조건은 시안과 다르게 둔다.** 시안은 "다음으로"를 항상 그리지만, 그러면 값이 없을
-///  때 "다음으로"와 "나중에 할래요"가 같은 동작이 되어 두 버튼이 같은 뜻을 두 번 말한다.
-///  값이 생겼을 때만 "다음으로"를 내고 **"나중에 할래요"는 항상 남긴다** — 건너뛰기가 곧
-///  "고르지 않고 넘어간다"는 뜻이라 값이 없을 때가 오히려 필요한 자리다.
-///  (초기 시안 372:409 에는 두 버튼이 아예 없어 아무것도 못 고른 사용자가 갇히기도 했다.)
+/// **"다음으로"는 항상 그리고, 값이 없으면 비활성이다**(2026-09-20 피드백).
+///
+/// 한동안은 값이 생겼을 때만 그렸다. 이유가 있었다 — 값이 없을 때 "다음으로"를 누르면
+/// "나중에 할래요"와 **같은 동작**이 되어 두 버튼이 같은 뜻을 두 번 말하기 때문이다.
+/// 그런데 그렇게 두니 **값을 고르는 순간 버튼이 툭 나타나** 화면이 흔들렸고, 그 전까지는
+/// 다음으로 가는 길이 있다는 것조차 보이지 않았다.
+///
+/// 비활성 버튼은 그 걱정에 해당하지 않는다 — **눌리지 않으면 같은 동작이 아니다.**
+/// 자리를 늘 차지하니 나타났다 사라지지도 않고, 회색이라 "아직 못 누른다"가 읽힌다.
+/// "나중에 할래요"는 그대로 항상 남긴다 — 건너뛰기는 값이 없을 때가 오히려 필요한 자리다.
+/// (초기 시안 372:409 에는 두 버튼이 아예 없어 아무것도 못 고른 사용자가 갇히기도 했다.)
 struct PlanCreateFooter: View {
     /// 이 단계에서 고른 값이 있는지
     let hasValue: Bool
@@ -204,27 +210,29 @@ struct PlanCreateFooter: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            if hasValue {
-                Button(action: onComplete) {
-                    ZStack {
-                        // 시안(`958:662`)은 Medium 16 이지만 **Bold 로 둔다**(2026-08-31 사용자 결정) —
-                        //  이 화면에서 유일한 다음 행동이라 눈에 먼저 들어와야 한다.
-                        Text("다음으로")
-                            .font(.notoSans(16, .bold, relativeTo: .headline))
-                            .tracking(-0.4)
-                            .foregroundStyle(.textPrimary)
-                            .opacity(isBusy ? 0 : 1)
-                        if isBusy { ProgressView().tint(.textPrimary) }
-                    }
-                    .frame(maxWidth: 320)
-                    .frame(minHeight: 47)
-                    .background(Capsule().fill(Color.moduwaGreen))
+            Button(action: onComplete) {
+                ZStack {
+                    // 시안(`958:662`)은 Medium 16 이지만 **Bold 로 둔다**(2026-08-31 사용자 결정) —
+                    //  이 화면에서 유일한 다음 행동이라 눈에 먼저 들어와야 한다.
+                    Text("다음으로")
+                        .font(.notoSans(16, .bold, relativeTo: .headline))
+                        .tracking(-0.4)
+                        // 비활성 색은 `AuthPrimaryButton` 과 같은 규칙이다 — 앱 안에서 "못 누른다"가
+                        //  한 가지 색으로 읽혀야 한다.
+                        .foregroundStyle(hasValue ? Color.textPrimary : Color.iconGray)
+                        .opacity(isBusy ? 0 : 1)
+                    if isBusy { ProgressView().tint(.textPrimary) }
                 }
-                .buttonStyle(.plain)
-                .disabled(isBusy)
-                .accessibilityLabel("다음으로")
-                .accessibilityHint("다음 단계로 넘어갑니다")
+                .frame(maxWidth: 320)
+                .frame(minHeight: 47)
+                .background(Capsule().fill(hasValue ? Color.moduwaGreen : Color.photoPlaceholder))
             }
+            .buttonStyle(.plain)
+            .disabled(!hasValue || isBusy)
+            .animation(.easeInOut(duration: 0.15), value: hasValue)
+            .accessibilityLabel("다음으로")
+            // 왜 못 누르는지 말해 준다 — 비활성만으로는 스크린리더 사용자가 이유를 알 수 없다.
+            .accessibilityHint(hasValue ? "다음 단계로 넘어갑니다" : "먼저 위에서 하나를 골라 주세요")
 
             Button(action: onSkip) {
                 Text("나중에 할래요")

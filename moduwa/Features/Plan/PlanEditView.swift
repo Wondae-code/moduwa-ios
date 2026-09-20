@@ -58,7 +58,7 @@ struct PlanEditView: View {
                         self.row(for: item, in: days[dayIndex])
                             .listRowInsets(EdgeInsets(top: 0, leading: 36, bottom: 0, trailing: 24))
                             .listRowSeparator(.hidden)
-                            .listRowBackground(Color.appBackground)
+                            .listRowBackground(timelineRowBackground)
                             // **빨간 `−` 기둥만 끄고 드래그 핸들은 남긴다.** 빼기는 카드 안의
                             //  `RemoveButton` 이 맡는다(그 주석에 이유가 있다).
                             .deleteDisabled(true)
@@ -66,7 +66,7 @@ struct PlanEditView: View {
                         distanceRow(text)
                             .listRowInsets(EdgeInsets(top: 0, leading: 36, bottom: 0, trailing: 24))
                             .listRowSeparator(.hidden)
-                            .listRowBackground(Color.appBackground)
+                            .listRowBackground(timelineRowBackground)
                             // 거리는 편집 대상이 아니다 — 장소 순서에서 나오는 값이다.
                             .moveDisabled(true)
                             .deleteDisabled(true)
@@ -137,6 +137,23 @@ struct PlanEditView: View {
 
         // 다른 날로 건너간 경우 화면만 보고는 알아채기 어렵다 — 스크린리더에도 알린다.
         UIAccessibility.post(notification: .announcement, argument: "순서를 옮겼어요")
+    }
+
+    /// 장소·거리 행의 배경 — 바탕색 **위에 점선**을 깐다(2026-09-20 피드백).
+    ///
+    /// ⚠️ **List 전체에 한 번 그릴 수 없다.** 오버레이로 얹으면 스크롤과 따로 놀고, 편집 중
+    /// 행이 끌려다니면 선만 제자리에 남는다. `listRowBackground` 로 **행마다 제 몫을 그려**
+    /// 이어 붙인다 — 구분선을 숨겨 둔 덕에 조각들이 틈 없이 하나의 선으로 보인다.
+    ///
+    /// 날짜 머리글에는 깔지 않는다. 거기까지 이으면 **다른 날이 한 줄로 묶여** 보인다.
+    ///
+    /// 들여쓰기 48 = 행 들여쓰기 36 + 번호 뱃지(24)의 절반. `listRowBackground` 는 들여쓰기를
+    /// 포함한 **행 전체**를 채우므로 둘을 더해야 뱃지 중심에 온다.
+    private var timelineRowBackground: some View {
+        ZStack(alignment: .topLeading) {
+            Color.appBackground
+            DashedVerticalLine.track(leadingInset: 48)
+        }
     }
 
     /// 항목 하나를 뺀다 — 카드 안 빨간 `−` 가 부른다(`RemoveButton`).

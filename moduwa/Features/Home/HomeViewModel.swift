@@ -71,6 +71,10 @@ final class HomeViewModel {
     /// 서로 다르기 때문이다(리뷰는 정렬 옵션이 있고 게시글은 최신순뿐이다).
     private(set) var posts: [TravelPost] = []
     private(set) var selectedCategory: PlaceCategory = .stay
+    /// 추천 장소를 못 받아 왔다. `nil` 이면 정상 — 화면이 이 줄만 보고 알린다.
+    private(set) var placesError: String?
+    /// 진행 중인 카테고리 요청. 새 카테고리를 누르면 앞 요청을 취소한다.
+    private var placesTask: Task<[Place]?, Never>?
     /// 홈 피드의 정렬. **기본값은 추천순**이다(2026-09-06 기획 결정).
     ///
     /// ⚠️ 추천순의 첫 페이지는 **구조적으로 오래된 글**이 된다. 서버 규칙이
@@ -201,10 +205,33 @@ final class HomeViewModel {
         }
     }
 
+    /// 카테고리를 바꾼다.
+    ///
+    /// ⚠️ **늦게 온 응답이 이기면 안 된다.** 관광지를 눌렀다가 곧바로 축제·공연을 누르면
+    /// 두 요청이 나란히 날아가는데, 먼저 보낸 쪽이 늦게 도착하면 그것이 화면을 덮어쓴다 —
+    /// 축제·공연을 골랐는데 관광지 목록이 그려지고, 그 카드를 누르면 "아까 보던 곳" 으로
+    /// 들어간다(2026-09-20 피드백 "이전에 열었던 페이지로 연결됨").
+    ///
+    /// 앞 요청을 **취소하고**, 그래도 돌아온 응답은 **지금 고른 카테고리의 것일 때만** 쓴다.
+    /// 취소만으로는 부족하다 — 이미 네트워크를 떠난 응답은 취소해도 도착한다.
     func selectCategory(_ category: PlaceCategory, using service: any FeedService) async {
+        placesTask?.cancel()
         selectedCategory = category
-        setPlaces(firstPage: (try? await service.fetchRecommendedPlaces(
-            category: category, page: 0, accessFeatures: accessFeatures)) ?? [])
+        let task = Task { [accessFeatures] in
+            try? await service.fetchRecommendedPlaces(
+                category: category, page: 0, accessFeatures: accessFeatures)
+        }
+        placesTask = task
+        let loaded = await task.value
+        guard !task.isCancelled, selectedCategory == category else { return }
+        guard let loaded else {
+            // ⚠️ 실패를 **빈 목록으로 바꾸지 않는다.** 예전에는 `?? []` 라서 네트워크가 끊기면
+            //  "이 카테고리에는 아무것도 없다" 로 읽혔다. 보던 목록을 그대로 두고 알린다.
+            placesError = "목록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요."
+            return
+        }
+        placesError = nil
+        setPlaces(firstPage: loaded)
     }
 
     /// 무장애 요소가 바뀌었다 — 로그인·로그아웃, 또는 내 정보에서 직접 고쳤을 때.

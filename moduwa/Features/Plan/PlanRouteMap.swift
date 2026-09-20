@@ -102,6 +102,9 @@ struct PlanRouteMap: UIViewRepresentable {
         private var didDrawOverlays = false
         private weak var container: KMViewContainer?
         var controller: KMController?
+        /// 번호 핀 탭 핸들러. **놓으면 해제된다** — 지도를 다시 그릴 때마다 새로 달고
+        /// 여기에 들고 있어야 탭이 살아 있다(`DisposableEventHandler`).
+        private var pinTapHandler: (any DisposableEventHandler)?
 
         @MainActor
         init(stops: [PlanStop], bottomInset: CGFloat, regionCamera: RegionMapCamera?) {
@@ -334,10 +337,49 @@ struct PlanRouteMap: UIViewRepresentable {
                         level: 0
                     )
                 ]))
-                let poi = layer?.addPoi(option: PoiOptions(styleID: styleID), at: badge.point)
+                let options = PoiOptions(styleID: styleID)
+                // ⚠️ **기본값이 false 다.** 켜지 않으면 탭 이벤트가 아예 오지 않는다 —
+                //  핸들러를 달아 두고 "왜 안 불리지" 하게 되는 자리다.
+                options.clickable = true
+                let poi = layer?.addPoi(option: options, at: badge.point)
                 poi?.show()
             }
+
+            addPinTapHandler(on: mapView)
         }
+
+        /// 번호를 누르면 그 자리로 확대한다(2026-09-20 피드백).
+        ///
+        /// 여러 핀이 한 화면에 들어오면 전체가 보이도록 축소돼 있어, 어느 번호가 어디인지
+        /// 읽기 어렵다. 번호를 누르면 **그 핀을 가운데 두고 들어간다.**
+        ///
+        /// `addPoisTappedEventHandler` 는 레이어 단위라 핀마다 달지 않아도 되고, 누른 핀의
+        /// 좌표(`position`)를 그대로 준다 — 인덱스를 되짚을 필요가 없다.
+        ///
+        /// ⚠️ 핸들러를 **들고 있어야 한다.** `DisposableEventHandler` 는 놓는 순간 해제되어
+        /// 탭이 조용히 죽는다(지도를 다시 그릴 때마다 새로 단다).
+        private func addPinTapHandler(on mapView: KakaoMap) {
+            pinTapHandler = mapView.addPoisTappedEventHandler(target: self) { coordinator in
+                { param in
+                    guard param.layerID == Self.poiLayerID else { return }
+                    coordinator.zoom(to: param.position, on: param.kakaoMap)
+                }
+            }
+        }
+
+        /// 이미 충분히 들어가 있으면 **더 밀어 넣지 않고 가운데로만** 옮긴다.
+        /// 누를 때마다 끝없이 확대되면 다시 빠져나올 길이 없다.
+        private func zoom(to point: MapPoint, on mapView: KakaoMap) {
+            let target = max(mapView.zoomLevel, Self.pinZoomLevel)
+            mapView.animateCamera(
+                cameraUpdate: CameraUpdate.make(target: point, zoomLevel: target, mapView: mapView),
+                options: CameraAnimationOptions(autoElevation: false, consecutive: false, durationInMillis: 300)
+            )
+        }
+
+        /// 핀 하나를 보는 줌. 한 장소와 그 둘레가 함께 보이는 값이다(장소가 하나뿐인 플랜에
+        /// 쓰는 `fitCamera` 의 14 와 같게 둔다 — 같은 "한 곳을 본다"는 뜻이다).
+        private static let pinZoomLevel = 14
 
         /// 목록 뱃지와 같은 SwiftUI 뷰를 그대로 이미지로 구워 쓴다 — 두 곳이 어긋날 일이 없다.
         @MainActor
