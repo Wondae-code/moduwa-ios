@@ -340,11 +340,11 @@ struct PlanCreateFlowView: View {
             UIAccessibility.post(notification: .announcement, argument: saveError ?? "")
             return
         }
-        // 지역은 골랐는데 서버가 그 지역의 후보를 모으지 못하는 경우("기타", 아직 슬러그가 없는
-        //  지역). **부르기 전에 막는다** — 그냥 보내면 400 `unknown_region` 이 돌아오고
-        //  "알 수 없는 지역입니다" 라는, 우리가 목록에 넣어 놓고 할 말이 아닌 문구가 뜬다.
+        // "기타" 는 어느 지역인지 모르므로 서버가 후보를 모을 수 없다. **부르기 전에 막는다** —
+        //  그냥 보내면 400 `unknown_region` 이 돌아오고 "알 수 없는 지역입니다" 라는,
+        //  우리가 목록에 넣어 놓고 할 말이 아닌 문구가 뜬다.
         guard let slug = region.courseSlug else {
-            saveError = "\(region.label)은(는) 아직 추천 코스를 만들 수 없어요. ‘혼자 짜볼게요’로 직접 담아 보세요."
+            saveError = "고르신 지역은 추천 코스를 만들 수 없어요. ‘혼자 짜볼게요’로 직접 담아 보세요."
             UIAccessibility.post(notification: .announcement, argument: saveError ?? "")
             return
         }

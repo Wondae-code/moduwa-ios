@@ -130,17 +130,21 @@ enum TravelRegion: String, CaseIterable, Identifiable, Hashable, Sendable, Codab
 extension TravelRegion {
     /// 추천 코스가 쓰는 서버 슬러그(`region_slugs`).
     ///
-    /// ⚠️ 앱의 지역은 "강릉·속초"처럼 **여러 시군을 묶은** 이름인데 서버 슬러그는 시군 하나다.
-    /// v1 은 앞에 적힌 대표 도시로 보낸다 — 강릉·속초를 고르면 강릉에서 고른다.
-    /// 두 시군을 함께 보려면 서버가 여러 시군구 코드를 받아야 한다(v2).
+    /// ⚠️ 앱의 지역은 "강릉·속초"처럼 **여러 시군을 묶은** 이름인데, 슬러그는 아직 **앞에 적힌
+    /// 대표 도시 하나**만 가리킨다 — 강릉·속초를 고르면 속초가 빠진다.
     ///
-    /// `nil` 은 **추천을 만들 수 없다**는 뜻이다:
-    /// - `.other` — 어느 지역인지 모르므로 후보를 고를 수 없다.
-    /// - `.pohang` — ⚠️ **서버에 `pohang` 슬러그가 아직 없다**(2026-09-20 확인).
-    ///   포항시가 남구(47·111)·북구(47·113) 둘로 나뉘는데 `region_slugs` 는 슬러그당
-    ///   시군구 코드를 하나만 들 수 있어 들어가지 못했다. 서버에 요청해 둔 상태다.
-    ///   **억지로 `gyeongbuk`(도 단위)으로 보내지 않는다** — 포항을 고른 사람에게 안동·경주가
-    ///   섞여 나오는 것은 "틀린 지역을 보여 주는" 쪽이고, 그건 표지 사진에서 이미 한 번 겪었다.
+    /// 서버는 2026-09-20 부터 슬러그 하나가 시군구 여럿을 가리킬 수 있다
+    /// (`055_region_slug_multi_sigungu.sql`). 아직 `jeonju`·`pohang` 에만 적용돼 있어
+    /// **가평·양평 · 강릉·속초 · 춘천·홍천 · 통영·거제·남해 넷은 여전히 한 시군만 본다.**
+    /// 서버에 나머지 코드를 요청해 두었다 — 붙으면 이 표는 그대로 두고 서버만 바뀐다.
+    ///
+    /// `nil` 은 **추천을 만들 수 없다**는 뜻이고, 지금은 `.other` 하나뿐이다 —
+    /// 어느 지역인지 모르므로 후보를 고를 수 없다.
+    ///
+    /// 포항은 한동안 `nil` 이었다. `region_slugs` 가 슬러그당 시군구 코드를 하나만 들 수 있어
+    /// 남구(47·111)·북구(47·113)로 갈리는 포항이 담기지 못했다. **서버가 슬러그 하나가
+    /// 시군구 여럿을 가리키게 고쳤다**(`055_region_slug_multi_sigungu.sql`, 2026-09-20).
+    /// 같은 이유로 조용히 깨져 있던 전주도 함께 고쳐졌다 — 덕진구 36곳이 빠지고 있었다.
     var courseSlug: String? {
         switch self {
         case .gapyeongYangpyeong: "gapyeong"
@@ -154,9 +158,9 @@ extension TravelRegion {
         case .chuncheonHongcheon: "chuncheon"
         case .taean: "taean"
         case .tongyeongGeojeNamhae: "tongyeong"
+        case .pohang: "pohang"
         case .andong: "andong"
         case .ulsan: "ulsan"
-        case .pohang: nil
         case .other: nil
         }
     }
