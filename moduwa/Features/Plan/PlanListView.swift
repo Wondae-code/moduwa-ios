@@ -29,8 +29,12 @@ struct PlanListView: View {
     /// 확인까지 받은 뒤의 삭제. **성공할 때까지 기다린다** — 카드를 먼저 지우고 뒤에서 요청하면
     /// 실패했을 때 목록에는 없는데 서버에는 남은 플랜이 생긴다.
     var onDeletePlan: (Plan) async throws -> Void = { _ in }
-    /// "팀 수정" 저장. **성공할 때까지 기다린다** — 시트가 실패를 띄우고 열린 채 남아야 한다.
-    var onSaveParty: (Plan, TravelParty) async throws -> Void = { _, _ in }
+    /// "플랜 수정" 저장. **성공할 때까지 기다린다** — 시트가 실패를 띄우고 열린 채 남아야 한다.
+    var onSaveInfo: (Plan, String, Date, Date, [PlanDay]) async throws -> Void = { _, _, _, _, _ in }
+    /// 상세(일정 포함)를 받아 온다. ⚠️ **목록 카드는 `days` 가 비어 있다**(요약만 싣는다) —
+    /// 그대로 수정 화면에 넘기면 "담아 둔 것이 사라진다" 경고가 뜨지 않고, 저장하는 순간
+    /// 일정이 통째로 날아간다. 열기 전에 반드시 채운다.
+    var onLoadPlan: (Plan) async throws -> Plan = { $0 }
     /// "일정에 추가" — 초안을 확정으로 올린다. 확인까지 받은 뒤에 불린다.
     var onConfirmPlan: (Plan) async throws -> Void = { _ in }
     /// 편집자가 상세에서 플랜을 나갔다 — 목록에서 뺀다.
@@ -47,8 +51,11 @@ struct PlanListView: View {
     @State private var deleteTarget: Plan?
     @State private var deletingID: Plan.ID?
     @State private var deleteError: String?
-    /// "팀 수정" 대상. nil 이면 시트가 닫혀 있다.
-    @State private var partyTarget: Plan?
+    /// "플랜 수정" 대상. **상세를 받아 온 뒤에** 채운다(nil 이면 시트가 닫혀 있다).
+    @State private var infoTarget: Plan?
+    /// 상세를 받는 중인 카드. 두 번 누르는 것을 막고 카드에 진행 표시를 준다.
+    @State private var loadingInfoID: Plan.ID?
+    @State private var infoLoadError: String?
     /// "일정에 추가" 확인 대상.
     @State private var confirmTarget: Plan?
     @State private var confirmingID: Plan.ID?
@@ -81,9 +88,9 @@ struct PlanListView: View {
                             ForEach(plans) { plan in
                                 PlanCard(
                                     plan: plan,
-                                    isDeleting: deletingID == plan.id || confirmingID == plan.id,
+                                    isDeleting: deletingID == plan.id || confirmingID == plan.id || loadingInfoID == plan.id,
                                     onRequestDelete: { deleteTarget = plan },
-                                    onEditParty: { partyTarget = plan },
+                                    onEditInfo: { Task { await openInfo(plan) } },
                                     onAddToSchedule: { confirmTarget = plan })
                             }
                         }
@@ -131,10 +138,17 @@ struct PlanListView: View {
         } message: { plan in
             Text("‘\(plan.title)’의 일정과 메모가 함께 지워지고 되돌릴 수 없어요.")
         }
-        .sheet(item: $partyTarget) { plan in
-            PlanPartyEditView(currentParty: plan.party) { party in
-                try await onSaveParty(plan, party)
+        .sheet(item: $infoTarget) { plan in
+            PlanInfoEditView(plan: plan) { title, start, end, days in
+                try await onSaveInfo(plan, title, start, end, days)
             }
+        }
+        .alert("플랜을 열지 못했어요", isPresented: Binding(
+            get: { infoLoadError != nil }, set: { if !$0 { infoLoadError = nil } })
+        ) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text(infoLoadError ?? "")
         }
         // 확정하면 이 카드가 플랜 탭에서 사라져 일정 탭으로 옮겨간다 — 눌러 놓고 어디 갔는지
         //  찾게 되는 일이 없도록 한 번 묻고, 어디로 가는지 문장으로 알린다.
@@ -161,6 +175,23 @@ struct PlanListView: View {
             Button("확인", role: .cancel) {}
         } message: {
             Text(deleteError ?? "")
+        }
+    }
+
+    /// "플랜 수정" — **상세를 받아 온 뒤에** 시트를 연다.
+    ///
+    /// ⚠️ 목록 카드의 플랜은 `days` 가 비어 있다(요약만 싣는다). 그대로 열면 수정 화면이
+    /// "담아 둔 것이 사라진다" 를 셀 수 없어 **경고 없이 일정을 통째로 지운다.**
+    /// 상세가 실패하면 시트를 열지 않는다 — 여는 편이 더 나쁘다.
+    private func openInfo(_ plan: Plan) async {
+        guard loadingInfoID == nil else { return }
+        loadingInfoID = plan.id
+        defer { loadingInfoID = nil }
+        do {
+            infoTarget = try await onLoadPlan(plan)
+        } catch {
+            infoLoadError = (error as? PlanServiceError)?.errorDescription
+                ?? "네트워크 상태를 확인하고 다시 시도해 주세요."
         }
     }
 
@@ -348,7 +379,7 @@ private struct PlanCard: View {
     let plan: Plan
     var isDeleting = false
     var onRequestDelete: () -> Void = {}
-    var onEditParty: () -> Void = {}
+    var onEditInfo: () -> Void = {}
     var onAddToSchedule: () -> Void = {}
 
     var body: some View {
@@ -411,9 +442,9 @@ private struct PlanCard: View {
     /// ⚠️ 글리프는 **세로**다(시안 아이콘 642:356 이 3×16). `ellipsis` 는 가로라 90° 돌려 쓴다.
     private var menu: some View {
         Menu {
-            // 새 플랜 플로우 1/6 에서 고른 동반자 정보를 다시 손보는 자리
-            //  (`TravelParty` 주석의 "목록 카드의 '팀 수정'").
-            Button("팀 수정", systemImage: "person.2", action: onEditParty)
+            // 여행 상세의 연필과 **같은 화면**을 연다 — 제목과 날짜를 여기서도 고칠 수 있다
+            //  (2026-09-20, 전에는 "팀 수정" 이 있던 자리다).
+            Button("플랜 수정", systemImage: "square.and.pencil", action: onEditInfo)
             // ⚠️ **초대받아 함께 쓰는 플랜에는 두지 않는다.** 일정 확정·삭제는 서버가
             //  소유자 기준으로만 찾아서(`plans.author_id`), 편집자가 누르면 403 이 아니라
             //  "플랜을 찾을 수 없어요"(404)로 돌아온다 — 사용자에게는 고장으로 보인다.

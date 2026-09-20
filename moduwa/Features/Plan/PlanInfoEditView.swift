@@ -25,7 +25,14 @@ struct PlanInfoEditView: View {
     /// 다른 플랜이 잡아 둔 날짜. **이 플랜 자신의 기간은 빼고** 넘겨야 한다 —
     /// 안 빼면 지금 잡혀 있는 날이 "이미 찼다" 로 막혀 제 날짜를 다시 고를 수 없다.
     var busyRanges: [ClosedRange<Date>] = []
+    /// 제목 칸까지 보여 줄지.
+    ///
+    /// 여는 자리에 따라 다르다 — **연필과 ⋮ 의 "플랜 수정" 은 둘 다**, 상세의 **날짜 줄은
+    /// 날짜만** 연다(2026-09-20). 날짜를 고치려고 그 줄을 눌렀는데 제목 칸이 먼저 나오면
+    /// 누른 것과 다른 것이 나온 셈이다.
+    var editsTitle = true
     /// 새 제목·기간과, 기간 밖으로 밀려난 날을 지운 `days` 를 저장한다.
+    /// 제목을 안 고치는 자리에서는 지금 제목이 그대로 돌아온다.
     var onSave: (_ title: String, _ startDate: Date, _ endDate: Date, _ days: [PlanDay]) async throws -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -47,9 +54,11 @@ struct PlanInfoEditView: View {
 
     init(plan: Plan,
          busyRanges: [ClosedRange<Date>] = [],
+         editsTitle: Bool = true,
          onSave: @escaping (String, Date, Date, [PlanDay]) async throws -> Void) {
         self.plan = plan
         self.busyRanges = busyRanges
+        self.editsTitle = editsTitle
         self.onSave = onSave
         _title = State(initialValue: plan.title)
         _startDate = State(initialValue: plan.startDate)
@@ -107,19 +116,20 @@ struct PlanInfoEditView: View {
             || !calendar.isDate(end, inSameDayAs: plan.endDate)
     }
 
-    private var titleChanged: Bool { trimmedTitle != plan.title }
+    /// 제목 칸이 없는 자리에서는 제목이 바뀔 일이 없다.
+    private var titleChanged: Bool { editsTitle && trimmedTitle != plan.title }
 
     /// 제목이 비면 목록 카드에 아무것도 안 남는다 — 빈 제목은 막는다.
     /// 바뀐 것이 없을 때도 막는다 — 서버를 한 번 갔다 올 이유가 없다.
     private var canSubmit: Bool {
-        !trimmedTitle.isEmpty && startDate != nil && endDate != nil
+        (!editsTitle || !trimmedTitle.isEmpty) && startDate != nil && endDate != nil
             && (titleChanged || datesChanged)
     }
 
     private var missingHint: String? {
-        if trimmedTitle.isEmpty { "제목을 입력해 주세요" }
+        if editsTitle && trimmedTitle.isEmpty { "제목을 입력해 주세요" }
         else if startDate == nil || endDate == nil { "가는 날과 오는 날을 골라 주세요" }
-        else if !titleChanged && !datesChanged { "바뀐 내용이 없어요" }
+        else if !titleChanged && !datesChanged { editsTitle ? "바뀐 내용이 없어요" : "날짜가 그대로예요" }
         else { nil }
     }
 
@@ -156,8 +166,10 @@ struct PlanInfoEditView: View {
     var body: some View {
         VStack(spacing: 0) {
             headerBar
-            titleField
-            Divider().overlay(Color.cardStroke)
+            if editsTitle {
+                titleField
+                Divider().overlay(Color.cardStroke)
+            }
 
             PlanDateRangeCalendar(
                 startDate: $startDate,
@@ -185,7 +197,7 @@ struct PlanInfoEditView: View {
 
     private var headerBar: some View {
         ZStack {
-            Text("여행 정보 수정")
+            Text(editsTitle ? "여행 정보 수정" : "날짜 수정")
                 .font(.notoSans(18, .bold, relativeTo: .headline))
                 .tracking(-0.4)
                 .foregroundStyle(Color.textPrimary)

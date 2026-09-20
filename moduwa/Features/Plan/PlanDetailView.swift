@@ -23,9 +23,11 @@ struct PlanDetailView: View {
     @State private var dragOffset: CGFloat = 0
     @State private var isEditing = false
     @State private var isAddingMemo = false
-    /// 제목·날짜를 고치는 시트. 연필과 날짜 줄이 **같은 화면**을 연다 — 둘 다
-    /// "이 여행이 무엇인가" 를 적는 값이라 나눌 이유가 없다(2026-09-20).
+    /// 제목·날짜를 고치는 시트. 연필이 연다 — 둘 다 "이 여행이 무엇인가" 를 적는 값이라
+    /// 나눌 이유가 없다(2026-09-20).
     @State private var isEditingInfo = false
+    /// 날짜만 고치는 시트. 제목 아래 날짜 줄이 연다 — **누른 것이 날짜니까 날짜만 나온다.**
+    @State private var isEditingDates = false
     /// 달력에 회색으로 칠할 **남의 일정**. 날짜 시트를 열 때 받아 둔다.
     ///
     /// **못 받으면 그냥 안 그린다.** 이 표시는 도움말이지 제약이 아니다 — 겹치는 날짜도
@@ -173,6 +175,13 @@ struct PlanDetailView: View {
             }
             // 시트가 뜬 뒤에 받아도 된다 — 회색 칠은 도움말이라 늦게 나타나도 잃는 것이 없고,
             //  상세를 열 때마다 목록을 한 번 더 받는 것보다 낫다.
+            .task { await loadOtherPlanRanges() }
+        }
+        .sheet(isPresented: $isEditingDates) {
+            PlanInfoEditView(plan: current, busyRanges: otherPlanRanges, editsTitle: false) {
+                title, start, end, days in
+                try await saveInfo(title: title, start: start, end: end, days: days)
+            }
             .task { await loadOtherPlanRanges() }
         }
         // 담기는 화면들은 **날짜를 묻지 않는다**(2026-08-16 사용자 지시) — 지금 보고 있는 날에
@@ -498,7 +507,7 @@ struct PlanDetailView: View {
 
             // 날짜 줄이 곧 수정 버튼이다. 헤더에 아이콘을 하나 더 두지 않는 이유는 이미 넷이
             //  들어차 있어서이기도 하지만, **고치려는 값 바로 그 자리**가 가장 찾기 쉬워서다.
-            Button { isEditingInfo = true } label: {
+            Button { isEditingDates = true } label: {
                 HStack(spacing: 4) {
                     Text(current.dateRangeText)
                         .font(.notoSans(16, .regular, relativeTo: .body))

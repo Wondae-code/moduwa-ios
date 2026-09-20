@@ -64,10 +64,13 @@ struct PlanView: View {
                 },
                 // ⚠️ **목록에서 온 플랜으로 바로 저장하면 안 된다** — `savePlan` 은 PUT 으로 본문을
                 //  통째로 갈아 끼우는데 목록의 `days` 는 빈 배열이라 서버의 일정이 지워진다.
-                //  팀만 고치는 것이라도 상세를 먼저 받아 온전한 플랜에 얹는다.
-                onSaveParty: { plan, party in
+                //  수정 화면에 넘기기 전에도(`onLoadPlan`), 저장할 때도 상세를 먼저 받는다.
+                onSaveInfo: { plan, title, start, end, days in
                     var target = try await planService.fetchPlan(id: plan.id)
-                    target.party = party
+                    target.title = title
+                    target.startDate = start
+                    target.endDate = end
+                    target.days = days
                     let saved = try await planService.savePlan(target, authorNm: nil)
                     guard case .loaded(var plans) = state,
                           let index = plans.firstIndex(where: { $0.id == saved.id })
@@ -80,6 +83,8 @@ struct PlanView: View {
                     plans[index] = summary
                     state = .loaded(plans)
                 },
+                // 수정 화면은 `days` 가 있어야 무엇이 사라지는지 셀 수 있다 — 열기 전에 받는다.
+                onLoadPlan: { try await planService.fetchPlan(id: $0.id) },
                 // 확정되면 이 플랜은 일정 탭으로 넘어간다 — 플랜 탭 목록에서는 뺀다.
                 // 서버가 성공한 뒤에만 뺀다: 먼저 지웠다가 실패하면 사라진 카드가 되살아나
                 // 무엇이 참인지 알 수 없어진다(삭제와 같은 규칙).
