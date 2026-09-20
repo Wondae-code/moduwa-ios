@@ -30,6 +30,17 @@ struct PlanNumberBadge: View {
     }
 }
 
+/// 목록의 번호를 눌렀을 때 지도가 옮겨 갈 자리(2026-09-21 사용자 요청).
+///
+/// ⚠️ **`id` 를 들고 있는 이유**: 같은 장소를 두 번 눌러도 다시 옮겨 가야 한다. 좌표만
+/// 비교하면 두 번째 탭은 "바뀐 게 없다" 로 읽혀 조용히 무시되는데, 지도를 손으로 밀어
+/// 놓고 같은 번호를 다시 누르는 것이 바로 그 경우다 — 그때 아무 일도 안 일어나면 고장이다.
+struct PlanMapFocus: Equatable {
+    let id = UUID()
+    let latitude: Double
+    let longitude: Double
+}
+
 /// 플랜 상세의 경로 지도 — 카카오맵 위에 번호 핀과 점선 경로를 그린다.
 ///
 /// `Secrets.kakaoNativeAppKey` 설정 + 앱 시작 시 SDK 초기화가 선행돼야 한다.
@@ -42,6 +53,8 @@ struct PlanRouteMap: UIViewRepresentable {
     /// 좌표가 있는 정류지가 하나도 없을 때 카메라를 맞출 자리 — 플랜의 여행 지역이다.
     /// 핀도 경로도 없이 그 지역만 보여 준다.
     var regionCamera: RegionMapCamera?
+    /// 목록에서 번호를 눌러 지목한 자리. 바뀔 때마다 그리로 옮겨 간다.
+    var focus: PlanMapFocus?
     @Binding var draw: Bool
 
     func makeCoordinator() -> Coordinator {
@@ -71,6 +84,7 @@ struct PlanRouteMap: UIViewRepresentable {
             context.coordinator.pauseEngine()
         }
         context.coordinator.syncViewRect(uiView.bounds.size)
+        context.coordinator.focus(on: focus)
     }
 
     static func dismantleUIView(_ uiView: KMViewContainer, coordinator: Coordinator) {
@@ -105,6 +119,12 @@ struct PlanRouteMap: UIViewRepresentable {
         /// 번호 핀 탭 핸들러. **놓으면 해제된다** — 지도를 다시 그릴 때마다 새로 달고
         /// 여기에 들고 있어야 탭이 살아 있다(`DisposableEventHandler`).
         private var pinTapHandler: (any DisposableEventHandler)?
+        /// 아직 적용하지 못한 포커스 요청. **일정만 보기에서 번호를 누르면 지도가 그때
+        /// 만들어지므로**, 요청이 도착한 순간에는 아직 옮길 지도가 없다. 들고 있다가
+        /// 다 그려진 뒤에 옮긴다.
+        private var pendingFocus: PlanMapFocus?
+        /// 이미 옮겨 간 요청. 같은 요청으로 `updateUIView` 가 여러 번 불려도 한 번만 움직인다.
+        private var appliedFocusID: UUID?
 
         @MainActor
         init(stops: [PlanStop], bottomInset: CGFloat, regionCamera: RegionMapCamera?) {
@@ -217,6 +237,9 @@ struct PlanRouteMap: UIViewRepresentable {
             // 점선 길이를 화면 기준으로 잡으려면 확정된 카메라가 필요하다 — 맞춘 뒤에 그린다.
             fitCamera(on: mapView) { [weak self] in
                 self?.addDashedRoute(on: mapView)
+                // 목록에서 번호를 누르며 지도가 새로 만들어진 경우다 — 이제 그 자리로 옮긴다.
+                //  `fitCamera` 뒤에 두어야 맞춤이 포커스를 덮지 않는다.
+                self?.applyPendingFocus()
             }
         }
 
@@ -380,6 +403,23 @@ struct PlanRouteMap: UIViewRepresentable {
                     coordinator.zoom(to: param.position, on: param.kakaoMap)
                 }
             }
+        }
+
+        /// 목록에서 번호를 누른 자리로 옮긴다. 핀을 직접 누른 것과 **같은 동작**이다
+        /// (`zoom(to:on:)`) — 두 길이 같은 결과를 내야 사용자가 둘을 같은 것으로 배운다.
+        func focus(on request: PlanMapFocus?) {
+            guard let request, request.id != appliedFocusID else { return }
+            pendingFocus = request
+            applyPendingFocus()
+        }
+
+        /// 지도가 준비돼 있으면 옮기고, 아니면 그대로 들고 있는다.
+        private func applyPendingFocus() {
+            guard let request = pendingFocus,
+                  let mapView = controller?.getView(Self.viewName) as? KakaoMap else { return }
+            pendingFocus = nil
+            appliedFocusID = request.id
+            zoom(to: MapPoint(longitude: request.longitude, latitude: request.latitude), on: mapView)
         }
 
         /// 이미 충분히 들어가 있으면 **더 밀어 넣지 않고 가운데로만** 옮긴다.

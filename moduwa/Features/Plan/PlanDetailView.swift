@@ -19,6 +19,8 @@ struct PlanDetailView: View {
     /// 포그라운드 복귀 시 상세를 다시 받아 판 번호·다른 멤버 변경을 최신으로 유지한다(⑤).
     @Environment(\.scenePhase) private var scenePhase
     @State private var detent: SheetDetent = .medium
+    /// 목록에서 번호를 눌러 지목한 자리. 지도가 여기로 옮겨 간다.
+    @State private var mapFocus: PlanMapFocus?
     /// 드래그 중인 손가락 이동량. 놓으면 0으로 돌아가고 `detent`가 갱신된다.
     @State private var dragOffset: CGFloat = 0
     @State private var isEditing = false
@@ -119,6 +121,7 @@ struct PlanDetailView: View {
                             stops: mappedStops,
                             bottomInset: geo.size.height * SheetDetent.medium.fraction,
                             regionCamera: regionCamera,
+                            focus: mapFocus,
                             draw: $mapDrawn
                         )
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -733,7 +736,8 @@ struct PlanDetailView: View {
                     // 나만의 장소는 열 원본이 없어 `destination` 이 nil 이고, 그 줄은 눌리지 않는다.
                     PlanStopRow(number: day.stopNumber(at: index) ?? 0,
                                 stop: stop,
-                                destination: Place(planPlace: stop.place)) {
+                                destination: Place(planPlace: stop.place),
+                                onNumberTap: focusAction(for: stop)) {
                         reviewTarget = stop.place
                     }
                 case .memo(let memo):
@@ -745,6 +749,28 @@ struct PlanDetailView: View {
         //  같은 선을 쓰므로 여기서만 고치면 두 화면이 갈라진다.
         .background(alignment: .topLeading) { DashedVerticalLine.track(leadingInset: 11.5) }
         .padding(.bottom, 16)
+    }
+
+    /// 번호를 눌렀을 때 지도를 그 장소로 옮기는 동작.
+    ///
+    /// **좌표가 없으면 `nil` 이고, 그러면 번호가 눌리지 않는다** — 갈 곳이 없는데 눌리면
+    /// 고장으로 읽힌다. 지도에서도 그 번호는 아예 비어 있다(`PlanRouteMap.derive`).
+    ///
+    /// 일정만 보고 있을 때는 **지도가 그려져 있지도 않다**(`showsMap`). 번호를 눌렀다는 것은
+    /// 지도에서 보겠다는 뜻이므로 시트를 반반으로 내려 지도를 드러낸다 — 아무것도 안 하고
+    /// 좌표만 바꾸면 사용자 눈에는 아무 일도 일어나지 않는다.
+    private func focusAction(for stop: PlanStop) -> (() -> Void)? {
+        guard hasMap,
+              let latitude = stop.place.latitude,
+              let longitude = stop.place.longitude
+        else { return nil }
+
+        return {
+            if detent == .listOnly {
+                withAnimation(.snappy(duration: 0.28)) { detent = .medium }
+            }
+            mapFocus = PlanMapFocus(latitude: latitude, longitude: longitude)
+        }
     }
 
     // MARK: 하단 액션
@@ -778,6 +804,9 @@ private struct PlanStopRow: View {
     /// 카드 본문을 누르면 갈 장소 상세. 나만의 장소는 관광공사 원본이 없어 nil 이고,
     /// 그때는 링크로 감싸지 않는다 — 눌러도 아무 일이 없는 줄이 눌리는 것처럼 보이면 안 된다.
     var destination: Place?
+    /// 번호를 눌렀을 때. 지도를 이 장소로 옮긴다.
+    /// **좌표가 없는 장소는 `nil`** 이고, 그때 번호는 눌리지 않는다.
+    var onNumberTap: (() -> Void)?
     /// 별을 눌렀을 때. 이 행은 네비게이션 밖에 있어 이동은 상세 화면이 맡는다.
     var onReviewTap: () -> Void
 
@@ -785,7 +814,24 @@ private struct PlanStopRow: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            PlanNumberBadge(number: number, isCustom: place.isCustom)
+            if let onNumberTap {
+                Button(action: onNumberTap) {
+                    PlanNumberBadge(number: number, isCustom: place.isCustom)
+                        // 뱃지는 24pt 라 손가락에 작다. **레이아웃은 그대로 두고 누를 자리만**
+                        //  넓힌다 — 폭을 키우면 카드 시작점이 밀리고 점선 기둥과도 어긋난다.
+                        //  세로는 카드 높이(57)까지, 가로는 양옆 6 씩. 카드까지는 14 가 비어 있어
+                        //  카드의 탭(장소 상세)을 빼앗지 않는다.
+                        .frame(height: 57)
+                        .padding(.horizontal, 6)
+                        .contentShape(.rect)
+                        .padding(.horizontal, -6)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(number)번 \(place.name)")
+                .accessibilityHint("지도를 이 장소로 옮깁니다")
+            } else {
+                PlanNumberBadge(number: number, isCustom: place.isCustom)
+            }
 
             HStack(spacing: 0) {
                 // 이름 쪽과 별 쪽은 **형제**로 둔다. 카드 전체를 링크로 감싸고 그 안에 별 버튼을
