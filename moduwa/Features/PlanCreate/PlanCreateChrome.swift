@@ -95,16 +95,27 @@ struct PlanCreateHeader: View {
 /// 시안 공통 — 왼쪽 24, Bold 20, 자간 -0.4.
 struct PlanCreateQuestion: View {
     let text: String
+    /// 질문 아래 한 줄(선택). 고른 값이 어디에 쓰이는지 알려 준다.
+    var hint: String?
 
     var body: some View {
-        Text(text)
-            .font(.notoSans(20, .bold, relativeTo: .title3))
-            .tracking(-0.4)
-            .foregroundStyle(Color.textPrimary)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 24)
-            .accessibilityAddTraits(.isHeader)
+        VStack(alignment: .leading, spacing: 8) {
+            Text(text)
+                .font(.notoSans(20, .bold, relativeTo: .title3))
+                .tracking(-0.4)
+                .foregroundStyle(Color.textPrimary)
+                .accessibilityAddTraits(.isHeader)
+
+            if let hint {
+                Text(hint)
+                    .font(.notoSans(14, .regular, relativeTo: .subheadline))
+                    .tracking(-0.4)
+                    .foregroundStyle(Color.textSecondary)
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 24)
     }
 }
 

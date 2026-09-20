@@ -313,6 +313,6 @@ private struct LocationPickerPin: View {
 
 #Preview("나만의 장소") {
     NavigationStack {
-        PlanCustomPlaceView(initialCamera: TravelRegion.gyeongju.mapCamera) { _ in }
+        PlanCustomPlaceView(initialCamera: TravelRegion.gyeongju.mapCamera!) { _ in }
     }
 }

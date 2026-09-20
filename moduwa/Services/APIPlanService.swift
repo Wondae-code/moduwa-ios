@@ -368,7 +368,7 @@ struct APIPlanService: PlanService {
                 endDate: PlanWireDate.date(from: endDate) ?? .now,
                 // 서버가 앱이 모르는 지역 키를 주면 지역 없음으로 둔다 — 지역은 표시에만 쓰여
                 // 플랜 전체를 못 읽는 이유가 될 수 없다.
-                region: region.flatMap(TravelRegion.init(rawValue:)),
+                region: region.flatMap(TravelRegion.init(storedValue:)),
                 party: party?.party ?? TravelParty(),
                 coverImageURL: URL(imageAddress: coverImageURL),
                 themes: themes ?? [],

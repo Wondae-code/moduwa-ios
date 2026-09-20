@@ -72,14 +72,35 @@ enum MobilityMode: String, CaseIterable, Identifiable, Hashable, Sendable, Codab
 
 // MARK: - 여행 지역
 
-/// 새 플랜 플로우 2/6의 지역 12종. 행정구역이 아니라 시안이 묶어둔 여행지 단위라
+/// 새 플랜 플로우 2/6의 지역 14종 + "기타"(시안 2026-09-20). 행정구역이 아니라 시안이 묶어둔 여행지 단위라
 /// (가평·양평, 통영·거제·남해처럼 복수 시군 묶음) 별도 enum으로 둔다.
 /// 백엔드 조회에 쓸 시군구 코드 매핑은 지역 API 스펙이 정해지면 붙인다.
 enum TravelRegion: String, CaseIterable, Identifiable, Hashable, Sendable, Codable {
-    case gapyeongYangpyeong, gangneungSokcho, gyeongju, busan, yeosu, incheon
-    case jeonju, jeju, chuncheonHongcheon, taean, tongyeongGeojeNamhae, pohangAndong
+    // ⚠️ **선언 순서가 곧 화면의 칩 순서다**(`allCases`). 시안 2/6 의 3열 배치 그대로 적는다 —
+    //  줄을 바꿔 적은 것도 시안의 줄과 맞춘 것이다.
+    case gapyeongYangpyeong, gangneungSokcho, gyeongju
+    case busan, yeosu, incheon
+    case taean, tongyeongGeojeNamhae, pohang
+    case jeonju, jeju, chuncheonHongcheon
+    case andong, ulsan, other
 
     var id: String { rawValue }
+
+    /// 저장된 값에서 되읽는다. **옛 이름을 받아 준다** — 2026-09-20 에 `pohangAndong` 이
+    /// `pohang`·`andong` 둘로 갈렸다. 그냥 `init(rawValue:)` 로 읽으면 그 전에 만든 플랜이
+    /// 지역을 잃고 회색 표지로 돌아간다(디코딩이 옵셔널이라 조용히 `nil` 이 된다).
+    ///
+    /// 합본이었던 것은 **앞에 적힌 대표 도시**로 보낸다 — 시안의 묶음 이름도 그 순서였다.
+    init?(storedValue: String) {
+        if let exact = TravelRegion(rawValue: storedValue) { self = exact; return }
+        switch storedValue {
+        case "pohangAndong": self = .pohang
+        default: return nil
+        }
+    }
+
+    /// 목록에 없는 지역을 고른 것인지. 추천·지도·표지가 모두 이 값을 보고 비켜선다.
+    var isOther: Bool { self == .other }
 
     var label: String {
         switch self {
@@ -94,9 +115,16 @@ enum TravelRegion: String, CaseIterable, Identifiable, Hashable, Sendable, Codab
         case .chuncheonHongcheon: "춘천·홍천"
         case .taean: "태안"
         case .tongyeongGeojeNamhae: "통영·거제·남해"
-        case .pohangAndong: "포항·안동"
+        case .pohang: "포항"
+        case .andong: "안동"
+        case .ulsan: "울산"
+        case .other: "기타"
         }
     }
+
+    /// 플랜 제목에 들어갈 지역 이름. **"기타"는 이름이 아니다** — "기타 여행" 이 되면
+    /// 제목이 아니라 오류처럼 읽힌다. 그럴 땐 지역을 빼고 제목을 짓는다(`generatedTitle`).
+    var titleLabel: String? { isOther ? nil : label }
 }
 
 extension TravelRegion {
@@ -105,7 +133,15 @@ extension TravelRegion {
     /// ⚠️ 앱의 지역은 "강릉·속초"처럼 **여러 시군을 묶은** 이름인데 서버 슬러그는 시군 하나다.
     /// v1 은 앞에 적힌 대표 도시로 보낸다 — 강릉·속초를 고르면 강릉에서 고른다.
     /// 두 시군을 함께 보려면 서버가 여러 시군구 코드를 받아야 한다(v2).
-    var courseSlug: String {
+    ///
+    /// `nil` 은 **추천을 만들 수 없다**는 뜻이다:
+    /// - `.other` — 어느 지역인지 모르므로 후보를 고를 수 없다.
+    /// - `.pohang` — ⚠️ **서버에 `pohang` 슬러그가 아직 없다**(2026-09-20 확인).
+    ///   포항시가 남구(47·111)·북구(47·113) 둘로 나뉘는데 `region_slugs` 는 슬러그당
+    ///   시군구 코드를 하나만 들 수 있어 들어가지 못했다. 서버에 요청해 둔 상태다.
+    ///   **억지로 `gyeongbuk`(도 단위)으로 보내지 않는다** — 포항을 고른 사람에게 안동·경주가
+    ///   섞여 나오는 것은 "틀린 지역을 보여 주는" 쪽이고, 그건 표지 사진에서 이미 한 번 겪었다.
+    var courseSlug: String? {
         switch self {
         case .gapyeongYangpyeong: "gapyeong"
         case .gangneungSokcho: "gangneung"
@@ -118,7 +154,10 @@ extension TravelRegion {
         case .chuncheonHongcheon: "chuncheon"
         case .taean: "taean"
         case .tongyeongGeojeNamhae: "tongyeong"
-        case .pohangAndong: "andong"
+        case .andong: "andong"
+        case .ulsan: "ulsan"
+        case .pohang: nil
+        case .other: nil
         }
     }
 }
@@ -162,7 +201,9 @@ extension TravelRegion {
     /// ⚠️ **서버에 지역 좌표가 없어서 앱에 표로 둔다** — `/v1/plan-options`는 코드와 문구만 준다
     /// (`TravelRegion` 주석의 "시군구 코드 매핑은 지역 API 스펙이 정해지면" 참고).
     /// 지역 API가 생기면 이 표를 지우고 서버 값으로 옮긴다.
-    var mapCamera: RegionMapCamera {
+    /// `.other` 는 `nil` 이다 — 어디인지 모르는데 아무 데나 비추면 "여기가 그 지역" 이라고
+    /// 말하는 셈이 된다. 지도는 담긴 장소들로 알아서 맞춘다.
+    var mapCamera: RegionMapCamera? {
         switch self {
         case .gapyeongYangpyeong: RegionMapCamera(latitude: 37.661, longitude: 127.499, zoomLevel: 9)
         case .gangneungSokcho: RegionMapCamera(latitude: 37.979, longitude: 128.734, zoomLevel: 9)
@@ -175,7 +216,10 @@ extension TravelRegion {
         case .chuncheonHongcheon: RegionMapCamera(latitude: 37.789, longitude: 127.810, zoomLevel: 9)
         case .taean: RegionMapCamera(latitude: 36.746, longitude: 126.298, zoomLevel: 10)
         case .tongyeongGeojeNamhae: RegionMapCamera(latitude: 34.857, longitude: 128.316, zoomLevel: 9)
-        case .pohangAndong: RegionMapCamera(latitude: 36.294, longitude: 129.036, zoomLevel: 8)
+        case .pohang: RegionMapCamera(latitude: 36.019, longitude: 129.343, zoomLevel: 10)
+        case .andong: RegionMapCamera(latitude: 36.568, longitude: 128.730, zoomLevel: 10)
+        case .ulsan: RegionMapCamera(latitude: 35.539, longitude: 129.311, zoomLevel: 10)
+        case .other: nil
         }
     }
 
@@ -190,8 +234,11 @@ extension TravelRegion {
     /// 에셋도 그 비율에 맞춰 왔다(963×729 / 963×1134, 각각 @3x 로 정확히 맞는다).
     ///
     /// - Parameter tall: 세로 카드(일정 탭)면 `true`.
-    func coverImageName(tall: Bool) -> String {
-        "cover_\(rawValue)\(tall ? "_tall" : "")"
+    /// `.other` 는 `nil` — 어느 지역인지 모르니 붙일 사진이 없다. 회색 표지로 남는다
+    /// (아무 지역 사진이나 놓으면 "제주 플랜에 경주 사진" 으로 되돌아간다).
+    func coverImageName(tall: Bool) -> String? {
+        guard !isOther else { return nil }
+        return "cover_\(rawValue)\(tall ? "_tall" : "")"
     }
 }
 

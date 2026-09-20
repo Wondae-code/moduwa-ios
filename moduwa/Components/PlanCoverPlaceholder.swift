@@ -23,8 +23,8 @@ struct PlanCoverPlaceholder: View {
     var tall = false
 
     var body: some View {
-        if let region {
-            Image(region.coverImageName(tall: tall))
+        if let name = region?.coverImageName(tall: tall) {
+            Image(name)
                 .resizable()
                 .scaledToFill()
                 // 사진은 분위기일 뿐 정보가 아니다 — 카드 본문이 제목·날짜를 이미 읽어 준다.

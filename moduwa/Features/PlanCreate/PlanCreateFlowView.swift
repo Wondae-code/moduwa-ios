@@ -50,7 +50,7 @@ struct PlanCreateFlowView: View {
             PlanCreateHeader(step: step, onBack: goBack)
                 .padding(.top, 4)
 
-            PlanCreateQuestion(text: step.question)
+            PlanCreateQuestion(text: step.question, hint: step.hint)
                 .padding(.top, 34)
 
             content
@@ -340,6 +340,14 @@ struct PlanCreateFlowView: View {
             UIAccessibility.post(notification: .announcement, argument: saveError ?? "")
             return
         }
+        // 지역은 골랐는데 서버가 그 지역의 후보를 모으지 못하는 경우("기타", 아직 슬러그가 없는
+        //  지역). **부르기 전에 막는다** — 그냥 보내면 400 `unknown_region` 이 돌아오고
+        //  "알 수 없는 지역입니다" 라는, 우리가 목록에 넣어 놓고 할 말이 아닌 문구가 뜬다.
+        guard let slug = region.courseSlug else {
+            saveError = "\(region.label)은(는) 아직 추천 코스를 만들 수 없어요. ‘혼자 짜볼게요’로 직접 담아 보세요."
+            UIAccessibility.post(notification: .announcement, argument: saveError ?? "")
+            return
+        }
 
         isRecommending = true
         saveError = nil
@@ -348,7 +356,7 @@ struct PlanCreateFlowView: View {
         let plan = draft.makePlan()
         do {
             let course = try await planService.recommendCourse(CourseRequest(
-                regionSlug: region.courseSlug,
+                regionSlug: slug,
                 startDate: plan.startDate,
                 endDate: plan.endDate,
                 party: draft.party.courseCodes,

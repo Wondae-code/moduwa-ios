@@ -78,7 +78,7 @@ struct PlanPartyStep: View {
 
 // MARK: - 2/6 어디로
 
-/// 지역 12개 중 **하나만** 고른다 (시안 519:1219 는 경주 하나만 켜져 있다).
+/// 지역 14개 + "기타" 중 **하나만** 고른다(시안 2026-09-20 은 경주 하나만 켜져 있다).
 struct PlanRegionStep: View {
     @Binding var region: TravelRegion?
 

@@ -43,7 +43,7 @@ extension PlanDraft {
     /// 사용자는 상세에서 제목을 고칠 수 있으니 완벽한 작명일 필요는 없고, **비어 있지만 않으면 된다**.
     var generatedTitle: String {
         let target = titleCompanion.map { $0 == .alone ? "혼자 떠나는" : "\($0.label) 함께하는" }
-        return switch (target, region?.label) {
+        return switch (target, region?.titleLabel) {
         case (let target?, let place?): "\(target) \(place) 여행"
         case (let target?, nil): "\(target) 여행"
         case (nil, let place?): "\(place) 여행"
@@ -94,6 +94,15 @@ enum PlanCreateStep: Int, CaseIterable, Identifiable {
         case .themes: "선호하는 테마를 선택해 주세요"
         case .budget: "예산은 어떻게 생각 중이신가요?"
         case .finish: "거의 다 왔어요!\n모두와 추천 코스를 보러 가볼까요?"
+        }
+    }
+
+    /// 질문 아래 한 줄. **고른 값이 어디에 쓰이는지**를 말한다(시안 2026-09-20).
+    /// 없으면 사용자는 "왜 묻지?" 를 모른 채 고르고, 건너뛰어도 되는지 판단할 근거가 없다.
+    var hint: String? {
+        switch self {
+        case .region: "고르신 지역은 추천코스에 반영되고, 지도에 표시돼요."
+        default: nil
         }
     }
 }
